@@ -1,0 +1,451 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Business {
+  id           BigInt   @id @default(autoincrement())
+  name         String   @db.VarChar(255)
+  businessType String   @default("retail") @map("business_type") @db.VarChar(100)
+  email        String?  @db.VarChar(255)
+  phone        String?  @db.VarChar(50)
+  address      String?
+  currency     String   @default("KES") @db.VarChar(10)
+  timezone     String   @default("Africa/Nairobi") @db.VarChar(100)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  memberships        BusinessUser[]
+  categories         Category[]
+  products           Product[]
+  inventoryMovements InventoryMovement[]
+  customers          Customer[]
+  suppliers          Supplier[]
+  purchases          Purchase[]
+  sales              Sale[]
+  payments           Payment[]
+  expenses           Expense[]
+  quotations         Quotation[]
+  invoices           Invoice[]
+  auditLogs          AuditLog[]
+
+  @@map("businesses")
+}
+
+model User {
+  id           BigInt   @id @default(autoincrement())
+  name         String   @db.VarChar(255)
+  email        String   @unique @db.VarChar(255)
+  phone        String?  @db.VarChar(50)
+  passwordHash String   @map("password_hash")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  memberships BusinessUser[]
+  auditLogs   AuditLog[]
+
+  @@map("users")
+}
+
+model Role {
+  id          BigInt  @id @default(autoincrement())
+  name        String  @unique @db.VarChar(100)
+  description String?
+
+  memberships BusinessUser[]
+
+  @@map("roles")
+}
+
+model BusinessUser {
+  id         BigInt   @id @default(autoincrement())
+  businessId BigInt   @map("business_id")
+  userId     BigInt   @map("user_id")
+  roleId     BigInt   @map("role_id")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  business Business @relation(fields: [businessId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+  role     Role     @relation(fields: [roleId], references: [id])
+
+  @@unique([businessId, userId])
+  @@map("business_users")
+}
+
+model Category {
+  id          BigInt   @id @default(autoincrement())
+  businessId  BigInt   @map("business_id")
+  name        String   @db.VarChar(150)
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  business Business  @relation(fields: [businessId], references: [id])
+  products Product[]
+
+  @@unique([businessId, name])
+  @@index([businessId])
+  @@map("categories")
+}
+
+model Product {
+  id             BigInt   @id @default(autoincrement())
+  businessId     BigInt   @map("business_id")
+  categoryId     BigInt?  @map("category_id")
+  name           String   @db.VarChar(255)
+  sku            String?  @db.VarChar(100)
+  barcode        String?  @db.VarChar(100)
+  description    String?
+  costPrice      Decimal  @default(0) @map("cost_price") @db.Decimal(12, 2)
+  sellingPrice   Decimal  @default(0) @map("selling_price") @db.Decimal(12, 2)
+  wholesalePrice Decimal? @map("wholesale_price") @db.Decimal(12, 2)
+  unitOfMeasure  String   @default("piece") @map("unit_of_measure") @db.VarChar(50)
+  stockQuantity  Decimal  @default(0) @map("stock_quantity") @db.Decimal(12, 3)
+  minimumStock   Decimal  @default(0) @map("minimum_stock") @db.Decimal(12, 3)
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  business       Business            @relation(fields: [businessId], references: [id])
+  category       Category?           @relation(fields: [categoryId], references: [id])
+  movements      InventoryMovement[]
+  purchaseItems  PurchaseItem[]
+  saleItems      SaleItem[]
+  quotationItems QuotationItem[]
+  invoiceItems   InvoiceItem[]
+
+  @@unique([businessId, sku])
+  @@unique([businessId, barcode])
+  @@index([businessId])
+  @@index([categoryId])
+  @@map("products")
+}
+
+model InventoryMovement {
+  id         BigInt   @id @default(autoincrement())
+  businessId BigInt   @map("business_id")
+  productId  BigInt   @map("product_id")
+  type       String   @db.VarChar(50)
+  quantity   Decimal  @db.Decimal(12, 3)
+  reference  String?  @db.VarChar(100)
+  notes      String?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  business Business @relation(fields: [businessId], references: [id])
+  product  Product  @relation(fields: [productId], references: [id])
+
+  @@index([businessId])
+  @@index([productId])
+  @@index([businessId, productId])
+  @@map("inventory_movements")
+}
+
+model Customer {
+  id          BigInt   @id @default(autoincrement())
+  businessId  BigInt   @map("business_id")
+  name        String   @db.VarChar(255)
+  phone       String?  @db.VarChar(50)
+  email       String?  @db.VarChar(255)
+  address     String?
+  taxNumber   String?  @map("tax_number") @db.VarChar(100)
+  creditLimit Decimal  @default(0) @map("credit_limit") @db.Decimal(12, 2)
+  balance     Decimal  @default(0) @db.Decimal(12, 2)
+  notes       String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  business   Business    @relation(fields: [businessId], references: [id])
+  sales      Sale[]
+  quotations Quotation[]
+  invoices   Invoice[]
+
+  @@index([businessId])
+  @@index([businessId, phone])
+  @@map("customers")
+}
+
+model Supplier {
+  id         BigInt   @id @default(autoincrement())
+  businessId BigInt   @map("business_id")
+  name       String   @db.VarChar(255)
+  phone      String?  @db.VarChar(50)
+  email      String?  @db.VarChar(255)
+  address    String?
+  taxNumber  String?  @map("tax_number") @db.VarChar(100)
+  balance    Decimal  @default(0) @db.Decimal(12, 2)
+  notes      String?
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  business  Business   @relation(fields: [businessId], references: [id])
+  purchases Purchase[]
+
+  @@index([businessId])
+  @@index([businessId, phone])
+  @@map("suppliers")
+}
+
+model Purchase {
+  id            BigInt   @id @default(autoincrement())
+  businessId    BigInt   @map("business_id")
+  supplierId    BigInt   @map("supplier_id")
+  invoiceNumber String?  @map("invoice_number") @db.VarChar(100)
+  purchaseDate  DateTime @default(now()) @map("purchase_date") @db.Timestamptz(6)
+  subtotal      Decimal  @default(0) @db.Decimal(12, 2)
+  discount      Decimal  @default(0) @db.Decimal(12, 2)
+  tax           Decimal  @default(0) @db.Decimal(12, 2)
+  total         Decimal  @default(0) @db.Decimal(12, 2)
+  amountPaid    Decimal  @default(0) @map("amount_paid") @db.Decimal(12, 2)
+  balanceDue    Decimal  @default(0) @map("balance_due") @db.Decimal(12, 2)
+  status        String   @default("received") @db.VarChar(50)
+  notes         String?
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  business Business       @relation(fields: [businessId], references: [id])
+  supplier Supplier       @relation(fields: [supplierId], references: [id])
+  items    PurchaseItem[]
+
+  @@index([businessId])
+  @@index([supplierId])
+  @@index([businessId, purchaseDate])
+  @@map("purchases")
+}
+
+model PurchaseItem {
+  id         BigInt   @id @default(autoincrement())
+  purchaseId BigInt   @map("purchase_id")
+  productId  BigInt   @map("product_id")
+  quantity   Decimal  @db.Decimal(12, 3)
+  unitCost   Decimal  @map("unit_cost") @db.Decimal(12, 2)
+  discount   Decimal  @default(0) @db.Decimal(12, 2)
+  tax        Decimal  @default(0) @db.Decimal(12, 2)
+  total      Decimal  @db.Decimal(12, 2)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  purchase Purchase @relation(fields: [purchaseId], references: [id])
+  product  Product  @relation(fields: [productId], references: [id])
+
+  @@index([purchaseId])
+  @@index([productId])
+  @@map("purchase_items")
+}
+
+model Sale {
+  id            BigInt   @id @default(autoincrement())
+  businessId    BigInt   @map("business_id")
+  customerId    BigInt?  @map("customer_id")
+  receiptNumber String   @map("receipt_number") @db.VarChar(100)
+  saleDate      DateTime @default(now()) @map("sale_date") @db.Timestamptz(6)
+  subtotal      Decimal  @default(0) @db.Decimal(12, 2)
+  discount      Decimal  @default(0) @db.Decimal(12, 2)
+  tax           Decimal  @default(0) @db.Decimal(12, 2)
+  total         Decimal  @default(0) @db.Decimal(12, 2)
+  amountPaid    Decimal  @default(0) @map("amount_paid") @db.Decimal(12, 2)
+  balanceDue    Decimal  @default(0) @map("balance_due") @db.Decimal(12, 2)
+  paymentStatus String   @default("paid") @map("payment_status") @db.VarChar(50)
+  status        String   @default("completed") @db.VarChar(50)
+  notes         String?
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  business Business   @relation(fields: [businessId], references: [id])
+  customer Customer?  @relation(fields: [customerId], references: [id])
+  items    SaleItem[]
+  payments Payment[]
+  invoice  Invoice?
+
+  @@unique([businessId, receiptNumber])
+  @@index([businessId])
+  @@index([customerId])
+  @@index([businessId, saleDate])
+  @@map("sales")
+}
+
+model SaleItem {
+  id        BigInt   @id @default(autoincrement())
+  saleId    BigInt   @map("sale_id")
+  productId BigInt   @map("product_id")
+  quantity  Decimal  @db.Decimal(12, 3)
+  unitPrice Decimal  @map("unit_price") @db.Decimal(12, 2)
+  costPrice Decimal  @map("cost_price") @db.Decimal(12, 2)
+  discount  Decimal  @default(0) @db.Decimal(12, 2)
+  tax       Decimal  @default(0) @db.Decimal(12, 2)
+  total     Decimal  @db.Decimal(12, 2)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  sale    Sale    @relation(fields: [saleId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([saleId])
+  @@index([productId])
+  @@map("sale_items")
+}
+
+model Payment {
+  id          BigInt   @id @default(autoincrement())
+  businessId  BigInt   @map("business_id")
+  saleId      BigInt   @map("sale_id")
+  amount      Decimal  @db.Decimal(12, 2)
+  method      String   @db.VarChar(50)
+  reference   String?  @db.VarChar(100)
+  paymentDate DateTime @default(now()) @map("payment_date") @db.Timestamptz(6)
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  business Business @relation(fields: [businessId], references: [id])
+  sale     Sale     @relation(fields: [saleId], references: [id])
+
+  @@index([businessId])
+  @@index([saleId])
+  @@index([businessId, paymentDate])
+  @@map("payments")
+}
+
+model Expense {
+  id            BigInt   @id @default(autoincrement())
+  businessId    BigInt   @map("business_id")
+  category      String   @db.VarChar(100)
+  description   String?
+  amount        Decimal  @db.Decimal(12, 2)
+  expenseDate   DateTime @default(now()) @map("expense_date") @db.Timestamptz(6)
+  paymentMethod String?  @map("payment_method") @db.VarChar(50)
+  reference     String?  @db.VarChar(100)
+  notes         String?
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+  @@index([businessId, expenseDate])
+  @@index([businessId, category])
+  @@map("expenses")
+}
+
+model Quotation {
+  id              BigInt    @id @default(autoincrement())
+  businessId      BigInt    @map("business_id")
+  customerId      BigInt?   @map("customer_id")
+  quotationNumber String    @map("quotation_number") @db.VarChar(100)
+  quotationDate   DateTime  @default(now()) @map("quotation_date") @db.Timestamptz(6)
+  expiryDate      DateTime? @map("expiry_date") @db.Timestamptz(6)
+  subtotal        Decimal   @default(0) @db.Decimal(12, 2)
+  discount        Decimal   @default(0) @db.Decimal(12, 2)
+  tax             Decimal   @default(0) @db.Decimal(12, 2)
+  total           Decimal   @default(0) @db.Decimal(12, 2)
+  status          String    @default("draft") @db.VarChar(50)
+  notes           String?
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  business Business        @relation(fields: [businessId], references: [id])
+  customer Customer?       @relation(fields: [customerId], references: [id])
+  items    QuotationItem[]
+
+  @@unique([businessId, quotationNumber])
+  @@index([businessId])
+  @@index([customerId])
+  @@index([businessId, quotationDate])
+  @@map("quotations")
+}
+
+model QuotationItem {
+  id          BigInt   @id @default(autoincrement())
+  quotationId BigInt   @map("quotation_id")
+  productId   BigInt   @map("product_id")
+  quantity    Decimal  @db.Decimal(12, 3)
+  unitPrice   Decimal  @map("unit_price") @db.Decimal(12, 2)
+  discount    Decimal  @default(0) @db.Decimal(12, 2)
+  tax         Decimal  @default(0) @db.Decimal(12, 2)
+  total       Decimal  @db.Decimal(12, 2)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  quotation Quotation @relation(fields: [quotationId], references: [id])
+  product   Product   @relation(fields: [productId], references: [id])
+
+  @@index([quotationId])
+  @@index([productId])
+  @@map("quotation_items")
+}
+
+model Invoice {
+  id            BigInt    @id @default(autoincrement())
+  businessId    BigInt    @map("business_id")
+  customerId    BigInt?   @map("customer_id")
+  saleId        BigInt    @unique @map("sale_id")
+  invoiceNumber String    @map("invoice_number") @db.VarChar(100)
+  invoiceDate   DateTime  @default(now()) @map("invoice_date") @db.Timestamptz(6)
+  dueDate       DateTime? @map("due_date") @db.Timestamptz(6)
+  subtotal      Decimal   @default(0) @db.Decimal(12, 2)
+  discount      Decimal   @default(0) @db.Decimal(12, 2)
+  tax           Decimal   @default(0) @db.Decimal(12, 2)
+  total         Decimal   @default(0) @db.Decimal(12, 2)
+  amountPaid    Decimal   @default(0) @map("amount_paid") @db.Decimal(12, 2)
+  balanceDue    Decimal   @default(0) @map("balance_due") @db.Decimal(12, 2)
+  status        String    @default("unpaid") @db.VarChar(50)
+  notes         String?
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  business Business      @relation(fields: [businessId], references: [id])
+  customer Customer?     @relation(fields: [customerId], references: [id])
+  sale     Sale          @relation(fields: [saleId], references: [id])
+  items    InvoiceItem[]
+
+  @@unique([businessId, invoiceNumber])
+  @@index([businessId])
+  @@index([customerId])
+  @@index([businessId, invoiceDate])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id        BigInt   @id @default(autoincrement())
+  invoiceId BigInt   @map("invoice_id")
+  productId BigInt   @map("product_id")
+  quantity  Decimal  @db.Decimal(12, 3)
+  unitPrice Decimal  @map("unit_price") @db.Decimal(12, 2)
+  discount  Decimal  @default(0) @db.Decimal(12, 2)
+  tax       Decimal  @default(0) @db.Decimal(12, 2)
+  total     Decimal  @db.Decimal(12, 2)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([invoiceId])
+  @@index([productId])
+  @@map("invoice_items")
+}
+
+model AuditLog {
+  id         BigInt   @id @default(autoincrement())
+  businessId BigInt   @map("business_id")
+  userId     BigInt?  @map("user_id")
+  action     String   @db.VarChar(50)
+  entity     String   @db.VarChar(100)
+  entityId   BigInt?  @map("entity_id")
+  details    Json?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  business Business @relation(fields: [businessId], references: [id])
+  user     User?    @relation(fields: [userId], references: [id])
+
+  @@index([businessId])
+  @@index([userId])
+  @@index([businessId, createdAt])
+  @@index([businessId, entity, entityId])
+  @@map("audit_logs")
+}

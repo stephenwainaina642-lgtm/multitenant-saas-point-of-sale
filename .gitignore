@@ -1,0 +1,26 @@
+﻿node_modules/
+**/node_modules/
+dist/
+**/dist/
+.env
+.env.*
+!.env.example
+*.log
+.vscode/
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build output
+dist/
+**/dist/
+
+# Environment secrets
+.env
+.env.*
+!.env.example
+
+# Logs and local settings
+*.log
+.vscode/
