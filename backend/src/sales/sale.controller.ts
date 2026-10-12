@@ -105,6 +105,7 @@ export async function createSaleController(
       discount,
       tax,
       amountPaid,
+      paymentMethod,
       notes,
       items,
     } = req.body;
@@ -135,6 +136,10 @@ export async function createSaleController(
 
         ...(amountPaid !== undefined && {
           amountPaid: Number(amountPaid),
+        }),
+
+        ...(paymentMethod !== undefined && {
+          paymentMethod: String(paymentMethod),
         }),
 
         ...(notes !== undefined && {
@@ -212,6 +217,7 @@ export async function createSaleController(
         "Sale discount cannot be negative",
         "Sale tax cannot be negative",
         "Amount paid cannot be negative",
+        "Payment method is required when an initial payment is made",
         "Sale total cannot be negative",
         "Amount paid cannot exceed sale total",
         "Item total cannot be negative",

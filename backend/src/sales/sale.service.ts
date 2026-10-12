@@ -13,6 +13,7 @@ type SaleData = {
   discount?: number;
   tax?: number;
   amountPaid?: number;
+  paymentMethod?: string;
   notes?: string;
   items: SaleItemData[];
 };
@@ -278,6 +279,10 @@ export async function createBusinessSale(
       throw new Error("Amount paid cannot exceed sale total");
     }
 
+    if (amountPaid > 0 && !data.paymentMethod?.trim()) {
+      throw new Error("Payment method is required when an initial payment is made");
+    }
+
     const balanceDue = total - amountPaid;
 
     const receiptNumber = `SALE-${Date.now()}`;
@@ -320,6 +325,18 @@ export async function createBusinessSale(
       },
     });
 
+    if (amountPaid > 0) {
+      await tx.payment.create({
+        data: {
+          businessId: BigInt(businessId),
+          saleId: sale.id,
+          amount: amountPaid,
+          method: data.paymentMethod!.trim().toLowerCase(),
+          notes: "Initial payment for sale",
+        },
+      });
+    }
+
     for (const item of validatedItems) {
       const product = await tx.product.findUnique({
         where: {
@@ -331,21 +348,27 @@ export async function createBusinessSale(
         throw new Error("Product not found");
       }
 
-      const newStock =
-        Number(product.stockQuantity) - item.quantity;
-
-      if (newStock < 0) {
-        throw new Error("Insufficient stock");
-      }
-
-      await tx.product.update({
+      const stockUpdate = await tx.product.updateMany({
         where: {
           id: item.productId,
+          businessId: BigInt(businessId),
+          isActive: true,
+          stockQuantity: {
+            gte: item.quantity,
+          },
         },
         data: {
-          stockQuantity: newStock,
+          stockQuantity: {
+            decrement: item.quantity,
+          },
         },
       });
+
+      if (stockUpdate.count === 0) {
+        throw new Error(
+          `Insufficient stock for product: ${product.name}`
+        );
+      }
 
       await tx.inventoryMovement.create({
         data: {
