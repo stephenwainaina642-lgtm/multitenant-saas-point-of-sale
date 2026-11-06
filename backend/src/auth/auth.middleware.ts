@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import prisma from "../lib/prisma.js";
 
 export type AuthenticatedRequest = Request & {
   user?: {
@@ -7,7 +8,7 @@ export type AuthenticatedRequest = Request & {
   };
 };
 
-export function authenticate(
+export async function authenticate(
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
@@ -58,6 +59,18 @@ export function authenticate(
       });
     }
 
+    const user = await prisma.user.findUnique({
+      where: { id: BigInt(userId) },
+      select: { isActive: true },
+    });
+
+    if (!user || !user.isActive) {
+      return res.status(401).json({
+        success: false,
+        message: "User account is inactive or does not exist",
+      });
+    }
+
     req.user = {
       userId,
     };
@@ -70,3 +83,4 @@ export function authenticate(
     });
   }
 }
+

@@ -19,7 +19,9 @@ export async function getSalesController(
     }
 
     const sales = await getBusinessSales(
-      req.businessId.toString()
+      req.businessId.toString(),
+      req.user!.userId,
+      req.businessRole || ""
     );
 
     return res.status(200).json({
@@ -60,7 +62,9 @@ export async function getSaleByIdController(
 
     const sale = await getBusinessSaleById(
       req.businessId.toString(),
-      id
+      id,
+      req.user!.userId,
+      req.businessRole || ""
     );
 
     return res.status(200).json({
@@ -119,6 +123,7 @@ export async function createSaleController(
 
     const sale = await createBusinessSale(
       req.businessId.toString(),
+      req.user!.userId,
       {
         ...(customerId !== undefined &&
           customerId !== null &&
@@ -208,9 +213,20 @@ export async function createSaleController(
 
     if (
       error instanceof Error &&
+      error.message.startsWith("Sale price does not match the saved selling price for:")
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    if (
+      error instanceof Error &&
       [
         "At least one sale item is required",
         "Quantity must be greater than zero",
+        "Quantity must be a whole number",
         "Unit price cannot be negative",
         "Discount cannot be negative",
         "Tax cannot be negative",

@@ -5,6 +5,7 @@ import type { AuthenticatedRequest } from "./auth.middleware.js";
 export type BusinessRequest = AuthenticatedRequest & {
   businessId?: bigint;
   businessRole?: string;
+  isBusinessOwner?: boolean;
 };
 
 export async function requireBusinessAccess(
@@ -29,11 +30,19 @@ export async function requireBusinessAccess(
       });
     }
 
+    if (!/^[1-9]\d*$/.test(businessIdHeader)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid business ID",
+      });
+    }
+
     const businessId = BigInt(businessIdHeader);
+    const userId = BigInt(req.user.userId);
 
     const membership = await prisma.businessUser.findFirst({
       where: {
-        userId: BigInt(req.user.userId),
+        userId,
         businessId,
         isActive: true,
         business: {
@@ -42,6 +51,11 @@ export async function requireBusinessAccess(
       },
       include: {
         role: true,
+        business: {
+          select: {
+            ownerUserId: true,
+          },
+        },
       },
     });
 
@@ -54,6 +68,7 @@ export async function requireBusinessAccess(
 
     req.businessId = membership.businessId;
     req.businessRole = membership.role.name;
+    req.isBusinessOwner = membership.business.ownerUserId === userId;
 
     next();
   } catch (error) {
@@ -63,6 +78,8 @@ export async function requireBusinessAccess(
         message: "Invalid business ID",
       });
     }
+
+    console.error("Business access error:", error);
 
     return res.status(500).json({
       success: false,

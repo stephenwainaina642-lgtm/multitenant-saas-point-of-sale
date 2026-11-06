@@ -19,17 +19,29 @@ type SaleData = {
 };
 
 export async function getBusinessSales(
-  businessId: string
+  businessId: string,
+  userId: string,
+  role: string
 ) {
   const sales = await prisma.sale.findMany({
     where: {
       businessId: BigInt(businessId),
+      ...(role.toLowerCase() !== "owner" && {
+        salespersonId: BigInt(userId),
+      }),
     },
     include: {
       customer: {
         select: {
           id: true,
           name: true,
+        },
+      },
+      salesperson: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
         },
       },
       items: {
@@ -54,6 +66,9 @@ export async function getBusinessSales(
     id: sale.id.toString(),
     customerId: sale.customerId?.toString() || null,
     customerName: sale.customer?.name || null,
+    salespersonId: sale.salesperson?.id.toString() || null,
+    salespersonName: sale.salesperson?.name || null,
+    salespersonEmail: sale.salesperson?.email || null,
     receiptNumber: sale.receiptNumber,
     saleDate: sale.saleDate,
     subtotal: sale.subtotal,
@@ -84,12 +99,17 @@ export async function getBusinessSales(
 
 export async function getBusinessSaleById(
   businessId: string,
-  saleId: string
+  saleId: string,
+  userId: string,
+  role: string
 ) {
   const sale = await prisma.sale.findFirst({
     where: {
       id: BigInt(saleId),
       businessId: BigInt(businessId),
+      ...(role.toLowerCase() !== "owner" && {
+        salespersonId: BigInt(userId),
+      }),
     },
     include: {
       customer: {
@@ -97,6 +117,13 @@ export async function getBusinessSaleById(
           id: true,
           name: true,
           phone: true,
+          email: true,
+        },
+      },
+      salesperson: {
+        select: {
+          id: true,
+          name: true,
           email: true,
         },
       },
@@ -112,6 +139,11 @@ export async function getBusinessSaleById(
           },
         },
       },
+      payments: {
+        orderBy: {
+          paymentDate: "asc",
+        },
+      },
     },
   });
 
@@ -123,7 +155,9 @@ export async function getBusinessSaleById(
     id: sale.id.toString(),
     customerId: sale.customerId?.toString() || null,
     customerName: sale.customer?.name || null,
-    customerPhone: sale.customer?.phone || null,
+    salespersonId: sale.salesperson?.id.toString() || null,
+    salespersonName: sale.salesperson?.name || null,
+    salespersonEmail: sale.salesperson?.email || null,    customerPhone: sale.customer?.phone || null,
     customerEmail: sale.customer?.email || null,
     receiptNumber: sale.receiptNumber,
     saleDate: sale.saleDate,
@@ -151,11 +185,19 @@ export async function getBusinessSaleById(
       tax: item.tax,
       total: item.total,
     })),
+    payments: sale.payments.map((payment) => ({
+      id: payment.id.toString(),
+      amount: payment.amount,
+      method: payment.method,
+      reference: payment.reference,
+      paymentDate: payment.paymentDate,
+      notes: payment.notes,
+    })),
   };
 }
-
 export async function createBusinessSale(
   businessId: string,
+  salespersonId: string,
   data: SaleData
 ) {
   if (!data.items || data.items.length === 0) {
@@ -200,6 +242,9 @@ export async function createBusinessSale(
       if (!Number.isFinite(quantity) || quantity <= 0) {
         throw new Error("Quantity must be greater than zero");
       }
+      if (!Number.isInteger(quantity)) {
+        throw new Error("Quantity must be a whole number");
+      }
 
       if (!Number.isFinite(unitPrice) || unitPrice < 0) {
         throw new Error("Unit price cannot be negative");
@@ -223,6 +268,11 @@ export async function createBusinessSale(
 
       if (!product) {
         throw new Error(`Product not found: ${item.productId}`);
+      }
+      if (unitPrice !== Number(product.sellingPrice)) {
+        throw new Error(
+          `Sale price does not match the saved selling price for: ${product.name}`
+        );
       }
 
       const currentStock = Number(product.stockQuantity);
@@ -297,6 +347,7 @@ export async function createBusinessSale(
     const sale = await tx.sale.create({
       data: {
         businessId: BigInt(businessId),
+        salespersonId: BigInt(salespersonId),
         customerId: customer?.id || null,
         receiptNumber,
         subtotal,

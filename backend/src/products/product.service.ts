@@ -20,6 +20,8 @@ export async function getBusinessProducts(businessId: string) {
     sellingPrice: product.sellingPrice,
     costPrice: product.costPrice,
     stockQuantity: product.stockQuantity,
+    minimumStock: product.minimumStock,
+    unitOfMeasure: product.unitOfMeasure,
     isActive: product.isActive,
   }));
 }
@@ -34,33 +36,56 @@ export async function createBusinessProduct(
     costPrice: number;
     sellingPrice: number;
     stockQuantity?: number;
+    minimumStock?: number;
+    unitOfMeasure?: string;
   }
 ) {
-  const product = await prisma.product.create({
-    data: {
-      businessId: BigInt(businessId),
-      name: data.name,
-      sku: data.sku || null,
-      barcode: data.barcode || null,
-      description: data.description || null,
-      costPrice: data.costPrice,
-      sellingPrice: data.sellingPrice,
-      stockQuantity: data.stockQuantity ?? 0,
-      isActive: true,
-    },
-  });
+  const openingStock = data.stockQuantity ?? 0;
 
-  return {
-    id: product.id.toString(),
-    name: product.name,
-    sku: product.sku,
-    barcode: product.barcode,
-    description: product.description,
-    costPrice: product.costPrice,
-    sellingPrice: product.sellingPrice,
-    stockQuantity: product.stockQuantity,
-    isActive: product.isActive,
-  };
+  return prisma.$transaction(async (tx) => {
+    const product = await tx.product.create({
+      data: {
+        businessId: BigInt(businessId),
+        name: data.name.trim(),
+        sku: data.sku?.trim() || null,
+        barcode: data.barcode?.trim() || null,
+        description: data.description?.trim() || null,
+        costPrice: data.costPrice,
+        sellingPrice: data.sellingPrice,
+        stockQuantity: openingStock,
+        minimumStock: data.minimumStock ?? 0,
+        unitOfMeasure: data.unitOfMeasure || "piece",
+        isActive: true,
+      },
+    });
+
+    if (openingStock > 0) {
+      await tx.inventoryMovement.create({
+        data: {
+          businessId: BigInt(businessId),
+          productId: product.id,
+          type: "IN",
+          quantity: openingStock,
+          reference: "OPENING-STOCK",
+          notes: "Initial stock recorded when product was created",
+        },
+      });
+    }
+
+    return {
+      id: product.id.toString(),
+      name: product.name,
+      sku: product.sku,
+      barcode: product.barcode,
+      description: product.description,
+      costPrice: product.costPrice,
+      sellingPrice: product.sellingPrice,
+      stockQuantity: product.stockQuantity,
+      minimumStock: product.minimumStock,
+      unitOfMeasure: product.unitOfMeasure,
+      isActive: product.isActive,
+    };
+  });
 }
 
 export async function updateBusinessProduct(
@@ -68,12 +93,13 @@ export async function updateBusinessProduct(
   productId: string,
   data: {
     name?: string;
-    sku?: string;
-    barcode?: string;
+    sku?: string | null;
+    barcode?: string | null;
     description?: string;
     costPrice?: number;
     sellingPrice?: number;
-    stockQuantity?: number;
+    minimumStock?: number;
+    unitOfMeasure?: string;
   }
 ) {
   const product = await prisma.product.findFirst({
@@ -104,9 +130,12 @@ export async function updateBusinessProduct(
     costPrice: updatedProduct.costPrice,
     sellingPrice: updatedProduct.sellingPrice,
     stockQuantity: updatedProduct.stockQuantity,
+    minimumStock: updatedProduct.minimumStock,
+    unitOfMeasure: updatedProduct.unitOfMeasure,
     isActive: updatedProduct.isActive,
   };
 }
+
 export async function deleteBusinessProduct(
   businessId: string,
   productId: string

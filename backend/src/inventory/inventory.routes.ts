@@ -8,18 +8,8 @@ import {
 
 const router = Router();
 
-router.get(
-  "/",
-  authenticate,
-  requireBusinessAccess,
-  getInventoryController
-);
+router.get("/", authenticate, requireBusinessAccess, getInventoryController);
 
-router.post(
-  "/",
-  authenticate,
-  requireBusinessAccess,
-  createInventoryController
-);
+router.post("/", authenticate, requireBusinessAccess, createInventoryController);
 
 export default router;

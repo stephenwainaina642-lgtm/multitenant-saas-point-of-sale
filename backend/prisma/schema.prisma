@@ -9,6 +9,7 @@ datasource db {
 
 model Business {
   id           BigInt   @id @default(autoincrement())
+  ownerUserId  BigInt?  @map("owner_user_id")
   name         String   @db.VarChar(255)
   businessType String   @default("retail") @map("business_type") @db.VarChar(100)
   email        String?  @db.VarChar(255)
@@ -21,6 +22,8 @@ model Business {
   updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   memberships        BusinessUser[]
+  roles              Role[]
+  owner               User? @relation("BusinessOwner", fields: [ownerUserId], references: [id])
   categories         Category[]
   products           Product[]
   inventoryMovements InventoryMovement[]
@@ -48,18 +51,23 @@ model User {
   updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   memberships BusinessUser[]
+  ownedBusinesses Business[] @relation("BusinessOwner")
   auditLogs   AuditLog[]
+  sales       Sale[] @relation("SaleSalesperson")
 
   @@map("users")
 }
 
 model Role {
   id          BigInt  @id @default(autoincrement())
-  name        String  @unique @db.VarChar(100)
+  name        String  @db.VarChar(100)
   description String?
+  businessId  BigInt? @map("business_id")
 
+  business Business? @relation(fields: [businessId], references: [id])
   memberships BusinessUser[]
 
+  @@unique([businessId, name])
   @@map("roles")
 }
 
@@ -246,6 +254,7 @@ model Sale {
   id            BigInt   @id @default(autoincrement())
   businessId    BigInt   @map("business_id")
   customerId    BigInt?  @map("customer_id")
+  salespersonId BigInt?  @map("salesperson_id")
   receiptNumber String   @map("receipt_number") @db.VarChar(100)
   saleDate      DateTime @default(now()) @map("sale_date") @db.Timestamptz(6)
   subtotal      Decimal  @default(0) @db.Decimal(12, 2)
@@ -262,6 +271,7 @@ model Sale {
 
   business Business   @relation(fields: [businessId], references: [id])
   customer Customer?  @relation(fields: [customerId], references: [id])
+  salesperson User? @relation("SaleSalesperson", fields: [salespersonId], references: [id], onDelete: SetNull)
   items    SaleItem[]
   payments Payment[]
   invoice  Invoice?
@@ -269,6 +279,7 @@ model Sale {
   @@unique([businessId, receiptNumber])
   @@index([businessId])
   @@index([customerId])
+  @@index([salespersonId])
   @@index([businessId, saleDate])
   @@map("sales")
 }

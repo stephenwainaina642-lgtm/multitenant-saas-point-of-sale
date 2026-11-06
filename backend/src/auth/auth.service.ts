@@ -37,7 +37,10 @@ export async function loginUser(
     throw new Error("Invalid email or password");
   }
 
-  const passwordMatches = await bcrypt.compare(password, user.passwordHash);
+  const passwordMatches = await bcrypt.compare(
+    password,
+    user.passwordHash
+  );
 
   if (!passwordMatches) {
     throw new Error("Invalid email or password");
@@ -50,13 +53,9 @@ export async function loginUser(
   }
 
   const token = jwt.sign(
-    {
-      userId: user.id.toString(),
-    },
+    { userId: user.id.toString() },
     jwtSecret,
-    {
-      expiresIn: "7d",
-    }
+    { expiresIn: "7d" }
   );
 
   return {

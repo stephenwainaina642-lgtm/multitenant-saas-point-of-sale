@@ -22,9 +22,7 @@ export async function registerUser(input: RegisterInput) {
   const normalizedEmail = email.trim().toLowerCase();
 
   const existingUser = await prisma.user.findUnique({
-    where: {
-      email: normalizedEmail,
-    },
+    where: { email: normalizedEmail },
   });
 
   if (existingUser) {
@@ -38,33 +36,27 @@ export async function registerUser(input: RegisterInput) {
   const passwordHash = await bcrypt.hash(password, 12);
 
   const result = await prisma.$transaction(async (tx) => {
-    const business = await tx.business.create({
-      data: {
-        name: businessName.trim(),
-        businessType,
-      },
-    });
-
-    let ownerRole = await tx.role.findUnique({
-      where: {
-        name: "owner",
-      },
-    });
-
-    if (!ownerRole) {
-      ownerRole = await tx.role.create({
-        data: {
-          name: "owner",
-          description: "Business owner with full access",
-        },
-      });
-    }
-
     const user = await tx.user.create({
       data: {
         name: name.trim(),
         email: normalizedEmail,
         passwordHash,
+      },
+    });
+
+    const business = await tx.business.create({
+      data: {
+        name: businessName.trim(),
+        businessType,
+        ownerUserId: user.id,
+      },
+    });
+
+    const ownerRole = await tx.role.create({
+      data: {
+        name: "owner",
+        description: "Business owner with full access",
+        businessId: business.id,
       },
     });
 
@@ -76,11 +68,7 @@ export async function registerUser(input: RegisterInput) {
       },
     });
 
-    return {
-      user,
-      business,
-      role: ownerRole,
-    };
+    return { user, business, role: ownerRole };
   });
 
   const jwtSecret = process.env.JWT_SECRET;
@@ -90,13 +78,9 @@ export async function registerUser(input: RegisterInput) {
   }
 
   const token = jwt.sign(
-    {
-      userId: result.user.id.toString(),
-    },
+    { userId: result.user.id.toString() },
     jwtSecret,
-    {
-      expiresIn: "7d",
-    }
+    { expiresIn: "7d" }
   );
 
   return {

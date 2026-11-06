@@ -16,6 +16,8 @@ import paymentRoutes from "./payments/payment.routes.js";
 import expenseRoutes from "./expenses/expense.routes.js";
 import quotationRoutes from "./quotations/quotation.routes.js";
 import auditRoutes from "./audit/audit.routes.js";
+import reportRoutes from "./reports/reports.routes.js";
+import invoiceRoutes from "./invoices/invoice.routes.js";
 
 dotenv.config();
 
@@ -38,6 +40,8 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/expenses", expenseRoutes);
 app.use("/api/quotations", quotationRoutes);
 app.use("/api/audit-logs", auditRoutes);
+app.use("/api/reports", reportRoutes);
+app.use("/api/invoices", invoiceRoutes);
 
 app.get("/api/health", (_req, res) => {
   res.json({
@@ -55,3 +59,4 @@ app.listen(PORT, async () => {
     console.error("PostgreSQL connection failed:", error);
   }
 });
+

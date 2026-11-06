@@ -48,7 +48,31 @@ export async function createInventoryMovement(
   businessId: string,
   data: InventoryMovementData
 ) {
-  const result = await prisma.$transaction(async (tx) => {
+  const type = data.type.toUpperCase();
+  const requestedQuantity = data.quantity;
+
+  if (!["IN", "OUT", "ADJUSTMENT"].includes(type)) {
+    throw new Error("Invalid movement type. Use IN, OUT, or ADJUSTMENT");
+  }
+
+  if (
+    !Number.isFinite(requestedQuantity) ||
+    requestedQuantity < 0
+  ) {
+    throw new Error("Quantity must not be negative");
+  }
+
+  if (type !== "ADJUSTMENT" && requestedQuantity === 0) {
+    throw new Error(
+      "Quantity must be greater than zero for stock IN or OUT"
+    );
+  }
+
+  let result;
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      result = await prisma.$transaction(async (tx) => {
     const product = await tx.product.findFirst({
       where: {
         id: BigInt(data.productId),
@@ -61,41 +85,36 @@ export async function createInventoryMovement(
       throw new Error("Product not found");
     }
 
-    const quantity = data.quantity;
-
-    if (!Number.isFinite(quantity) || quantity <= 0) {
-      throw new Error("Quantity must be greater than zero");
-    }
-
-    const type = data.type.toUpperCase();
-
-    let stockChange = 0;
+    const currentStock = Number(product.stockQuantity);
+    let stockChange: number;
 
     if (type === "IN") {
-      stockChange = quantity;
+      stockChange = requestedQuantity;
     } else if (type === "OUT") {
-      stockChange = -quantity;
-    } else if (type === "ADJUSTMENT") {
-      stockChange = quantity;
+      stockChange = -requestedQuantity;
     } else {
-      throw new Error(
-        "Invalid movement type. Use IN, OUT, or ADJUSTMENT"
-      );
+      // For ADJUSTMENT, quantity is the actual counted stock.
+      stockChange = requestedQuantity - currentStock;
     }
 
-    const currentStock = Number(product.stockQuantity);
-    const newStock = currentStock + stockChange;
+    const newStock =
+      type === "ADJUSTMENT"
+        ? requestedQuantity
+        : currentStock + stockChange;
 
     if (newStock < 0) {
       throw new Error("Insufficient stock");
     }
 
+    const movementQuantity =
+      type === "ADJUSTMENT" ? stockChange : requestedQuantity;
+
     const movement = await tx.inventoryMovement.create({
       data: {
         businessId: BigInt(businessId),
-        productId: BigInt(data.productId),
+        productId: product.id,
         type,
-        quantity,
+        quantity: movementQuantity,
         reference: data.reference || null,
         notes: data.notes || null,
       },
@@ -122,11 +141,29 @@ export async function createInventoryMovement(
       },
       product: {
         id: updatedProduct.id.toString(),
-        name: updatedProduct.name,
         stockQuantity: updatedProduct.stockQuantity,
       },
     };
-  });
+      }, { isolationLevel: "Serializable" });
+
+      break;
+    } catch (error) {
+      const code =
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error
+          ? (error as { code?: string }).code
+          : undefined;
+
+      if (code !== "P2034" || attempt === 3) {
+        throw error;
+      }
+    }
+  }
+
+  if (result === undefined) {
+    throw new Error("Inventory transaction did not complete");
+  }
 
   return result;
 }

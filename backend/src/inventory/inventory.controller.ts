@@ -79,10 +79,10 @@ export async function createInventoryController(
 
     const parsedQuantity = Number(quantity);
 
-    if (!Number.isFinite(parsedQuantity) || parsedQuantity <= 0) {
+    if (!Number.isFinite(parsedQuantity) || parsedQuantity < 0) {
       return res.status(400).json({
         success: false,
-        message: "Quantity must be greater than zero",
+        message: "Quantity must not be negative",
       });
     }
 
@@ -92,6 +92,13 @@ export async function createInventoryController(
       return res.status(400).json({
         success: false,
         message: "Invalid movement type. Use IN, OUT, or ADJUSTMENT",
+      });
+    }
+
+    if (movementType !== "ADJUSTMENT" && parsedQuantity === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Quantity must be greater than zero for stock IN or OUT",
       });
     }
 
