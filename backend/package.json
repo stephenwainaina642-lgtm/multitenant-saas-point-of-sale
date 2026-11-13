@@ -4,10 +4,12 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run",
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
-    "build": "tsc"
+    "build": "tsc",
+    "test:race": "vitest run --config vitest.race.config.ts",
+    "test:typecheck": "tsc -p tests/tsconfig.json"
   },
   "keywords": [],
   "author": "",
@@ -32,6 +34,7 @@
     "@types/node": "^26.4.1",
     "@types/pg": "^8.23.1",
     "tsx": "^4.23.13",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^3.2.7"
   }
 }
