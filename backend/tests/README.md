@@ -35,21 +35,21 @@ No Docker? Create any local PostgreSQL database whose name ends in `_test` and p
 | `tests/race/*.test.ts` | Parallel-request tests (separate command, timing dependent) |
 | `tests/support/seed.ts` | Realistic KES businesses: phone shop, perfume, hardware, wholesaler; `ledgerViolations()` invariants |
 
-## Known-defect register
-Tests named `KD-n` use `it.fails`: they assert the **correct** behaviour, are green while the defect exists, and **turn red the moment it is fixed**. Remove the `.fails` then.
+## Defect register
+Tests named `KD-n` use `it.fails`: they assert the **correct** behaviour, are green while the defect exists, and **turn red the moment it is fixed**. Remove the `.fails` then. A `.fails` test can also pass for the *wrong* reason, so when you fix a defect, convert the test to a normal `it` and make sure it passes.
 
-| ID | Defect | Test file |
+| ID | Defect | Status |
 |---|---|---|
-| KD-1 | No backend permission model; any member can do anything | `api/permissions` |
-| KD-2 | Item-level discount and tax ignored in sale total | `api/sales-stock-payments` |
-| KD-3 | Float arithmetic: 3 x 100.01 paid in full is "partial" | `api/sales-stock-payments` |
-| KD-4 | Receipt number `SALE-<Date.now()>` collides, returns 500 | `race/concurrency` |
-| KD-5 | Concurrent payments can overpay one sale | `race/concurrency` |
-| KD-6 | Concurrent purchase receipts lose stock | `race/concurrency` |
-| KD-7 | Decimal quantities rejected in sales | `api/sales-stock-payments` |
-| KD-8 | Credit sales do not update customer balance or enforce credit limit | `api/sales-stock-payments` |
-| KD-9 | No CHECK constraints, no tenant-safe FKs, duplicate NULL-business roles | `db/schema-constraints` |
-| KD-10 | Login is case-sensitive, register lowercases the email | `api/auth` |
+| KD-1 | No backend permission model; any member can do anything | open (Stage 2b-2) |
+| KD-2 | Item-level discount and tax ignored in sale total | fixed |
+| KD-3 | Float arithmetic: 3 x 100.01 paid in full is "partial" | fixed |
+| KD-4 | Receipt number `SALE-<Date.now()>` collides, returns 500 | fixed (per-business sequence `RCT-000001`) |
+| KD-5 | Concurrent payments can overpay one sale | fixed (row lock) |
+| KD-6 | Concurrent purchase receipts lose stock | fixed (atomic increment) |
+| KD-7 | Decimal quantities rejected in sales | fixed |
+| KD-8 | Credit sales do not update customer balance or enforce credit limit | fixed |
+| KD-9 | No CHECK constraints, no tenant-safe FKs, duplicate NULL-business roles | open (Stage 2b-3) |
+| KD-10 | Login is case-sensitive, register lowercases the email | fixed |
 
 Still untested because the feature does not exist: sale edit/void/return, employee invitations, custom roles, quotation conversion, supplier balances.
 Not yet verified: `prisma migrate diff` drift between `schema.prisma` and the migrations (needs the Prisma schema engine and a shadow database).

@@ -1,3 +1,4 @@
+import { AppError } from "../lib/errors.js";
 import type { Response } from "express";
 import type { BusinessRequest } from "../auth/business.middleware.js";
 import {
@@ -67,6 +68,9 @@ export async function createPaymentController(
       req.businessId.toString(),
       {
         saleId: String(saleId),
+        idempotencyKey: Array.isArray(req.headers["idempotency-key"])
+          ? undefined
+          : req.headers["idempotency-key"],
         amount: Number(amount),
         method: method ? String(method) : "",
         ...(reference !== undefined && {
@@ -84,6 +88,13 @@ export async function createPaymentController(
       data: payment,
     });
   } catch (error) {
+    if (error instanceof AppError) {
+      return res.status(error.status).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
     console.error("Create payment error:", error);
 
     if (

@@ -12,11 +12,13 @@ export type Session = { token: string; businessId: string };
 export async function api<T = any>(
   method: string,
   path: string,
-  opts: { session?: Partial<Session>; body?: unknown } = {}
+  opts: { session?: Partial<Session>; body?: unknown; headers?: Record<string, string> } = {}
 ): Promise<ApiResult<T>> {
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (opts.session?.token) headers.authorization = `Bearer ${opts.session.token}`;
   if (opts.session?.businessId) headers["x-business-id"] = opts.session.businessId;
+
+  Object.assign(headers, opts.headers);
 
   const res = await fetch(`${cfg.apiBase}${path}`, {
     method,

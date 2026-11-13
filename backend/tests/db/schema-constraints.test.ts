@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { query, resetData, withRollback } from "../support/db.js";
 
 const EXPECTED_TABLES = [
-  "audit_logs", "business_users", "businesses", "categories", "customers", "expenses",
+  "audit_logs", "business_users", "businesses", "categories", "customers", "document_sequences", "expenses",
   "inventory_movements", "invoice_items", "invoices", "payments", "products",
   "purchase_items", "purchases", "quotation_items", "quotations", "roles",
   "sale_items", "sales", "suppliers", "users",
@@ -10,7 +10,7 @@ const EXPECTED_TABLES = [
 
 // Tables that must carry business_id (directly business-owned).
 const TENANT_TABLES = [
-  "audit_logs", "business_users", "categories", "customers", "expenses",
+  "audit_logs", "business_users", "categories", "customers", "document_sequences", "expenses",
   "inventory_movements", "invoices", "payments", "products", "purchases",
   "quotations", "sales", "suppliers",
 ];

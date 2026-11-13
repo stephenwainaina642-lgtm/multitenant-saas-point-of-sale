@@ -22,8 +22,8 @@ describe("roles and permissions", () => {
   });
 
   it("a salesperson sees only their own sales; the owner sees all", async () => {
-    const a = await post("/sales", sales, { items: [{ productId: s.charger.id, quantity: 1, unitPrice: 1200 }] });
-    const b = await post("/sales", s.t, { items: [{ productId: s.charger.id, quantity: 1, unitPrice: 1200 }] });
+    const a = await post("/sales", sales, { amountPaid: 1200, paymentMethod: "cash", items: [{ productId: s.charger.id, quantity: 1, unitPrice: 1200 }] });
+    const b = await post("/sales", s.t, { amountPaid: 1200, paymentMethod: "cash", items: [{ productId: s.charger.id, quantity: 1, unitPrice: 1200 }] });
     const mine = (await get("/sales", sales)).body.data.map((x: { id: string }) => x.id);
     expect(mine).toContain(a.body.data.id);
     expect(mine).not.toContain(b.body.data.id);

@@ -18,7 +18,7 @@ describe("concurrency", () => {
     const p = await createProduct(t, { name: "Last Units", costPrice: 10, sellingPrice: 20, stockQuantity: 5 });
     const results = await Promise.all(
       Array.from({ length: 12 }, () =>
-        post("/sales", t, { items: [{ productId: p.id, quantity: 1, unitPrice: 20 }] })
+        post("/sales", t, { amountPaid: 20, paymentMethod: "cash", items: [{ productId: p.id, quantity: 1, unitPrice: 20 }] })
       )
     );
     const ok = results.filter((r) => r.status === 201).length;
@@ -28,12 +28,12 @@ describe("concurrency", () => {
     expect(await ledgerViolations()).toEqual([]);
   });
 
-  it("KD-4 simultaneous checkouts all succeed (no receipt-number collisions)", async () => {
+  it("simultaneous checkouts all succeed (no receipt-number collisions)", async () => {
     const t = await registerTenant("Busy Till");
     const p = await createProduct(t, { name: "Fast Mover", costPrice: 1, sellingPrice: 2, stockQuantity: 1000 });
     const results = await Promise.all(
       Array.from({ length: 40 }, () =>
-        post("/sales", t, { items: [{ productId: p.id, quantity: 1, unitPrice: 2 }] })
+        post("/sales", t, { amountPaid: 2, paymentMethod: "cash", items: [{ productId: p.id, quantity: 1, unitPrice: 2 }] })
       )
     );
     const failed = results.filter((r) => r.status !== 201);
@@ -41,9 +41,9 @@ describe("concurrency", () => {
     expect(failed.length).toBe(0);
   });
 
-  it("KD-5 concurrent payments cannot overpay or break reconciliation", async () => {
+  it("concurrent payments cannot overpay or break reconciliation", async () => {
     const s = await seedPhoneShop();
-    const sale = await post("/sales", s.t, { items: [{ productId: s.galaxy.id, quantity: 1, unitPrice: 21500 }] });
+    const sale = await post("/sales", s.t, { customerId: s.customer.id, items: [{ productId: s.galaxy.id, quantity: 1, unitPrice: 21500 }] });
     const id = sale.body.data.id;
     const results = await Promise.all(
       Array.from({ length: 8 }, () => post("/payments", s.t, { saleId: id, amount: 21500, method: "mpesa" }))
@@ -57,7 +57,7 @@ describe("concurrency", () => {
     expect(await ledgerViolations()).toEqual([]);
   });
 
-  it("KD-6 concurrent purchase receipts add up exactly", async () => {
+  it("concurrent purchase receipts add up exactly", async () => {
     const s = await seedPhoneShop();
     const before = await stockOf(s.charger.id);
     const results = await Promise.all(

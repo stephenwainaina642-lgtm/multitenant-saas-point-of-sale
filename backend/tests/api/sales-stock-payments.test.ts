@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { query, resetData } from "../support/db.js";
-import { get, post } from "../support/http.js";
+import { api, get, post } from "../support/http.js";
 import {
   createProduct, ledgerViolations, registerTenant,
   seedHardwareStore, seedPerfumeBusiness, seedPhoneShop, seedWholesaler, stockOf,
@@ -57,7 +57,7 @@ describe("sales, stock and payments", () => {
 
     it("rejects overpayment, zero/negative payment and payment on a settled sale", async () => {
       const sale = await post("/sales", s.t, {
-        amountPaid: 500, paymentMethod: "cash",
+        customerId: s.customer.id, amountPaid: 500, paymentMethod: "cash",
         items: [{ productId: s.charger.id, quantity: 1, unitPrice: 1200 }],
       });
       const id = sale.body.data.id;
@@ -118,6 +118,12 @@ describe("sales, stock and payments", () => {
       expect((await post("/sales", s.t, { items: [item], amountPaid: 5000, paymentMethod: "cash" })).status).toBe(400);
       expect((await post("/sales", s.t, { items: [item], amountPaid: 100 })).status).toBe(400);
       expect((await post("/sales", s.t, { items: [{ ...item, productId: "999999" }] })).status).toBe(404);
+      // a balance cannot be left on an anonymous (walk-in) sale
+      const walkIn = await post("/sales", s.t, { items: [item] });
+      expect(walkIn.status).toBe(400);
+      expect(walkIn.body.message).toBe("A customer is required for a sale with an outstanding balance");
+      // more than 2 decimal places of money is refused instead of silently rounded
+      expect((await post("/sales", s.t, { items: [{ ...item, unitPrice: 1200.005 }] })).status).toBe(400);
     });
 
     it("sale-level discount and tax feed into the total", async () => {
@@ -132,6 +138,7 @@ describe("sales, stock and payments", () => {
 
     it("salesperson attribution: sales are stamped with the logged-in user", async () => {
       const res = await post("/sales", s.t, {
+        amountPaid: 1200, paymentMethod: "cash",
         items: [{ productId: s.charger.id, quantity: 1, unitPrice: 1200 }],
       });
       const [row] = await query(`select salesperson_id::text as sp from sales where id = $1`, [res.body.data.id]);
@@ -139,29 +146,30 @@ describe("sales, stock and payments", () => {
     });
   });
 
-  describe("known defects (assert the CORRECT behaviour; expected to fail today)", () => {
-    // Each of these is wrapped in it.fails: the suite stays green while the
-    // defect exists, and turns red the moment it is fixed so the marker is removed.
-
-    it.fails("KD-2 item-level discount is included in the sale total", async () => {
+  describe("money, discounts, decimals and customer credit (fixed in Stage 2b-1)", () => {
+    it("item-level discount is included in the sale total", async () => {
       const s = await seedPerfumeBusiness();
       const res = await post("/sales", s.t, {
+        amountPaid: 3500, paymentMethod: "cash",
         items: [{ productId: s.amber.id, quantity: 1, unitPrice: 3800, discount: 300 }],
       });
       expect(res.status).toBe(201);
       expect(Number(res.body.data.total)).toBe(3500);
+      expect(Number(res.body.data.discount)).toBe(300);
+      expect(Number(res.body.data.subtotal) - Number(res.body.data.discount) + Number(res.body.data.tax)).toBe(3500);
     });
 
-    it.fails("KD-2b item-level tax is included in the sale total", async () => {
+    it("item-level tax is included in the sale total", async () => {
       const s = await seedPerfumeBusiness();
       const res = await post("/sales", s.t, {
+        amountPaid: 1044, paymentMethod: "cash",
         items: [{ productId: s.oud6.id, quantity: 1, unitPrice: 900, tax: 144 }],
       });
       expect(res.status).toBe(201);
       expect(Number(res.body.data.total)).toBe(1044);
     });
 
-    it.fails("KD-3 floating-point: 3 x 100.01 paid in full is marked 'paid'", async () => {
+    it("floating point: 3 x 100.01 paid in full is marked 'paid'", async () => {
       const t = await registerTenant("Float Shop");
       const p = await createProduct(t, { name: "Per-metre cable", costPrice: 50, sellingPrice: 100.01, stockQuantity: 50 });
       const res = await post("/sales", t, {
@@ -172,7 +180,7 @@ describe("sales, stock and payments", () => {
       expect(res.body.data.paymentStatus).toBe("paid");
     });
 
-    it.fails("KD-7 hardware: decimal quantity (2.5 m of pipe) can be sold", async () => {
+    it("hardware: decimal quantity (2.5 m of pipe) can be sold", async () => {
       const s = await seedHardwareStore();
       const res = await post("/sales", s.t, {
         amountPaid: 1050, paymentMethod: "cash",
@@ -182,7 +190,7 @@ describe("sales, stock and payments", () => {
       expect(await stockOf(s.pipe.id)).toBeCloseTo(148, 3);
     });
 
-    it.fails("KD-8 a credit sale increases the customer's balance", async () => {
+    it("a credit sale increases the customer's balance", async () => {
       const s = await seedWholesaler();
       const res = await post("/sales", s.t, {
         customerId: s.customer.id,
@@ -193,7 +201,7 @@ describe("sales, stock and payments", () => {
       expect(Number(c!.balance)).toBe(69000);
     });
 
-    it.fails("KD-8b a credit sale above the customer's credit limit is rejected", async () => {
+    it("a credit sale above the customer's credit limit is rejected", async () => {
       const s = await seedWholesaler();
       await query(`update customers set credit_limit = 10000 where id = $1`, [s.customer.id]);
       const res = await post("/sales", s.t, {
@@ -201,6 +209,82 @@ describe("sales, stock and payments", () => {
         items: [{ productId: s.sugar.id, quantity: 10, unitPrice: 6900 }],
       });
       expect(res.status).toBe(400);
+      expect(res.body.message).toBe("Credit limit exceeded for customer: Mama Njeri Mini-Mart");
+    });
+
+    it("customer balance follows sales and payments exactly", async () => {
+      const s = await seedWholesaler();
+      const sale = await post("/sales", s.t, {
+        customerId: s.customer.id, amountPaid: 9000, paymentMethod: "cash",
+        items: [{ productId: s.sugar.id, quantity: 2, unitPrice: 6900 }],
+      });
+      expect(sale.status).toBe(201);
+      const bal = async () => Number((await query(`select balance from customers where id = $1`, [s.customer.id]))[0]!.balance);
+      expect(await bal()).toBe(4800);
+      await post("/payments", s.t, { saleId: sale.body.data.id, amount: 1800, method: "mpesa" });
+      expect(await bal()).toBe(3000);
+      await post("/payments", s.t, { saleId: sale.body.data.id, amount: 3000, method: "mpesa" });
+      expect(await bal()).toBe(0);
+      expect(await ledgerViolations()).toEqual([]);
+    });
+
+    it("quantity x price rounds half-up to the cent (0.333 x 100.01)", async () => {
+      const t = await registerTenant("Rounding Shop");
+      const p = await createProduct(t, { name: "By the metre", costPrice: 50, sellingPrice: 100.01, stockQuantity: 10, unitOfMeasure: "metre" });
+      const res = await post("/sales", t, {
+        amountPaid: 33.3, paymentMethod: "cash",
+        items: [{ productId: p.id, quantity: 0.333, unitPrice: 100.01 }],
+      });
+      expect(res.status).toBe(201);
+      expect(Number(res.body.data.total)).toBe(33.3); // 33.30333 -> 33.30
+      expect(res.body.data.paymentStatus).toBe("paid");
+      expect((await post("/sales", t, { amountPaid: 1, paymentMethod: "cash", items: [{ productId: p.id, quantity: 0.0004, unitPrice: 100.01 }] })).status).toBe(400);
+    });
+  });
+
+  describe("receipt numbers and duplicate submissions", () => {
+    it("receipt numbers are sequential per business and independent between businesses", async () => {
+      const a = await seedPhoneShop();
+      const b = await seedHardwareStore();
+      const sell = (t: typeof a.t, productId: string, price: number) =>
+        post("/sales", t, { amountPaid: price, paymentMethod: "cash", items: [{ productId, quantity: 1, unitPrice: price }] });
+      const a1 = await sell(a.t, a.charger.id, 1200);
+      const a2 = await sell(a.t, a.charger.id, 1200);
+      const b1 = await sell(b.t, b.cement.id, 780);
+      expect(a1.body.data.receiptNumber).toBe("RCT-000001");
+      expect(a2.body.data.receiptNumber).toBe("RCT-000002");
+      expect(b1.body.data.receiptNumber).toBe("RCT-000001");
+    });
+
+    it("a repeated sale submission with the same Idempotency-Key creates one sale", async () => {
+      const s = await seedPhoneShop();
+      const stock = await stockOf(s.galaxy.id);
+      const body = { amountPaid: 21500, paymentMethod: "cash", items: [{ productId: s.galaxy.id, quantity: 1, unitPrice: 21500 }] };
+      const first = await api("POST", "/sales", { session: s.t, body, headers: { "idempotency-key": "till-1-0001" } });
+      const again = await api("POST", "/sales", { session: s.t, body, headers: { "idempotency-key": "till-1-0001" } });
+      expect(first.status).toBe(201);
+      expect(again.status).toBe(201);
+      expect(again.body.data.id).toBe(first.body.data.id);
+      expect(again.body.data.idempotentReplay).toBe(true);
+      expect(await stockOf(s.galaxy.id)).toBe(stock - 1);
+      const n = await query(`select count(*)::int as n from sales where idempotency_key = 'till-1-0001'`);
+      expect(n[0]!.n).toBe(1);
+    });
+
+    it("a repeated payment submission with the same Idempotency-Key records one payment", async () => {
+      const s = await seedPhoneShop();
+      const sale = await post("/sales", s.t, { customerId: s.customer.id, items: [{ productId: s.galaxy.id, quantity: 1, unitPrice: 21500 }] });
+      const body = { saleId: sale.body.data.id, amount: 5000, method: "mpesa", reference: "ABC1" };
+      const h = { "idempotency-key": "pay-0001" };
+      const r1 = await api("POST", "/payments", { session: s.t, body, headers: h });
+      const r2 = await api("POST", "/payments", { session: s.t, body, headers: h });
+      expect(r1.status).toBe(201);
+      expect(r2.status).toBe(201);
+      expect(r2.body.data.idempotentReplay).toBe(true);
+      expect(Number(r2.body.data.sale.amountPaid)).toBe(5000);
+      const other = await api("POST", "/payments", { session: s.t, body: { ...body, saleId: "999999" }, headers: h });
+      expect(other.status).toBe(409);
+      expect(await ledgerViolations()).toEqual([]);
     });
   });
 
@@ -214,18 +298,9 @@ describe("sales, stock and payments", () => {
       expect(res.body.message).toMatch(/does not match the saved selling price/);
     });
 
-    it("CURRENT: fractional quantities are rejected with 'must be a whole number'", async () => {
-      const s = await seedHardwareStore();
-      const res = await post("/sales", s.t, {
-        items: [{ productId: s.paint.id, quantity: 0.5, unitPrice: 760 }],
-      });
-      expect(res.status).toBe(400);
-      expect(res.body.message).toBe("Quantity must be a whole number");
-    });
-
     it("CURRENT: there is no endpoint to edit, void or return a sale", async () => {
       const s = await seedPhoneShop();
-      const sale = await post("/sales", s.t, { items: [{ productId: s.charger.id, quantity: 1, unitPrice: 1200 }] });
+      const sale = await post("/sales", s.t, { amountPaid: 1200, paymentMethod: "cash", items: [{ productId: s.charger.id, quantity: 1, unitPrice: 1200 }] });
       const id = sale.body.data.id;
       for (const [method, path] of [["PUT", `/sales/${id}`], ["PATCH", `/sales/${id}`], ["DELETE", `/sales/${id}`], ["POST", `/sales/${id}/void`], ["POST", `/sales/${id}/return`]] as const) {
         const res = await fetch(`http://127.0.0.1:${process.env.TEST_API_PORT || 5599}/api${path}`, {

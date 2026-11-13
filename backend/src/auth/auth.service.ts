@@ -21,7 +21,7 @@ export async function loginUser(
   password: string
 ): Promise<LoginResult> {
   const user = await prisma.user.findUnique({
-    where: { email },
+    where: { email: email.trim().toLowerCase() },
     include: {
       memberships: {
         where: { isActive: true },

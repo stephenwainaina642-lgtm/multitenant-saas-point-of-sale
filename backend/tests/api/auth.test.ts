@@ -56,8 +56,7 @@ describe("authentication and business context", () => {
     expect((await get("/products", { token: t.token, businessId: "abc" })).status).toBe(400);
   });
 
-  // KD-10: register lowercases the email but login looks it up as typed.
-  it.fails("KD-10 login accepts the email in a different letter case", async () => {
+  it("login accepts the email in a different letter case", async () => {
     const t = await registerTenant("Case Shop");
     const res = await post("/auth/login", undefined, {
       email: t.email.toUpperCase(), password: t.password,

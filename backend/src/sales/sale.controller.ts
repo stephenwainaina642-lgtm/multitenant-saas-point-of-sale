@@ -1,5 +1,6 @@
 import type { Response } from "express";
 import type { BusinessRequest } from "../auth/business.middleware.js";
+import { AppError } from "../lib/errors.js";
 import {
   getBusinessSales,
   getBusinessSaleById,
@@ -170,6 +171,11 @@ export async function createSaleController(
             tax: Number(item.tax),
           }),
         })),
+      },
+      {
+        idempotencyKey: Array.isArray(req.headers["idempotency-key"])
+          ? undefined
+          : req.headers["idempotency-key"],
       }
     );
 
@@ -179,6 +185,13 @@ export async function createSaleController(
       data: sale,
     });
   } catch (error) {
+    if (error instanceof AppError) {
+      return res.status(error.status).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
     console.error("Create sale error:", error);
 
     if (

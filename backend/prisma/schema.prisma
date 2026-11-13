@@ -36,6 +36,7 @@ model Business {
   quotations         Quotation[]
   invoices           Invoice[]
   auditLogs          AuditLog[]
+  documentSequences  DocumentSequence[]
 
   @@map("businesses")
 }
@@ -265,6 +266,7 @@ model Sale {
   balanceDue    Decimal  @default(0) @map("balance_due") @db.Decimal(12, 2)
   paymentStatus String   @default("paid") @map("payment_status") @db.VarChar(50)
   status        String   @default("completed") @db.VarChar(50)
+  idempotencyKey String? @map("idempotency_key") @db.VarChar(100)
   notes         String?
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
@@ -277,6 +279,7 @@ model Sale {
   invoice  Invoice?
 
   @@unique([businessId, receiptNumber])
+  @@unique([businessId, idempotencyKey])
   @@index([businessId])
   @@index([customerId])
   @@index([salespersonId])
@@ -312,12 +315,14 @@ model Payment {
   method      String   @db.VarChar(50)
   reference   String?  @db.VarChar(100)
   paymentDate DateTime @default(now()) @map("payment_date") @db.Timestamptz(6)
+  idempotencyKey String? @map("idempotency_key") @db.VarChar(100)
   notes       String?
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   business Business @relation(fields: [businessId], references: [id])
   sale     Sale     @relation(fields: [saleId], references: [id])
 
+  @@unique([businessId, idempotencyKey])
   @@index([businessId])
   @@index([saleId])
   @@index([businessId, paymentDate])
@@ -459,4 +464,15 @@ model AuditLog {
   @@index([businessId, createdAt])
   @@index([businessId, entity, entityId])
   @@map("audit_logs")
+}
+
+model DocumentSequence {
+  businessId BigInt @map("business_id")
+  kind       String @db.VarChar(50)
+  nextValue  BigInt @default(1) @map("next_value")
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@id([businessId, kind])
+  @@map("document_sequences")
 }
