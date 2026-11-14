@@ -41,6 +41,7 @@ type ReportsData = {
     endDateExclusive: string;
     grouping: "daily" | "monthly";
   };
+  records?: { limit: number; truncated: boolean; sales: Sale[]; purchases: Purchase[]; expenses: Expense[] };
   summary: {
     totalSales: number;
     salesTax: number;
@@ -212,26 +213,16 @@ export default function ReportsWorkspace() {
         `/reports?startDate=${encodeURIComponent(startDate)}` +
         `&endDate=${encodeURIComponent(endDate)}`;
 
-      const [
-        reportsResponse,
-        salesResponse,
-        purchasesResponse,
-        expensesResponse,
-      ] = await Promise.all([
-        apiRequest<ReportsData>(reportPath, { token, businessId }),
-        apiRequest<Sale[]>("/sales", { token, businessId }),
-        apiRequest<Purchase[]>("/purchases", { token, businessId }),
-        apiRequest<Expense[]>("/expenses", { token, businessId }),
-      ]);
+      const reportsResponse = await apiRequest<ReportsData>(reportPath, { token, businessId });
 
       if (!reportsResponse.data) {
         throw new Error("The Reports API returned no analytics data.");
       }
 
       setAnalytics(reportsResponse.data);
-      setSales(salesResponse.data ?? []);
-      setPurchases(purchasesResponse.data ?? []);
-      setExpenses(expensesResponse.data ?? []);
+      setSales(reportsResponse.data.records?.sales ?? []);
+      setPurchases(reportsResponse.data.records?.purchases ?? []);
+      setExpenses(reportsResponse.data.records?.expenses ?? []);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Could not load business reports."
@@ -245,28 +236,10 @@ export default function ReportsWorkspace() {
     void loadReports();
   }, [loadReports]);
 
-  const inRange = (value: string) => {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return false;
-
-    const key = localDate(date);
-    return key >= startDate && key <= endDate;
-  };
-
-  const reportSales = useMemo(
-    () => sales.filter((sale) => sale.status !== "voided" && inRange(sale.saleDate || sale.createdAt)),
-    [sales, startDate, endDate]
-  );
-
-  const reportPurchases = useMemo(
-    () => purchases.filter((purchase) => purchase.status !== "voided" && inRange(purchase.purchaseDate)),
-    [purchases, startDate, endDate]
-  );
-
-  const reportExpenses = useMemo(
-    () => expenses.filter((expense) => inRange(expense.expenseDate)),
-    [expenses, startDate, endDate]
-  );
+  // The server already limits these to the period and drops voided records.
+  const reportSales = sales;
+  const reportPurchases = purchases;
+  const reportExpenses = expenses;
 
   const summary = analytics?.summary;
 
@@ -526,6 +499,13 @@ export default function ReportsWorkspace() {
           </p>
         )}
       </article>
+
+      {analytics?.records?.truncated && (
+        <p className="customer-notice" role="status">
+          This period has more than {analytics.records.limit} records. The totals below include everything,
+          but the tables and CSV list only the newest {analytics.records.limit} of each kind. Choose a shorter period to see them all.
+        </p>
+      )}
 
       <article className="panel" style={{ padding: 24 }}>
         <SectionHeading

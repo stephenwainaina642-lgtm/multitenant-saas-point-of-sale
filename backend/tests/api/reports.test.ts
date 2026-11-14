@@ -43,6 +43,13 @@ describe("reports", () => {
     expect(r.paymentMethods.map((m: any) => [m.method, m.amount]).sort()).toEqual([["bank", 112000], ["cash", 2300], ["mpesa", 10000]]);
     // Net cash = collected - refunds - supplier payments - expenses
     expect(r.summary.totalPayments - r.summary.refundsIssued - r.summary.supplierPaymentsMade - r.summary.totalExpenses).toBe(12300 - 2500 - 1000);
+    // The rows behind the numbers: this period only, voided excluded, newest first.
+    expect(r.records.truncated).toBe(false);
+    expect(r.records.sales.map((x: any) => x.status)).toEqual(["completed", "completed"]);
+    expect(r.records.sales[0].customerName).toBe("Wanjiku Kamau");
+    expect(r.records.sales.reduce((t: number, x: any) => t + x.total, 0)).toBe(24000);
+    expect(r.records.purchases).toHaveLength(1);
+    expect(r.records.expenses.map((x: any) => x.amount)).toEqual([1000]);
     expect(await ledgerViolations()).toEqual([]);
   });
 

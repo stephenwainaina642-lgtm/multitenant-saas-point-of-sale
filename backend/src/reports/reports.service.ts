@@ -8,6 +8,8 @@ type ReportDateRange = {
   timeZone: string;
 };
 
+const RECORD_LIMIT = 1000;
+
 /** All money is summed as integer cents and only converted to a number for output. */
 const out = (cents: bigint): number => Number(cents) / 100;
 const cents = (value: unknown): bigint => decimalToCents(value as string);
@@ -31,6 +33,7 @@ export async function getBusinessReports(
         saleDate: dateFilter,
       },
       include: {
+        customer: { select: { name: true } },
         items: {
           include: {
             product: {
@@ -292,6 +295,44 @@ export async function getBusinessReports(
       purchaseCount: purchases.length,
       paymentCount: payments.length,
       expenseCount: expenses.length,
+    },
+
+    // The rows behind the numbers, newest first, capped so a huge period stays fast.
+    // The summary above always covers every row; `truncated` says if the lists do not.
+    records: {
+      limit: RECORD_LIMIT,
+      truncated:
+        sales.length > RECORD_LIMIT || purchases.length > RECORD_LIMIT || expenses.length > RECORD_LIMIT,
+      sales: [...sales].reverse().slice(0, RECORD_LIMIT).map((sale) => ({
+        id: sale.id.toString(),
+        receiptNumber: sale.receiptNumber,
+        customerName: sale.customer?.name ?? null,
+        saleDate: sale.saleDate,
+        total: out(cents(sale.total)),
+        amountPaid: out(cents(sale.amountPaid)),
+        balanceDue: out(cents(sale.balanceDue)),
+        paymentStatus: sale.paymentStatus,
+        status: sale.status,
+      })),
+      purchases: [...purchases].reverse().slice(0, RECORD_LIMIT).map((purchase) => ({
+        id: purchase.id.toString(),
+        supplierName: purchase.supplier.name,
+        invoiceNumber: purchase.invoiceNumber,
+        purchaseDate: purchase.purchaseDate,
+        total: out(cents(purchase.total)),
+        amountPaid: out(cents(purchase.amountPaid)),
+        balanceDue: out(cents(purchase.balanceDue)),
+        status: purchase.status,
+      })),
+      expenses: [...expenses].reverse().slice(0, RECORD_LIMIT).map((expense) => ({
+        id: expense.id.toString(),
+        category: expense.category,
+        description: expense.description,
+        expenseDate: expense.expenseDate,
+        paymentMethod: expense.paymentMethod,
+        reference: expense.reference,
+        amount: out(cents(expense.amount)),
+      })),
     },
 
     trends,
