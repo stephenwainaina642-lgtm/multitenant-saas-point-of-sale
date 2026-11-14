@@ -29,6 +29,7 @@ export const PERMISSION_CATALOG = {
   "reports.view": "View business reports",
   "audit.view": "View the audit log",
   "roles.manage": "Create and edit roles",
+  "employees.manage": "Add, deactivate and change employees",
   "settings.manage": "Change business settings",
 } as const;
 
@@ -42,7 +43,7 @@ export const ALL_PERMISSIONS = Object.keys(PERMISSION_CATALOG) as Permission[];
 export const BUILT_IN_ROLES: Record<string, Permission[]> = {
   owner: ALL_PERMISSIONS,
   manager: ALL_PERMISSIONS.filter(
-    (p) => p !== "roles.manage" && p !== "settings.manage"
+    (p) => p !== "roles.manage" && p !== "settings.manage" && p !== "employees.manage"
   ),
   "inventory manager": [
     "products.view", "products.manage", "inventory.view", "inventory.adjust",

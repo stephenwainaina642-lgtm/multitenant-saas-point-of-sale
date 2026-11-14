@@ -23,6 +23,7 @@ import auditRoutes from "./audit/audit.routes.js";
 import reportRoutes from "./reports/reports.routes.js";
 import invoiceRoutes from "./invoices/invoice.routes.js";
 import roleRoutes from "./roles/role.routes.js";
+import employeeRoutes from "./employees/employee.routes.js";
 
 dotenv.config();
 
@@ -68,6 +69,7 @@ app.use("/api/audit-logs", auditRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/invoices", invoiceRoutes);
 app.use("/api/roles", roleRoutes);
+app.use("/api/employees", employeeRoutes);
 
 app.get("/api/health", (_req, res) => {
   res.json({
