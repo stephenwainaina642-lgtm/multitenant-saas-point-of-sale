@@ -4,7 +4,7 @@ import { query, resetData, withRollback } from "../support/db.js";
 const EXPECTED_TABLES = [
   "audit_logs", "business_users", "businesses", "categories", "customers", "document_sequences", "expenses",
   "inventory_movements", "invoice_items", "invoices", "payments", "products",
-  "purchase_items", "purchases", "quotation_items", "quotations", "roles",
+  "purchase_items", "purchases", "quotation_items", "quotations", "refunds", "roles",
   "sale_items", "sales", "suppliers", "users",
 ];
 
@@ -190,7 +190,8 @@ describe("more integrity rules", () => {
   it("the new CHECK constraints are NOT VALID, so existing rows are never scanned or rejected", async () => {
     const rows = await query<{ conname: string; convalidated: boolean }>(
       `select conname, convalidated from pg_constraint
-        where contype = 'c' and connamespace = 'public'::regnamespace`
+        where contype = 'c' and connamespace = 'public'::regnamespace
+          and conname <> 'refunds_amount_positive'`
     );
     expect(rows.length).toBe(12);
     for (const r of rows) expect(r.convalidated, r.conname).toBe(false);

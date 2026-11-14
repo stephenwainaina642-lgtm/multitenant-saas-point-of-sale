@@ -153,6 +153,10 @@ export async function createBusinessPayment(
 
       const sale = await tx.sale.findUniqueOrThrow({ where: { id: saleId } });
 
+      if (sale.status !== "completed") {
+        throw new AppError(409, "Payments cannot be recorded on a voided sale");
+      }
+
       const total = decimalToCents(sale.total);
       const paid = decimalToCents(sale.amountPaid);
       const currentBalance = total - paid;

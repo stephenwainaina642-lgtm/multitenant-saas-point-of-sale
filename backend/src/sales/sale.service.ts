@@ -1,6 +1,11 @@
 import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
 import {
+  buildSaleLines,
+  computeSaleTotals,
+  aggregateByProduct,
+} from "./sale-calc.js";
+import {
   centsToString,
   decimalToCents,
   decimalToMilli,
@@ -154,6 +159,11 @@ export async function getBusinessSaleById(
           paymentDate: "asc",
         },
       },
+      refunds: {
+        orderBy: {
+          createdAt: "asc",
+        },
+      },
     },
   });
 
@@ -202,6 +212,14 @@ export async function getBusinessSaleById(
       reference: payment.reference,
       paymentDate: payment.paymentDate,
       notes: payment.notes,
+    })),
+    refunds: sale.refunds.map((refund) => ({
+      id: refund.id.toString(),
+      amount: refund.amount,
+      method: refund.method,
+      reference: refund.reference,
+      reason: refund.reason,
+      createdAt: refund.createdAt,
     })),
   };
 }
@@ -322,101 +340,16 @@ export async function createBusinessSale(
         }
       }
 
-      type Line = {
-        productId: bigint;
-        productName: string;
-        quantity: bigint; // thousandths
-        unitPrice: bigint; // cents
-        costPrice: bigint;
-        discount: bigint;
-        tax: bigint;
-        total: bigint;
-      };
-      const lines: Line[] = [];
-
-      for (const item of data.items) {
-        const quantity = parseQuantity(item.quantity, "Quantity");
-        const unitPrice = parseMoney(item.unitPrice, "Unit price");
-        const discount = parseMoney(item.discount ?? 0, "Discount");
-        const tax = parseMoney(item.tax ?? 0, "Tax");
-
-        if (quantity <= 0n) {
-          throw new AppError(400, "Quantity must be greater than zero");
-        }
-        if (unitPrice < 0n) {
-          throw new AppError(400, "Unit price cannot be negative");
-        }
-        if (discount < 0n) {
-          throw new AppError(400, "Discount cannot be negative");
-        }
-        if (tax < 0n) {
-          throw new AppError(400, "Tax cannot be negative");
-        }
-
-        const product = await tx.product.findFirst({
-          where: {
-            id: BigInt(item.productId),
-            businessId: bizId,
-            isActive: true,
-          },
-        });
-
-        if (!product) {
-          throw new AppError(404, `Product not found: ${item.productId}`);
-        }
-
-        if (unitPrice !== decimalToCents(product.sellingPrice)) {
-          throw new AppError(
-            400,
-            `Sale price does not match the saved selling price for: ${product.name}`
-          );
-        }
-
-        const lineTotal = lineAmount(quantity, unitPrice) - discount + tax;
-
-        if (lineTotal < 0n) {
-          throw new AppError(400, "Item total cannot be negative");
-        }
-
-        lines.push({
-          productId: product.id,
-          productName: product.name,
-          quantity,
-          unitPrice,
-          costPrice: decimalToCents(product.costPrice),
-          discount,
-          tax,
-          total: lineTotal,
-        });
-      }
-
-      const saleDiscount = parseMoney(data.discount ?? 0, "Sale discount");
-      const saleTax = parseMoney(data.tax ?? 0, "Sale tax");
+      const lines = await buildSaleLines(tx, bizId, data.items);
+      const { subtotal, discount, tax, total } = computeSaleTotals(
+        lines,
+        data.discount,
+        data.tax
+      );
       const amountPaid = parseMoney(data.amountPaid ?? 0, "Amount paid");
 
-      if (saleDiscount < 0n) {
-        throw new AppError(400, "Sale discount cannot be negative");
-      }
-      if (saleTax < 0n) {
-        throw new AppError(400, "Sale tax cannot be negative");
-      }
       if (amountPaid < 0n) {
         throw new AppError(400, "Amount paid cannot be negative");
-      }
-
-      // subtotal = gross of all lines; discount and tax include both the
-      // line-level and the sale-level amounts, so
-      // total = subtotal - discount + tax always holds.
-      const subtotal = lines.reduce(
-        (sum, l) => sum + lineAmount(l.quantity, l.unitPrice),
-        0n
-      );
-      const discount = lines.reduce((sum, l) => sum + l.discount, saleDiscount);
-      const tax = lines.reduce((sum, l) => sum + l.tax, saleTax);
-      const total = subtotal - discount + tax;
-
-      if (total < 0n) {
-        throw new AppError(400, "Sale total cannot be negative");
       }
       if (amountPaid > total) {
         throw new AppError(400, "Amount paid cannot exceed sale total");
@@ -458,15 +391,7 @@ export async function createBusinessSale(
 
       // Stock: aggregate per product (so duplicate lines cannot oversell) and
       // deduct with a guarded atomic update, in a stable order to avoid deadlocks.
-      const perProduct = new Map<bigint, { name: string; quantity: bigint }>();
-      for (const l of lines) {
-        const entry = perProduct.get(l.productId);
-        if (entry) entry.quantity += l.quantity;
-        else perProduct.set(l.productId, { name: l.productName, quantity: l.quantity });
-      }
-      const orderedProducts = [...perProduct.entries()].sort((a, b) =>
-        a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0
-      );
+      const orderedProducts = aggregateByProduct(lines);
 
       for (const [productId, entry] of orderedProducts) {
         const updated = await tx.$executeRaw`

@@ -1,6 +1,8 @@
+import type { NextFunction } from "express";
 import type { Response } from "express";
 import type { BusinessRequest } from "../auth/business.middleware.js";
 import { AppError } from "../lib/errors.js";
+import { editBusinessSale, voidBusinessSale } from "./sale-adjustments.service.js";
 import {
   getBusinessSales,
   getBusinessSaleById,
@@ -263,5 +265,59 @@ export async function createSaleController(
       success: false,
       message: "Failed to create sale",
     });
+  }
+}
+
+export async function editSaleController(req: BusinessRequest, res: Response, next: NextFunction) {
+  try {
+    const { customerId, discount, tax, notes, items } = req.body ?? {};
+
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ success: false, message: "Sale items are required" });
+    }
+
+    const sale = await editBusinessSale(
+      req.businessId!.toString(),
+      String(req.params.id),
+      {
+        items: items.map((item: Record<string, unknown>) => ({
+          productId: String(item.productId),
+          quantity: Number(item.quantity),
+          unitPrice: Number(item.unitPrice),
+          ...(item.discount !== undefined && { discount: Number(item.discount) }),
+          ...(item.tax !== undefined && { tax: Number(item.tax) }),
+        })),
+        ...(customerId !== undefined && { customerId: customerId === "" ? null : customerId }),
+        ...(discount !== undefined && { discount: Number(discount) }),
+        ...(tax !== undefined && { tax: Number(tax) }),
+        ...(notes !== undefined && { notes: notes === null ? null : String(notes) }),
+      },
+      {
+        userId: req.user!.userId,
+        onlyOwnSales: !req.permissions?.has("sales.view_all"),
+      }
+    );
+
+    return res.json({ success: true, message: "Sale updated successfully", data: sale });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function voidSaleController(req: BusinessRequest, res: Response, next: NextFunction) {
+  try {
+    const result = await voidBusinessSale(
+      req.businessId!.toString(),
+      String(req.params.id),
+      req.body ?? {},
+      {
+        userId: req.user!.userId,
+        onlyOwnSales: !req.permissions?.has("sales.view_all"),
+      }
+    );
+
+    return res.json({ success: true, message: "Sale voided", data: result });
+  } catch (error) {
+    return next(error);
   }
 }

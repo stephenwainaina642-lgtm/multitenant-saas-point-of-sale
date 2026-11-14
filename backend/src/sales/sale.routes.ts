@@ -6,6 +6,8 @@ import {
   getSalesController,
   getSaleByIdController,
   createSaleController,
+  editSaleController,
+  voidSaleController,
 } from "./sale.controller.js";
 
 const router = Router();
@@ -32,6 +34,22 @@ router.post(
   requireBusinessAccess,
   requirePermission("sales.create"),
   createSaleController
+);
+
+router.put(
+  "/:id",
+  authenticate,
+  requireBusinessAccess,
+  requirePermission("sales.edit"),
+  editSaleController
+);
+
+router.post(
+  "/:id/void",
+  authenticate,
+  requireBusinessAccess,
+  requirePermission("sales.void"),
+  voidSaleController
 );
 
 export default router;

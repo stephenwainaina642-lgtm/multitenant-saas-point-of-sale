@@ -16,6 +16,8 @@ export const PERMISSION_CATALOG = {
   "sales.create": "Make sales at the till",
   "sales.view_own": "View own sales",
   "sales.view_all": "View every sale in the business",
+  "sales.edit": "Edit completed sales",
+  "sales.void": "Void sales and issue refunds",
   "payments.view": "View all payments",
   "payments.create": "Record payments against sales",
   "expenses.view": "View expenses",

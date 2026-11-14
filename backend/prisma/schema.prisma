@@ -37,6 +37,7 @@ model Business {
   invoices           Invoice[]
   auditLogs          AuditLog[]
   documentSequences  DocumentSequence[]
+  refunds            Refund[]
 
   @@map("businesses")
 }
@@ -55,6 +56,7 @@ model User {
   ownedBusinesses Business[] @relation("BusinessOwner")
   auditLogs   AuditLog[]
   sales       Sale[] @relation("SaleSalesperson")
+  refundsCreated Refund[]
 
   @@map("users")
 }
@@ -277,6 +279,7 @@ model Sale {
   salesperson User? @relation("SaleSalesperson", fields: [salespersonId], references: [id], onDelete: SetNull)
   items    SaleItem[]
   payments Payment[]
+  refunds  Refund[]
   invoice  Invoice?
 
   @@unique([businessId, receiptNumber])
@@ -476,4 +479,24 @@ model DocumentSequence {
 
   @@id([businessId, kind])
   @@map("document_sequences")
+}
+
+model Refund {
+  id         BigInt   @id @default(autoincrement())
+  businessId BigInt   @map("business_id")
+  saleId     BigInt   @map("sale_id")
+  amount     Decimal  @db.Decimal(12, 2)
+  method     String   @db.VarChar(50)
+  reference  String?  @db.VarChar(255)
+  reason     String?
+  createdBy  BigInt?  @map("created_by")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  business Business @relation(fields: [businessId], references: [id])
+  sale     Sale     @relation(fields: [saleId], references: [id])
+  user     User?    @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([businessId])
+  @@index([saleId])
+  @@map("refunds")
 }

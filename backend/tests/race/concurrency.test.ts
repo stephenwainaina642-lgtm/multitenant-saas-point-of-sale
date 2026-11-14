@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { query, resetData } from "../support/db.js";
-import { post } from "../support/http.js";
+import { post, put } from "../support/http.js";
 import { createProduct, ledgerViolations, registerTenant, seedPhoneShop, stockOf } from "../support/seed.js";
 
 /**
@@ -69,5 +69,37 @@ describe("concurrency", () => {
     const after = await stockOf(s.charger.id);
     console.log(`[race] purchase test: ${ok} accepted, expected +${ok * 10}, actual +${after - before}`);
     expect(after - before).toBe(ok * 10);
+  });
+});
+
+describe("concurrency: sale adjustments", () => {
+  it("simultaneous voids of one sale succeed exactly once and restore stock once", async () => {
+    const s = await seedPhoneShop();
+    const made = await post("/sales", s.t, { amountPaid: 21500, paymentMethod: "cash", items: [{ productId: s.galaxy.id, quantity: 1, unitPrice: 21500 }] });
+    const id = made.body.data.id;
+    const stock = await stockOf(s.galaxy.id);
+    const results = await Promise.all(
+      Array.from({ length: 6 }, () => post(`/sales/${id}/void`, s.t, { reason: "dup", refundMethod: "cash" }))
+    );
+    const ok = results.filter((r) => r.status === 200).length;
+    console.log(`[race] void test: ${ok} succeeded, statuses=${results.map((r) => r.status).join(",")}`);
+    expect(ok).toBe(1);
+    expect(await stockOf(s.galaxy.id)).toBe(stock + 1);
+    const refunds = await query(`select count(*)::int as n from refunds where sale_id = $1`, [id]);
+    expect(refunds[0]!.n).toBe(1);
+    expect(await ledgerViolations()).toEqual([]);
+  });
+
+  it("a payment and an edit racing on one sale never break reconciliation", async () => {
+    const s = await seedPhoneShop();
+    const made = await post("/sales", s.t, { customerId: s.customer.id, amountPaid: 500, paymentMethod: "cash", items: [{ productId: s.charger.id, quantity: 2, unitPrice: 1200 }] });
+    const id = made.body.data.id;
+    const results = await Promise.all([
+      post("/payments", s.t, { saleId: id, amount: 1000, method: "mpesa" }),
+      put(`/sales/${id}`, s.t, { items: [{ productId: s.charger.id, quantity: 1, unitPrice: 1200 }] }),
+      post("/payments", s.t, { saleId: id, amount: 200, method: "cash" }),
+    ]);
+    console.log(`[race] edit+payment test: statuses=${results.map((r) => r.status).join(",")}`);
+    expect(await ledgerViolations()).toEqual([]);
   });
 });

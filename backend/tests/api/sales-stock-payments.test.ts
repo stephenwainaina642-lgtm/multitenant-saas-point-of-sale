@@ -298,11 +298,11 @@ describe("sales, stock and payments", () => {
       expect(res.body.message).toMatch(/does not match the saved selling price/);
     });
 
-    it("CURRENT: there is no endpoint to edit, void or return a sale", async () => {
+    it("CURRENT: there is still no endpoint to delete a sale or to return part of one", async () => {
       const s = await seedPhoneShop();
       const sale = await post("/sales", s.t, { amountPaid: 1200, paymentMethod: "cash", items: [{ productId: s.charger.id, quantity: 1, unitPrice: 1200 }] });
       const id = sale.body.data.id;
-      for (const [method, path] of [["PUT", `/sales/${id}`], ["PATCH", `/sales/${id}`], ["DELETE", `/sales/${id}`], ["POST", `/sales/${id}/void`], ["POST", `/sales/${id}/return`]] as const) {
+      for (const [method, path] of [["PATCH", `/sales/${id}`], ["DELETE", `/sales/${id}`], ["POST", `/sales/${id}/return`]] as const) {
         const res = await fetch(`http://127.0.0.1:${process.env.TEST_API_PORT || 5599}/api${path}`, {
           method,
           headers: { authorization: `Bearer ${s.t.token}`, "x-business-id": s.t.businessId, "content-type": "application/json" },

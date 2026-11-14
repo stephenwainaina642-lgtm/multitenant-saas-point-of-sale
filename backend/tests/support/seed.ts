@@ -180,18 +180,32 @@ export async function ledgerViolations(): Promise<string[]> {
 
   const statusMismatch = await query(
     `select id, payment_status, balance_due, amount_paid from sales
-      where (payment_status = 'paid' and balance_due <> 0)
+      where status = 'completed' and (
+            (payment_status = 'paid' and balance_due <> 0)
          or (payment_status = 'partial' and (amount_paid = 0 or balance_due = 0))
-         or (payment_status = 'unpaid' and amount_paid <> 0)`
+         or (payment_status = 'unpaid' and amount_paid <> 0))`
   );
   for (const r of statusMismatch) problems.push(`sale ${r.id}: payment_status '${r.payment_status}' inconsistent (paid ${r.amount_paid}, due ${r.balance_due})`);
 
   const customerMismatch = await query(
     `select c.id, c.balance, coalesce(sum(s.balance_due),0) as due
-       from customers c left join sales s on s.customer_id = c.id
+       from customers c left join sales s on s.customer_id = c.id and s.status = 'completed'
       group by c.id having c.balance <> coalesce(sum(s.balance_due),0)`
   );
   for (const r of customerMismatch) problems.push(`customer ${r.id}: balance ${r.balance} != sum of sale balances ${r.due}`);
+
+  const refundMismatch = await query(
+    `select s.id, s.amount_paid, coalesce(sum(r.amount),0) as refunded
+       from sales s left join refunds r on r.sale_id = s.id
+      where s.status = 'voided'
+      group by s.id having s.amount_paid <> coalesce(sum(r.amount),0)`
+  );
+  for (const r of refundMismatch) problems.push(`voided sale ${r.id}: paid ${r.amount_paid} but refunded ${r.refunded}`);
+
+  const completedRefunds = await query(
+    `select distinct s.id from sales s join refunds r on r.sale_id = s.id where s.status = 'completed'`
+  );
+  for (const r of completedRefunds) problems.push(`completed sale ${r.id} has refunds`);
 
   return problems;
 }

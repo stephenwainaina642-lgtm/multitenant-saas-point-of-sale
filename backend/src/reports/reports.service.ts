@@ -61,6 +61,7 @@ export async function getBusinessReports(
       where: {
         businessId: businessFilter,
         paymentDate: dateFilter,
+        sale: { status: "completed" },
       },
       orderBy: {
         paymentDate: "asc",

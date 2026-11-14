@@ -3,7 +3,7 @@ import pg from "pg";
 import { applyMigrations } from "../support/db.js";
 import { loadTestConfig } from "../support/env.js";
 
-const NEW_MIGRATIONS = ["20261114120000_add_integrity_constraints"];
+const NEW_MIGRATIONS = ["20261114120000_add_integrity_constraints", "20261115090000_add_sale_refunds"];
 
 /**
  * Upgrade safety: a database that already holds messy "legacy" data (negative
