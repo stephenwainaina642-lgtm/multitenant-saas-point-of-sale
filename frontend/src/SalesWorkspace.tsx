@@ -45,6 +45,7 @@ type SaleDetails = Sale & {
   notes: string | null;
   items: SaleItem[];
   payments: SalePayment[];
+  refunds?: { id: string; amount: number | string; method: string; reference: string | null; reason: string | null; createdAt: string }[];
 };
 
 const money = (value: number | string) =>
@@ -76,6 +77,11 @@ export default function SalesWorkspace() {
   const [selectedSale, setSelectedSale] = useState<SaleDetails | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [detailsError, setDetailsError] = useState("");
+  const [adjust, setAdjust] = useState<null | "edit" | "void">(null);
+  const [adjustBusy, setAdjustBusy] = useState(false);
+  const [adjustError, setAdjustError] = useState("");
+  const [quantities, setQuantities] = useState<Record<string, string>>({});
+  const [voidForm, setVoidForm] = useState({ reason: "", method: "cash", reference: "" });
 
   const loadSales = useCallback(async () => {
     setLoading(true);
@@ -104,6 +110,7 @@ export default function SalesWorkspace() {
 
   const openSale = useCallback(async (sale: Sale) => {
     setSelectedSale(null);
+    setAdjust(null);
     setDetailsError("");
     setDetailsLoading(true);
 
@@ -132,6 +139,63 @@ export default function SalesWorkspace() {
     }
   }, []);
 
+  function startAdjust(kind: "edit" | "void") {
+    if (!selectedSale) return;
+    setAdjustError("");
+    setQuantities(Object.fromEntries(selectedSale.items.map((item) => [item.id, String(Number(item.quantity))])));
+    setVoidForm({ reason: "", method: "cash", reference: "" });
+    setAdjust(kind);
+  }
+
+  async function submitAdjust() {
+    if (!selectedSale || !adjust) return;
+    const token = sessionStorage.getItem("pos_token") ?? "";
+    const businessId = sessionStorage.getItem("pos_business_id") ?? "";
+    setAdjustBusy(true);
+    setAdjustError("");
+    try {
+      if (adjust === "void") {
+        await apiRequest(`/sales/${encodeURIComponent(selectedSale.id)}/void`, {
+          method: "POST", token, businessId,
+          body: {
+            reason: voidForm.reason,
+            ...(Number(selectedSale.amountPaid) > 0 && { refundMethod: voidForm.method, refundReference: voidForm.reference }),
+          },
+        });
+      } else {
+        const lines = selectedSale.items
+          .map((item) => ({ item, quantity: Number(quantities[item.id]) }))
+          .filter((line) => line.quantity > 0);
+        const allDiscounts = selectedSale.items.reduce((sum, i) => sum + Number(i.discount || 0), 0);
+        const allTax = selectedSale.items.reduce((sum, i) => sum + Number(i.tax || 0), 0);
+        // Sale-level discount/tax = whatever the header holds beyond the lines.
+        const saleDiscount = Math.max(0, Math.round((Number(selectedSale.discount) - allDiscounts) * 100) / 100);
+        const saleTax = Math.max(0, Math.round((Number(selectedSale.tax) - allTax) * 100) / 100);
+        await apiRequest(`/sales/${encodeURIComponent(selectedSale.id)}`, {
+          method: "PUT", token, businessId,
+          body: {
+            discount: saleDiscount,
+            tax: saleTax,
+            items: lines.map((l) => ({
+              productId: l.item.productId,
+              quantity: l.quantity,
+              unitPrice: Number(l.item.unitPrice),
+              discount: Number(l.item.discount || 0),
+              tax: Number(l.item.tax || 0),
+            })),
+          },
+        });
+      }
+      setAdjust(null);
+      setSelectedSale(null);
+      await loadSales();
+    } catch (err) {
+      setAdjustError(err instanceof Error ? err.message : "Could not save the change.");
+    } finally {
+      setAdjustBusy(false);
+    }
+  }
+
   const filteredSales = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return sales;
@@ -145,7 +209,7 @@ export default function SalesWorkspace() {
 
   const totals = useMemo(
     () =>
-      sales.reduce(
+      sales.filter((sale) => sale.status !== "voided").reduce(
         (result, sale) => ({
           revenue: result.revenue + (Number(sale.total) || 0),
           collected: result.collected + (Number(sale.amountPaid) || 0),
@@ -179,7 +243,7 @@ export default function SalesWorkspace() {
         <article className="sales-summary-card">
           <span>Total sales value</span>
           <strong>{money(totals.revenue)}</strong>
-          <small>{sales.length} recorded transactions</small>
+          <small>{sales.filter((sale) => sale.status !== "voided").length} recorded transactions</small>
         </article>
         <article className="sales-summary-card">
           <span>Amount collected</span>
@@ -342,6 +406,59 @@ export default function SalesWorkspace() {
                 </button>
               </div>
             </div>
+
+            {selectedSale.status === "voided" && (
+              <p className="customer-notice" role="status">
+                This sale was voided.
+                {selectedSale.refunds?.length ? ` Refunded ${money(selectedSale.refunds.reduce((t, r) => t + Number(r.amount), 0))} via ${paymentMethodText(selectedSale.refunds[0].method)}.` : ""}
+                {selectedSale.refunds?.[0]?.reason ? ` Reason: ${selectedSale.refunds[0].reason}` : ""}
+              </p>
+            )}
+
+            {selectedSale.status === "completed" && !adjust && (
+              <div className="sale-detail-action-buttons" style={{ margin: "8px 0" }}>
+                <button type="button" className="sales-view-button" onClick={() => startAdjust("edit")}>Edit quantities</button>
+                <button type="button" className="sales-view-button" onClick={() => startAdjust("void")}>Void sale</button>
+              </div>
+            )}
+
+            {adjust && (
+              <div className="customer-notice" style={{ display: "grid", gap: 10 }}>
+                {adjustError && <p role="alert"><strong>{adjustError}</strong></p>}
+                {adjust === "edit" ? (
+                  <>
+                    <p>Change quantities (set 0 to remove a line). Stock and the customer balance are adjusted for you; payments already recorded are kept.</p>
+                    {selectedSale.items.map((item) => (
+                      <label key={item.id} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <span style={{ flex: 1 }}>{item.productName} @ {money(item.unitPrice)}</span>
+                        <input inputMode="decimal" style={{ width: 90 }} value={quantities[item.id] ?? ""} onChange={(e) => setQuantities({ ...quantities, [item.id]: e.target.value })} />
+                      </label>
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    <p>Voiding returns the stock and clears what the customer owes.{Number(selectedSale.amountPaid) > 0 ? ` ${money(selectedSale.amountPaid)} was paid, so the full amount is recorded as refunded.` : ""}</p>
+                    <label>Reason (required)<input style={{ display: "block", width: "100%" }} value={voidForm.reason} maxLength={500} onChange={(e) => setVoidForm({ ...voidForm, reason: e.target.value })} /></label>
+                    {Number(selectedSale.amountPaid) > 0 && (
+                      <>
+                        <label>Refund method
+                          <select style={{ display: "block" }} value={voidForm.method} onChange={(e) => setVoidForm({ ...voidForm, method: e.target.value })}>
+                            <option value="cash">Cash</option><option value="mpesa">M-Pesa</option><option value="bank">Bank</option><option value="card">Card</option>
+                          </select>
+                        </label>
+                        <label>Reference (optional)<input style={{ display: "block", width: "100%" }} value={voidForm.reference} onChange={(e) => setVoidForm({ ...voidForm, reference: e.target.value })} /></label>
+                      </>
+                    )}
+                  </>
+                )}
+                <div className="sale-detail-action-buttons">
+                  <button type="button" className="sales-view-button" disabled={adjustBusy} onClick={() => void submitAdjust()}>
+                    {adjustBusy ? "Saving..." : adjust === "edit" ? "Save changes" : "Confirm void"}
+                  </button>
+                  <button type="button" className="sale-detail-close" onClick={() => setAdjust(null)}>Cancel</button>
+                </div>
+              </div>
+            )}
 
             <div className="sale-receipt-print-area">
               <header className="sale-receipt-header">

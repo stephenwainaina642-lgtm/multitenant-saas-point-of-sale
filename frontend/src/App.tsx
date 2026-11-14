@@ -173,7 +173,8 @@ function App() {
         ]);
 
         if (!cancelled) {
-          setSales(Array.isArray(salesResponse.data) ? salesResponse.data : []);
+          // Voided sales are history only: they never count as revenue or money owed.
+          setSales(Array.isArray(salesResponse.data) ? salesResponse.data.filter((sale) => sale.status !== "voided") : []);
           setProducts(Array.isArray(productsResponse.data) ? productsResponse.data : []);
           setDashboardError("");
         }

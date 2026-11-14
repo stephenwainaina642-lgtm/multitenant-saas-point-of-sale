@@ -8,6 +8,8 @@ type Customer = {
   email: string | null;
   address: string | null;
   notes: string | null;
+  creditLimit?: string;
+  balance?: string;
   isActive: boolean;
   createdAt: string;
 };
@@ -18,6 +20,7 @@ const emptyForm = {
   email: "",
   address: "",
   notes: "",
+  creditLimit: "0",
 };
 
 type CustomerForm = typeof emptyForm;
@@ -98,6 +101,7 @@ export default function CustomersWorkspace() {
       email: customer.email ?? "",
       address: customer.address ?? "",
       notes: customer.notes ?? "",
+      creditLimit: customer.creditLimit ?? "0",
     });
     setError("");
     setMessage("");
@@ -129,6 +133,7 @@ export default function CustomersWorkspace() {
       email: form.email.trim(),
       address: form.address.trim(),
       notes: form.notes.trim(),
+      creditLimit: form.creditLimit.trim() || "0",
     };
 
     setSaving(true);
@@ -293,6 +298,8 @@ export default function CustomersWorkspace() {
                 <th>PHONE</th>
                 <th>EMAIL</th>
                 <th>ADDRESS</th>
+                <th>BALANCE OWED</th>
+                <th>CREDIT LIMIT</th>
                 <th>REGISTERED</th>
                 <th>ACTIONS</th>
               </tr>
@@ -312,6 +319,8 @@ export default function CustomersWorkspace() {
                     <td>{customer.phone || "—"}</td>
                     <td>{customer.email || "—"}</td>
                     <td>{customer.address || "—"}</td>
+                    <td>{customer.balance !== undefined ? `KSh ${Number(customer.balance).toLocaleString("en-KE", { minimumFractionDigits: 2 })}` : "—"}</td>
+                    <td>{customer.creditLimit !== undefined ? `KSh ${Number(customer.creditLimit).toLocaleString("en-KE", { minimumFractionDigits: 2 })}` : "—"}</td>
                     <td>
                       {customer.createdAt
                         ? new Date(customer.createdAt).toLocaleDateString("en-KE")
@@ -341,7 +350,7 @@ export default function CustomersWorkspace() {
 
               {!loading && filteredCustomers.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="empty-row">
+                  <td colSpan={8} className="empty-row">
                     {customers.length === 0
                       ? "No customers have been registered for this business yet."
                       : "No customers match your search."}
@@ -351,7 +360,7 @@ export default function CustomersWorkspace() {
 
               {loading && (
                 <tr>
-                  <td colSpan={6}>Loading customers from PostgreSQL...</td>
+                  <td colSpan={8}>Loading customers from PostgreSQL...</td>
                 </tr>
               )}
             </tbody>
@@ -431,6 +440,16 @@ export default function CustomersWorkspace() {
               />
             </label>
           </div>
+
+          <label style={labelStyle}>
+            Credit limit (KSh) — the most this customer may owe at once; 0 means no credit
+            <input
+              style={{ ...fieldStyle, marginTop: 6 }}
+              inputMode="decimal"
+              value={form.creditLimit}
+              onChange={(event) => updateField("creditLimit", event.target.value)}
+            />
+          </label>
 
           <label style={labelStyle}>
             Notes
