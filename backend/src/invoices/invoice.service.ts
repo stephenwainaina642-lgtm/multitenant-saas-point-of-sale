@@ -1,302 +1,178 @@
 import prisma from "../lib/prisma.js";
+import { AppError } from "../lib/errors.js";
+import { decimalToCents } from "../lib/money.js";
 
-type CreateInvoiceData = {
-  saleId: string;
-  invoiceNumber: string;
-  invoiceDate?: string;
-  dueDate?: string;
-  status?: string;
-  notes?: string;
+const MAX_NUMBER_ATTEMPTS = 25;
+
+export type CreateInvoiceData = {
+  saleId?: unknown; invoiceNumber?: unknown; invoiceDate?: unknown; dueDate?: unknown; notes?: unknown;
 };
 
-export async function getBusinessInvoices(
-  businessId: string
-) {
-  const invoices = await prisma.invoice.findMany({
-    where: {
-      businessId: BigInt(businessId),
-    },
-    include: {
-      customer: {
-        select: {
-          id: true,
-          name: true,
-          phone: true,
-        },
-      },
-      sale: {
-        select: {
-          id: true,
-          receiptNumber: true,
-        },
-      },
-      items: {
-        include: {
-          product: {
-            select: {
-              id: true,
-              name: true,
-              sku: true,
-              unitOfMeasure: true,
-            },
-          },
-        },
-      },
-    },
-    orderBy: {
-      invoiceDate: "desc",
-    },
-  });
+const saleInclude = {
+  customer: { select: { id: true, name: true, phone: true, email: true, address: true } },
+  items: {
+    orderBy: { id: "asc" as const },
+    include: { product: { select: { id: true, name: true, sku: true, unitOfMeasure: true } } },
+  },
+};
 
-  return invoices.map((invoice) => ({
-    id: invoice.id.toString(),
-    invoiceNumber: invoice.invoiceNumber,
-    saleId: invoice.saleId.toString(),
-    receiptNumber: invoice.sale.receiptNumber,
-    customerId: invoice.customer?.id.toString() || null,
-    customerName: invoice.customer?.name || null,
-    customerPhone: invoice.customer?.phone || null,
-    invoiceDate: invoice.invoiceDate,
-    dueDate: invoice.dueDate,
-    subtotal: invoice.subtotal,
-    discount: invoice.discount,
-    tax: invoice.tax,
-    total: invoice.total,
-    amountPaid: invoice.amountPaid,
-    balanceDue: invoice.balanceDue,
-    status: invoice.status,
-    notes: invoice.notes,
-    items: invoice.items.map((item) => ({
-      id: item.id.toString(),
-      productId: item.productId.toString(),
-      productName: item.product.name,
-      sku: item.product.sku,
-      unitOfMeasure: item.product.unitOfMeasure,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      discount: item.discount,
-      tax: item.tax,
-      total: item.total,
-    })),
-    createdAt: invoice.createdAt,
-    updatedAt: invoice.updatedAt,
-  }));
-}
-
-export async function getBusinessInvoiceById(
-  businessId: string,
-  invoiceId: string
-) {
-  const invoice = await prisma.invoice.findFirst({
-    where: {
-      id: BigInt(invoiceId),
-      businessId: BigInt(businessId),
-    },
-    include: {
-      customer: {
-        select: {
-          id: true,
-          name: true,
-          phone: true,
-          email: true,
-          address: true,
-        },
-      },
-      sale: {
-        select: {
-          id: true,
-          receiptNumber: true,
-        },
-      },
-      items: {
-        include: {
-          product: {
-            select: {
-              id: true,
-              name: true,
-              sku: true,
-              unitOfMeasure: true,
-            },
-          },
-        },
-      },
-    },
-  });
-
-  if (!invoice) {
-    throw new Error("Invoice not found");
-  }
+/**
+ * An invoice is a document about a sale. Its money figures, lines and status always come from the
+ * sale as it stands now, so a later payment, edit or void is reflected immediately. (The copies
+ * stored on the invoice row when it was created are history only and are never shown.)
+ */
+function present(invoice: any, sale: any) {
+  const total = decimalToCents(sale.total);
+  const paid = decimalToCents(sale.amountPaid);
+  let status: string;
+  if (sale.status === "voided") status = "void";
+  else if (paid >= total) status = "paid";
+  else if (invoice.dueDate && invoice.dueDate.getTime() < Date.now()) status = "overdue";
+  else status = paid > 0n ? "partial" : "unpaid";
 
   return {
     id: invoice.id.toString(),
     invoiceNumber: invoice.invoiceNumber,
-    saleId: invoice.saleId.toString(),
-    receiptNumber: invoice.sale.receiptNumber,
-    customerId: invoice.customer?.id.toString() || null,
-    customer: invoice.customer
+    saleId: sale.id.toString(),
+    receiptNumber: sale.receiptNumber,
+    customerId: sale.customer?.id.toString() ?? null,
+    customerName: sale.customer?.name ?? null,
+    customerPhone: sale.customer?.phone ?? null,
+    customer: sale.customer
       ? {
-          id: invoice.customer.id.toString(),
-          name: invoice.customer.name,
-          phone: invoice.customer.phone,
-          email: invoice.customer.email,
-          address: invoice.customer.address,
+          id: sale.customer.id.toString(), name: sale.customer.name, phone: sale.customer.phone,
+          email: sale.customer.email, address: sale.customer.address,
         }
       : null,
     invoiceDate: invoice.invoiceDate,
     dueDate: invoice.dueDate,
-    subtotal: invoice.subtotal,
-    discount: invoice.discount,
-    tax: invoice.tax,
-    total: invoice.total,
-    amountPaid: invoice.amountPaid,
-    balanceDue: invoice.balanceDue,
-    status: invoice.status,
+    subtotal: sale.subtotal, discount: sale.discount, tax: sale.tax, total: sale.total,
+    amountPaid: sale.amountPaid, balanceDue: sale.status === "voided" ? "0" : sale.balanceDue,
+    status,
+    saleStatus: sale.status,
     notes: invoice.notes,
-    items: invoice.items.map((item) => ({
-      id: item.id.toString(),
-      productId: item.productId.toString(),
-      productName: item.product.name,
-      sku: item.product.sku,
-      unitOfMeasure: item.product.unitOfMeasure,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      discount: item.discount,
-      tax: item.tax,
-      total: item.total,
+    items: sale.items.map((item: any) => ({
+      id: item.id.toString(), productId: item.productId.toString(), productName: item.product.name,
+      sku: item.product.sku, unitOfMeasure: item.product.unitOfMeasure, quantity: item.quantity,
+      unitPrice: item.unitPrice, discount: item.discount, tax: item.tax, total: item.total,
     })),
     createdAt: invoice.createdAt,
     updatedAt: invoice.updatedAt,
   };
 }
 
-export async function createBusinessInvoice(
-  businessId: string,
-  data: CreateInvoiceData
-) {
-  if (!data.saleId?.trim()) {
-    throw new Error("Sale ID is required");
+export async function getBusinessInvoices(businessId: string) {
+  const invoices = await prisma.invoice.findMany({
+    where: { businessId: BigInt(businessId) },
+    include: { sale: { include: saleInclude } },
+    orderBy: [{ invoiceDate: "desc" }, { id: "desc" }],
+  });
+  return invoices.map((invoice) => present(invoice, invoice.sale));
+}
+
+export async function getBusinessInvoiceById(businessId: string, idText: string) {
+  if (!/^[1-9]\d*$/.test(idText)) throw new AppError(404, "Invoice not found");
+  const invoice = await prisma.invoice.findFirst({
+    where: { id: BigInt(idText), businessId: BigInt(businessId) },
+    include: { sale: { include: saleInclude } },
+  });
+  if (!invoice) throw new AppError(404, "Invoice not found");
+  return present(invoice, invoice.sale);
+}
+
+function parseDate(value: unknown, field: string): Date | null {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value !== "string") throw new AppError(400, `Invalid ${field}`);
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime()) || d.getUTCFullYear() < 2000 || d.getUTCFullYear() > 2100) {
+    throw new AppError(400, `Invalid ${field}`);
+  }
+  return d;
+}
+
+export async function createBusinessInvoice(businessId: string, data: CreateInvoiceData, actorUserId?: string) {
+  const bizId = BigInt(businessId);
+  const saleIdText = typeof data.saleId === "string" || typeof data.saleId === "number" ? String(data.saleId).trim() : "";
+  if (!/^[1-9]\d*$/.test(saleIdText)) throw new AppError(400, "A valid sale is required");
+
+  let manualNumber: string | null = null;
+  if (data.invoiceNumber !== undefined && data.invoiceNumber !== null && data.invoiceNumber !== "") {
+    if (typeof data.invoiceNumber !== "string") throw new AppError(400, "Invalid invoice number");
+    manualNumber = data.invoiceNumber.trim();
+    if (!manualNumber || manualNumber.length > 100) throw new AppError(400, "Invoice number must be 1-100 characters");
+  }
+  const invoiceDate = parseDate(data.invoiceDate, "invoice date") ?? new Date();
+  const dueDate = parseDate(data.dueDate, "due date");
+  if (dueDate && dueDate.getTime() < invoiceDate.getTime() - 24 * 60 * 60 * 1000) {
+    throw new AppError(400, "The due date cannot be before the invoice date");
+  }
+  let notes: string | null = null;
+  if (data.notes !== undefined && data.notes !== null) {
+    if (typeof data.notes !== "string" || data.notes.length > 2000) throw new AppError(400, "Notes must be text of at most 2000 characters");
+    notes = data.notes.trim() || null;
   }
 
-  if (!data.invoiceNumber?.trim()) {
-    throw new Error("Invoice number is required");
-  }
-
-  const invoiceDate = data.invoiceDate
-    ? new Date(data.invoiceDate)
-    : new Date();
-
-  if (Number.isNaN(invoiceDate.getTime())) {
-    throw new Error("Invalid invoice date");
-  }
-
-  let dueDate: Date | undefined;
-
-  if (data.dueDate) {
-    dueDate = new Date(data.dueDate);
-
-    if (Number.isNaN(dueDate.getTime())) {
-      throw new Error("Invalid due date");
-    }
-  }
-
-  return prisma.$transaction(async (tx) => {
-    const existingInvoice = await tx.invoice.findFirst({
-      where: {
-        businessId: BigInt(businessId),
-        invoiceNumber: data.invoiceNumber.trim(),
-      },
-    });
-
-    if (existingInvoice) {
-      throw new Error("Invoice number already exists");
-    }
-
+  const created = await prisma.$transaction(async (tx) => {
     const sale = await tx.sale.findFirst({
-      where: {
-        id: BigInt(data.saleId),
-        businessId: BigInt(businessId),
-      },
-      include: {
-        customer: true,
-        items: true,
-        invoice: true,
-      },
+      where: { id: BigInt(saleIdText), businessId: bizId },
+      include: { ...saleInclude, invoice: { select: { id: true } } },
     });
+    if (!sale) throw new AppError(404, "Sale not found");
+    if (sale.status !== "completed") throw new AppError(409, "A voided sale cannot be invoiced");
+    if (sale.invoice) throw new AppError(409, "This sale already has an invoice");
+    if (sale.items.length === 0) throw new AppError(400, "Sale has no items");
 
-    if (!sale) {
-      throw new Error("Sale not found");
-    }
-
-    if (sale.invoice) {
-      throw new Error("Sale already has an invoice");
-    }
-
-    if (sale.items.length === 0) {
-      throw new Error("Sale has no items");
+    let invoiceNumber = manualNumber;
+    if (invoiceNumber) {
+      const clash = await tx.invoice.findFirst({ where: { businessId: bizId, invoiceNumber }, select: { id: true } });
+      if (clash) throw new AppError(409, "Invoice number already exists");
+    } else {
+      // Next free sequential number (skips any numbers typed in by hand before).
+      for (let attempt = 0; attempt < MAX_NUMBER_ATTEMPTS && !invoiceNumber; attempt++) {
+        const [seq] = await tx.$queryRaw<{ n: bigint }[]>`
+          INSERT INTO document_sequences (business_id, kind, next_value)
+          VALUES (${bizId}, 'invoice', 2)
+          ON CONFLICT (business_id, kind)
+          DO UPDATE SET next_value = document_sequences.next_value + 1
+          RETURNING next_value - 1 AS n`;
+        const candidate = `INV-${seq!.n.toString().padStart(6, "0")}`;
+        const clash = await tx.invoice.findFirst({ where: { businessId: bizId, invoiceNumber: candidate }, select: { id: true } });
+        if (!clash) invoiceNumber = candidate;
+      }
+      if (!invoiceNumber) throw new AppError(500, "Could not allocate an invoice number");
     }
 
     const invoice = await tx.invoice.create({
       data: {
-        businessId: BigInt(businessId),
+        businessId: bizId,
         customerId: sale.customerId,
         saleId: sale.id,
-        invoiceNumber: data.invoiceNumber.trim(),
+        invoiceNumber,
         invoiceDate,
-        ...(dueDate && {
-          dueDate,
-        }),
-        subtotal: sale.subtotal,
-        discount: sale.discount,
-        tax: sale.tax,
-        total: sale.total,
-        amountPaid: sale.amountPaid,
-        balanceDue: sale.balanceDue,
-        status:
-          data.status?.trim().toLowerCase() ||
-          (Number(sale.balanceDue) === 0 ? "paid" : "unpaid"),
-        notes: data.notes?.trim() || sale.notes || null,
+        ...(dueDate && { dueDate }),
+        subtotal: sale.subtotal, discount: sale.discount, tax: sale.tax, total: sale.total,
+        amountPaid: sale.amountPaid, balanceDue: sale.balanceDue,
+        status: "issued",
+        notes: notes ?? sale.notes ?? null,
         items: {
           create: sale.items.map((item) => ({
-            productId: item.productId,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            discount: item.discount,
-            tax: item.tax,
-            total: item.total,
+            productId: item.productId, quantity: item.quantity, unitPrice: item.unitPrice,
+            discount: item.discount, tax: item.tax, total: item.total,
           })),
         },
       },
-      include: {
-        items: true,
+    });
+    await tx.auditLog.create({
+      data: {
+        businessId: bizId, userId: actorUserId ? BigInt(actorUserId) : null, action: "invoice.create",
+        entity: "invoice", entityId: invoice.id, details: { invoiceNumber, saleId: sale.id.toString() },
       },
     });
-
-    return {
-      id: invoice.id.toString(),
-      invoiceNumber: invoice.invoiceNumber,
-      saleId: invoice.saleId.toString(),
-      customerId: invoice.customerId?.toString() || null,
-      invoiceDate: invoice.invoiceDate,
-      dueDate: invoice.dueDate,
-      subtotal: invoice.subtotal,
-      discount: invoice.discount,
-      tax: invoice.tax,
-      total: invoice.total,
-      amountPaid: invoice.amountPaid,
-      balanceDue: invoice.balanceDue,
-      status: invoice.status,
-      notes: invoice.notes,
-      items: invoice.items.map((item) => ({
-        id: item.id.toString(),
-        productId: item.productId.toString(),
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        discount: item.discount,
-        tax: item.tax,
-        total: item.total,
-      })),
-      createdAt: invoice.createdAt,
-      updatedAt: invoice.updatedAt,
-    };
+    return invoice;
+  }).catch((e: any) => {
+    if (e?.code === "P2002") throw new AppError(409, "This sale already has an invoice, or the number is taken");
+    throw e;
   });
+
+  return getBusinessInvoiceById(businessId, created.id.toString());
 }
