@@ -40,7 +40,7 @@ Tests named `KD-n` use `it.fails`: they assert the **correct** behaviour, are gr
 
 | ID | Defect | Status |
 |---|---|---|
-| KD-1 | No backend permission model; any member can do anything | open (Stage 2b-2) |
+| KD-1 | No backend permission model; any member can do anything | fixed (permission catalog, route guards, `/api/roles`) |
 | KD-2 | Item-level discount and tax ignored in sale total | fixed |
 | KD-3 | Float arithmetic: 3 x 100.01 paid in full is "partial" | fixed |
 | KD-4 | Receipt number `SALE-<Date.now()>` collides, returns 500 | fixed (per-business sequence `RCT-000001`) |

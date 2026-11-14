@@ -96,7 +96,8 @@ function formatPayment(
 
 export async function createBusinessPayment(
   businessId: string,
-  data: PaymentData
+  data: PaymentData,
+  onlyOwnSalesOf?: string
 ) {
   const amount = parseMoney(data.amount, "Payment amount");
 
@@ -135,10 +136,16 @@ export async function createBusinessPayment(
 
       // Lock the sale row: concurrent payments on one sale are serialized, so
       // each one sees the balance left by the previous one.
-      const locked = await tx.$queryRaw<{ id: bigint }[]>`
-        SELECT id FROM sales
-         WHERE id = ${saleId} AND business_id = ${bizId}
-         FOR UPDATE`;
+      const locked = onlyOwnSalesOf
+        ? await tx.$queryRaw<{ id: bigint }[]>`
+            SELECT id FROM sales
+             WHERE id = ${saleId} AND business_id = ${bizId}
+               AND salesperson_id = ${BigInt(onlyOwnSalesOf)}
+             FOR UPDATE`
+        : await tx.$queryRaw<{ id: bigint }[]>`
+            SELECT id FROM sales
+             WHERE id = ${saleId} AND business_id = ${bizId}
+             FOR UPDATE`;
 
       if (locked.length === 0) {
         throw new AppError(404, "Sale not found");

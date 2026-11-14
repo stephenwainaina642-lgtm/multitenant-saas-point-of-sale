@@ -1,11 +1,13 @@
 import type { Response, NextFunction } from "express";
 import prisma from "../lib/prisma.js";
 import type { AuthenticatedRequest } from "./auth.middleware.js";
+import { resolvePermissions } from "./permissions.js";
 
 export type BusinessRequest = AuthenticatedRequest & {
   businessId?: bigint;
   businessRole?: string;
   isBusinessOwner?: boolean;
+  permissions?: Set<string>;
 };
 
 export async function requireBusinessAccess(
@@ -69,6 +71,11 @@ export async function requireBusinessAccess(
     req.businessId = membership.businessId;
     req.businessRole = membership.role.name;
     req.isBusinessOwner = membership.business.ownerUserId === userId;
+    req.permissions = resolvePermissions(
+      membership.role.name,
+      membership.role.permissions,
+      req.isBusinessOwner
+    );
 
     next();
   } catch (error) {

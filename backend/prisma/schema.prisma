@@ -64,6 +64,7 @@ model Role {
   name        String  @db.VarChar(100)
   description String?
   businessId  BigInt? @map("business_id")
+  permissions String[] @default([])
 
   business Business? @relation(fields: [businessId], references: [id])
   memberships BusinessUser[]

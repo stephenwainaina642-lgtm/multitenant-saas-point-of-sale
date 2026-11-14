@@ -31,12 +31,12 @@ type SaleData = {
 export async function getBusinessSales(
   businessId: string,
   userId: string,
-  role: string
+  canViewAll: boolean
 ) {
   const sales = await prisma.sale.findMany({
     where: {
       businessId: BigInt(businessId),
-      ...(role.toLowerCase() !== "owner" && {
+      ...(!canViewAll && {
         salespersonId: BigInt(userId),
       }),
     },
@@ -111,13 +111,13 @@ export async function getBusinessSaleById(
   businessId: string,
   saleId: string,
   userId: string,
-  role: string
+  canViewAll: boolean
 ) {
   const sale = await prisma.sale.findFirst({
     where: {
       id: BigInt(saleId),
       businessId: BigInt(businessId),
-      ...(role.toLowerCase() !== "owner" && {
+      ...(!canViewAll && {
         salespersonId: BigInt(userId),
       }),
     },

@@ -79,7 +79,10 @@ export async function createPaymentController(
         ...(notes !== undefined && {
           notes: String(notes),
         }),
-      }
+      },
+      req.permissions?.has("sales.view_all")
+        ? undefined
+        : req.user!.userId
     );
 
     return res.status(201).json({

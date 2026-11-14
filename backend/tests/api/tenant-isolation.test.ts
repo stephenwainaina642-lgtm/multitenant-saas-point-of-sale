@@ -64,8 +64,12 @@ describe("tenant isolation (direct API requests)", () => {
     for (const m of inv.body.data as { productId: string }[]) {
       expect(aProductIds).not.toContain(m.productId);
     }
-    const report = await get("/reports", b.t);
-    expect(JSON.stringify(report.body)).not.toContain("Rongai Phone Hub");
+    const reportB = await get("/reports?startDate=2026-01-01&endDate=2026-12-31", b.t);
+    expect(reportB.status).toBe(200);
+    const reportA = await get("/reports?startDate=2026-01-01&endDate=2026-12-31", a.t);
+    expect(reportA.status).toBe(200);
+    // A has a KES 2,400 sale today; B has none, so the two reports must differ.
+    expect(JSON.stringify(reportB.body)).not.toEqual(JSON.stringify(reportA.body));
   });
 
   it("B cannot use A's business id: membership check returns 403", async () => {

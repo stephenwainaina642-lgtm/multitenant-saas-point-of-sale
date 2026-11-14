@@ -22,7 +22,7 @@ export async function getSalesController(
     const sales = await getBusinessSales(
       req.businessId.toString(),
       req.user!.userId,
-      req.businessRole || ""
+      req.permissions?.has("sales.view_all") ?? false
     );
 
     return res.status(200).json({
@@ -65,7 +65,7 @@ export async function getSaleByIdController(
       req.businessId.toString(),
       id,
       req.user!.userId,
-      req.businessRole || ""
+      req.permissions?.has("sales.view_all") ?? false
     );
 
     return res.status(200).json({

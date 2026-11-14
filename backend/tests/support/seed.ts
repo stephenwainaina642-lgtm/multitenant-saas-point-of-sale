@@ -49,14 +49,15 @@ export async function registerTenant(
  */
 export async function addEmployee(
   owner: Tenant,
-  roleName: string
+  roleName: string,
+  permissions: string[] = []
 ): Promise<Tenant> {
   const emp = await registerTenant(`${roleName} personal workspace`);
   const [role] = await query<{ id: string }>(
-    `insert into roles(name, business_id) values ($1, $2)
-     on conflict (business_id, name) do update set name = excluded.name
+    `insert into roles(name, business_id, permissions) values ($1, $2, $3)
+     on conflict (business_id, name) do update set permissions = excluded.permissions
      returning id`,
-    [roleName, owner.businessId]
+    [roleName, owner.businessId, permissions]
   );
   await query(
     `insert into business_users(business_id, user_id, role_id) values ($1, $2, $3)`,
