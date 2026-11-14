@@ -46,6 +46,8 @@ type ReportsData = {
     salesTax: number;
     netSales: number;
     totalPayments: number;
+    refundsIssued?: number;
+    supplierPaymentsMade?: number;
     costOfGoodsSold: number;
     grossProfit: number;
     totalExpenses: number;
@@ -252,12 +254,12 @@ export default function ReportsWorkspace() {
   };
 
   const reportSales = useMemo(
-    () => sales.filter((sale) => inRange(sale.saleDate || sale.createdAt)),
+    () => sales.filter((sale) => sale.status !== "voided" && inRange(sale.saleDate || sale.createdAt)),
     [sales, startDate, endDate]
   );
 
   const reportPurchases = useMemo(
-    () => purchases.filter((purchase) => inRange(purchase.purchaseDate)),
+    () => purchases.filter((purchase) => purchase.status !== "voided" && inRange(purchase.purchaseDate)),
     [purchases, startDate, endDate]
   );
 
@@ -274,6 +276,8 @@ export default function ReportsWorkspace() {
     const salesOutstanding = summary?.outstandingSales ?? 0;
     const purchaseValue = summary?.totalPurchases ?? 0;
     const purchasePaid = summary?.purchasePayments ?? 0;
+    const refundsIssued = summary?.refundsIssued ?? 0;
+    const supplierPaymentsMade = summary?.supplierPaymentsMade ?? 0;
     const purchaseOutstanding = summary?.outstandingPurchases ?? 0;
     const expenseTotal = summary?.totalExpenses ?? 0;
 
@@ -285,7 +289,10 @@ export default function ReportsWorkspace() {
       purchasePaid,
       purchaseOutstanding,
       expenseTotal,
-      cashMovement: salesCollected - purchasePaid - expenseTotal,
+      refundsIssued,
+      supplierPaymentsMade,
+      // Money actually moved in the period: in, less refunds, supplier payments and expenses out.
+      cashMovement: salesCollected - refundsIssued - supplierPaymentsMade - expenseTotal,
     };
   }, [summary]);
 
@@ -345,6 +352,8 @@ export default function ReportsWorkspace() {
       ["Customer outstanding", reportSummary?.outstandingSales ?? 0],
       ["Purchase value", reportSummary?.totalPurchases ?? 0],
       ["Supplier outstanding", reportSummary?.outstandingPurchases ?? 0],
+      ["Refunds issued", reportSummary?.refundsIssued ?? 0],
+      ["Supplier payments made", reportSummary?.supplierPaymentsMade ?? 0],
       ["Net cash movement", totals.cashMovement],
       [],
       ["SALES"],
@@ -439,6 +448,8 @@ export default function ReportsWorkspace() {
     { label: "Customer outstanding", value: money(totals.salesOutstanding) },
     { label: "Purchase value", value: money(totals.purchaseValue) },
     { label: "Supplier outstanding", value: money(totals.purchaseOutstanding) },
+    { label: "Refunds issued", value: money(totals.refundsIssued) },
+    { label: "Supplier payments made", value: money(totals.supplierPaymentsMade) },
     { label: "Operating expenses", value: money(totals.expenseTotal) },
   ];
 
@@ -535,7 +546,7 @@ export default function ReportsWorkspace() {
           <Metric
             label="Net cash movement"
             value={loading ? "—" : money(totals.cashMovement)}
-            detail="Collections less purchase payments and recorded expenses. Not accounting profit."
+            detail="Collections less refunds, supplier payments and expenses paid in the period. Not accounting profit."
           />
           <Metric
             label="Sales transactions"

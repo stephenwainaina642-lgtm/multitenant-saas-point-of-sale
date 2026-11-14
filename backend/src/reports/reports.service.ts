@@ -51,8 +51,9 @@ export async function getBusinessReports(
     prisma.payment.findMany({
       where: {
         businessId: businessFilter,
+        // Cash basis: every payment received counts, including ones on sales that were
+        // voided later. The matching refund is reported separately as refundsIssued.
         paymentDate: dateFilter,
-        sale: { status: "completed" },
       },
       orderBy: {
         paymentDate: "asc",

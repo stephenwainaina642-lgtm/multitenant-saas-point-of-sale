@@ -12,7 +12,7 @@ const RANGE = "startDate=2026-01-01&endDate=2026-12-31";
 describe("reports", () => {
   beforeAll(async () => { await resetData(); });
 
-  it("totals are exact on a known scenario (voided sales excluded, refunds and supplier payments shown)", async () => {
+  it("totals are exact on a known scenario (voided sales excluded from sales; their refunds offset the cash received)", async () => {
     const s = await seedPhoneShop();
     const sale = (body: object) => post("/sales", s.t, body);
 
@@ -33,14 +33,16 @@ describe("reports", () => {
       totalSales: 24000, salesTax: 200, netSales: 23800,
       costOfGoodsSold: 1300 + 17500, grossProfit: 23800 - 18800,
       totalExpenses: 1000, netProfit: 4000,
-      totalPayments: 12300, refundsIssued: 112000, outstandingSales: 11700,
+      totalPayments: 12300 + 112000, refundsIssued: 112000, outstandingSales: 11700,
       totalPurchases: 6500, purchasePayments: 2500, supplierPaymentsMade: 2500, outstandingPurchases: 4000,
-      salesCount: 2, purchaseCount: 1, paymentCount: 2, expenseCount: 1,
+      salesCount: 2, purchaseCount: 1, paymentCount: 3, expenseCount: 1,
     });
     // Product lines are net of their own discount and tax, so they add up to net sales.
     const lines = r.bestSellingProducts.reduce((t: number, x: any) => t + x.grossSales, 0);
     expect(lines).toBe(23800);
-    expect(r.paymentMethods.map((m: any) => [m.method, m.amount]).sort()).toEqual([["cash", 2300], ["mpesa", 10000]]);
+    expect(r.paymentMethods.map((m: any) => [m.method, m.amount]).sort()).toEqual([["bank", 112000], ["cash", 2300], ["mpesa", 10000]]);
+    // Net cash = collected - refunds - supplier payments - expenses
+    expect(r.summary.totalPayments - r.summary.refundsIssued - r.summary.supplierPaymentsMade - r.summary.totalExpenses).toBe(12300 - 2500 - 1000);
     expect(await ledgerViolations()).toEqual([]);
   });
 
