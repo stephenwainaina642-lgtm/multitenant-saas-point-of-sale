@@ -40,5 +40,5 @@ export const post = <T = any>(path: string, session: Partial<Session> | undefine
   api<T>("POST", path, { ...(session && { session }), body });
 export const put = <T = any>(path: string, session: Partial<Session>, body: unknown) =>
   api<T>("PUT", path, { session, body });
-export const del = <T = any>(path: string, session: Partial<Session>) =>
-  api<T>("DELETE", path, { session });
+export const del = <T = any>(path: string, session: Partial<Session>, body?: unknown) =>
+  api<T>("DELETE", path, { session, ...(body !== undefined && { body }) });

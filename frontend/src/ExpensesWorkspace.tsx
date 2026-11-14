@@ -147,8 +147,43 @@ export default function ExpensesWorkspace() {
     setForm((current) => ({ ...current, [field]: value }));
   }
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+
   function resetForm() {
     setForm({ ...emptyForm, expenseDate: today() });
+    setEditingId(null);
+  }
+
+  function startEdit(expense: Expense) {
+    setEditingId(expense.id);
+    setError("");
+    setMessage("");
+    setForm({
+      ...emptyForm,
+      category: expense.category,
+      description: expense.description ?? "",
+      amount: String(Number(expense.amount)),
+      expenseDate: expense.expenseDate ? String(expense.expenseDate).slice(0, 10) : today(),
+      paymentMethod: expense.paymentMethod ?? "",
+      reference: expense.reference ?? "",
+      notes: expense.notes ?? "",
+    });
+    window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+  }
+
+  async function deleteExpense(expense: Expense) {
+    const reason = window.prompt(`Delete ${expense.category} expense of ${money(expense.amount)}? Reason (kept in the audit log):`);
+    if (!reason) return;
+    setError("");
+    setMessage("");
+    try {
+      await apiRequest(`/expenses/${expense.id}`, { method: "DELETE", token, businessId, body: { reason } });
+      setMessage("Expense deleted.");
+      if (editingId === expense.id) resetForm();
+      await loadExpenses();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete the expense.");
+    }
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -186,14 +221,14 @@ export default function ExpensesWorkspace() {
     setSaving(true);
 
     try {
-      await apiRequest<Expense>("/expenses", {
-        method: "POST",
+      await apiRequest<Expense>(editingId ? `/expenses/${editingId}` : "/expenses", {
+        method: editingId ? "PUT" : "POST",
         token,
         businessId,
         body,
       });
 
-      setMessage("Expense recorded successfully.");
+      setMessage(editingId ? "Expense updated successfully." : "Expense recorded successfully.");
       resetForm();
       await loadExpenses();
     } catch (err) {
@@ -279,6 +314,7 @@ export default function ExpensesWorkspace() {
                 <th>DATE</th>
                 <th>PAYMENT METHOD</th>
                 <th>AMOUNT</th>
+                <th>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
@@ -305,12 +341,18 @@ export default function ExpensesWorkspace() {
                     <td>
                       <strong>{money(expense.amount)}</strong>
                     </td>
+                    <td>
+                      <div className="customer-actions">
+                        <button type="button" className="button-secondary" onClick={() => startEdit(expense)}>Edit</button>
+                        <button type="button" className="button-secondary" onClick={() => void deleteExpense(expense)}>Delete</button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
 
               {!loading && filteredExpenses.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="empty-row">
+                  <td colSpan={7} className="empty-row">
                     {expenses.length === 0
                       ? "No expenses have been recorded for this business yet."
                       : "No expenses match your search."}
@@ -320,7 +362,7 @@ export default function ExpensesWorkspace() {
 
               {loading && (
                 <tr>
-                  <td colSpan={6}>Loading expenses from PostgreSQL...</td>
+                  <td colSpan={7}>Loading expenses from PostgreSQL...</td>
                 </tr>
               )}
             </tbody>
@@ -441,7 +483,7 @@ export default function ExpensesWorkspace() {
               type="submit"
               disabled={saving || loading}
             >
-              {saving ? "Recording expense..." : "Record expense"}
+              {saving ? "Saving..." : editingId ? "Save changes" : "Record expense"}
             </button>
 
             <button

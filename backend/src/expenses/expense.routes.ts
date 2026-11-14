@@ -6,6 +6,8 @@ import {
   getExpensesController,
   getExpenseByIdController,
   createExpenseController,
+  updateExpenseController,
+  deleteExpenseController,
 } from "./expense.controller.js";
 
 const router = Router();
@@ -32,6 +34,22 @@ router.post(
   requireBusinessAccess,
   requirePermission("expenses.manage"),
   createExpenseController
+);
+
+router.put(
+  "/:id",
+  authenticate,
+  requireBusinessAccess,
+  requirePermission("expenses.manage"),
+  updateExpenseController
+);
+
+router.delete(
+  "/:id",
+  authenticate,
+  requireBusinessAccess,
+  requirePermission("expenses.manage"),
+  deleteExpenseController
 );
 
 export default router;
