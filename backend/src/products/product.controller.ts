@@ -1,5 +1,7 @@
 import type { Response } from "express";
 import type { BusinessRequest } from "../auth/business.middleware.js";
+import { AppError } from "../lib/errors.js";
+import { centsToString, milliToString, parseMoney, parseQuantity } from "../lib/money.js";
 import {
   getBusinessProducts,
   createBusinessProduct,
@@ -41,6 +43,10 @@ function sendProductError(
     });
   }
 
+  if (error instanceof AppError) {
+    return res.status(error.status).json({ success: false, message: error.message });
+  }
+
   if (error instanceof Error && error.message === "Product not found") {
     return res.status(404).json({
       success: false,
@@ -54,6 +60,23 @@ function sendProductError(
     success: false,
     message: `Failed to ${operation} product`,
   });
+}
+
+const MAX_CENTS = 999_999_999_999n; // numeric(12,2)
+const MAX_MILLI = 999_999_999_999n; // numeric(12,3)
+
+/** Exact validation: at most 2 decimals, non-negative, fits the column. */
+function money(value: unknown, field: string): number {
+  const cents = parseMoney(value, field);
+  if (cents < 0n || cents > MAX_CENTS) throw new AppError(400, `${field} is out of range`);
+  return Number(centsToString(cents));
+}
+
+/** Exact validation: at most 3 decimals, non-negative, fits the column. */
+function quantity(value: unknown, field: string): number {
+  const milli = parseQuantity(value, field);
+  if (milli < 0n || milli > MAX_MILLI) throw new AppError(400, `${field} is out of range`);
+  return Number(milliToString(milli));
 }
 
 function optionalText(value: unknown): string | undefined {
@@ -131,8 +154,8 @@ export async function createProductController(
       });
     }
 
-    const parsedCostPrice = Number(costPrice);
-    const parsedSellingPrice = Number(sellingPrice);
+    const parsedCostPrice = money(costPrice, "Cost price");
+    const parsedSellingPrice = money(sellingPrice, "Selling price");
 
     if (
       !Number.isFinite(parsedCostPrice) ||
@@ -147,7 +170,7 @@ export async function createProductController(
     }
 
     const parsedStockQuantity =
-      stockQuantity === undefined ? 0 : Number(stockQuantity);
+      stockQuantity === undefined ? 0 : quantity(stockQuantity, "Opening stock");
 
     if (
       !Number.isFinite(parsedStockQuantity) ||
@@ -160,7 +183,7 @@ export async function createProductController(
     }
 
     const parsedMinimumStock =
-      minimumStock === undefined ? 0 : Number(minimumStock);
+      minimumStock === undefined ? 0 : quantity(minimumStock, "Minimum stock");
 
     if (
       !Number.isFinite(parsedMinimumStock) ||
@@ -316,7 +339,7 @@ export async function updateProductController(
     }
 
     if (costPrice !== undefined) {
-      const parsedCostPrice = Number(costPrice);
+      const parsedCostPrice = money(costPrice, "Cost price");
 
       if (!Number.isFinite(parsedCostPrice) || parsedCostPrice < 0) {
         return res.status(400).json({
@@ -329,7 +352,7 @@ export async function updateProductController(
     }
 
     if (sellingPrice !== undefined) {
-      const parsedSellingPrice = Number(sellingPrice);
+      const parsedSellingPrice = money(sellingPrice, "Selling price");
 
       if (!Number.isFinite(parsedSellingPrice) || parsedSellingPrice < 0) {
         return res.status(400).json({
@@ -342,7 +365,7 @@ export async function updateProductController(
     }
 
     if (minimumStock !== undefined) {
-      const parsedMinimumStock = Number(minimumStock);
+      const parsedMinimumStock = quantity(minimumStock, "Minimum stock");
 
       if (!Number.isFinite(parsedMinimumStock) || parsedMinimumStock < 0) {
         return res.status(400).json({
