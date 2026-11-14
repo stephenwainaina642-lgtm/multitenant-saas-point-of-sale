@@ -38,6 +38,7 @@ model Business {
   auditLogs          AuditLog[]
   documentSequences  DocumentSequence[]
   refunds            Refund[]
+  supplierPayments   SupplierPayment[]
 
   @@map("businesses")
 }
@@ -57,6 +58,7 @@ model User {
   auditLogs   AuditLog[]
   sales       Sale[] @relation("SaleSalesperson")
   refundsCreated Refund[]
+  supplierPaymentsCreated SupplierPayment[]
 
   @@map("users")
 }
@@ -228,6 +230,7 @@ model Purchase {
   business Business       @relation(fields: [businessId], references: [id])
   supplier Supplier       @relation(fields: [supplierId], references: [id])
   items    PurchaseItem[]
+  payments SupplierPayment[]
 
   @@index([businessId])
   @@index([supplierId])
@@ -309,6 +312,27 @@ model SaleItem {
   @@index([saleId])
   @@index([productId])
   @@map("sale_items")
+}
+
+model SupplierPayment {
+  id          BigInt   @id @default(autoincrement())
+  businessId  BigInt   @map("business_id")
+  purchaseId  BigInt   @map("purchase_id")
+  amount      Decimal  @db.Decimal(12, 2)
+  method      String   @db.VarChar(50)
+  reference   String?  @db.VarChar(255)
+  notes       String?
+  createdBy   BigInt?  @map("created_by")
+  paymentDate DateTime @default(now()) @map("payment_date") @db.Timestamptz(6)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  business Business @relation(fields: [businessId], references: [id])
+  purchase Purchase @relation(fields: [purchaseId], references: [id])
+  user     User?    @relation(fields: [createdBy], references: [id])
+
+  @@index([businessId])
+  @@index([purchaseId])
+  @@map("supplier_payments")
 }
 
 model Payment {

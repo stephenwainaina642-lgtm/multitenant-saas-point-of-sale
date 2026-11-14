@@ -194,6 +194,21 @@ export async function ledgerViolations(): Promise<string[]> {
   );
   for (const r of customerMismatch) problems.push(`customer ${r.id}: balance ${r.balance} != sum of sale balances ${r.due}`);
 
+  const supplierMismatch = await query(
+    `select su.id, su.balance, coalesce(sum(p.balance_due),0) as owed
+       from suppliers su left join purchases p on p.supplier_id = su.id and p.status = 'received'
+      group by su.id having su.balance <> coalesce(sum(p.balance_due),0)`
+  );
+  for (const r of supplierMismatch) problems.push(`supplier ${r.id}: balance ${r.balance} but purchases owe ${r.owed}`);
+
+  const purchasePayments = await query(
+    `select p.id, p.amount_paid, coalesce(sum(sp.amount),0) as paid
+       from purchases p left join supplier_payments sp on sp.purchase_id = p.id
+      group by p.id having p.amount_paid <> coalesce(sum(sp.amount),0)
+          or p.total - p.amount_paid <> p.balance_due`
+  );
+  for (const r of purchasePayments) problems.push(`purchase ${r.id}: amount_paid ${r.amount_paid} vs payments ${r.paid}`);
+
   const refundMismatch = await query(
     `select s.id, s.amount_paid, coalesce(sum(r.amount),0) as refunded
        from sales s left join refunds r on r.sale_id = s.id

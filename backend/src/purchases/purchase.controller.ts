@@ -55,6 +55,8 @@ export async function createPurchaseController(
       discount,
       tax,
       amountPaid,
+      paymentMethod,
+      paymentReference,
       notes,
       items,
     } = req.body;
@@ -94,6 +96,9 @@ export async function createPurchaseController(
           amountPaid: Number(amountPaid),
         }),
 
+        ...(paymentMethod !== undefined && { paymentMethod: String(paymentMethod) }),
+        ...(paymentReference !== undefined && { paymentReference: String(paymentReference) }),
+
         ...(notes !== undefined && {
           notes: String(notes),
         }),
@@ -117,7 +122,8 @@ export async function createPurchaseController(
             tax: Number(item.tax),
           }),
         })),
-      }
+      },
+      req.user?.userId
     );
 
     return res.status(201).json({
@@ -182,4 +188,30 @@ export async function createPurchaseController(
       message: "Failed to create purchase",
     });
   }
+}
+
+import type { NextFunction } from "express";
+import {
+  getBusinessPurchase,
+  recordSupplierPayment,
+  voidBusinessPurchase,
+} from "./purchase-payments.service.js";
+
+const biz = (req: BusinessRequest) => req.businessId!.toString();
+const actor = (req: BusinessRequest) => ({ userId: String(req.user!.userId) });
+
+export async function getPurchaseController(req: BusinessRequest, res: Response, next: NextFunction) {
+  try { res.json({ success: true, data: await getBusinessPurchase(biz(req), String(req.params.id)) }); } catch (e) { next(e); }
+}
+export async function payPurchaseController(req: BusinessRequest, res: Response, next: NextFunction) {
+  try {
+    const data = await recordSupplierPayment(biz(req), String(req.params.id), req.body ?? {}, actor(req));
+    res.status(201).json({ success: true, message: "Payment recorded", data });
+  } catch (e) { next(e); }
+}
+export async function voidPurchaseController(req: BusinessRequest, res: Response, next: NextFunction) {
+  try {
+    const data = await voidBusinessPurchase(biz(req), String(req.params.id), req.body ?? {}, actor(req));
+    res.json({ success: true, message: "Purchase voided", data });
+  } catch (e) { next(e); }
 }

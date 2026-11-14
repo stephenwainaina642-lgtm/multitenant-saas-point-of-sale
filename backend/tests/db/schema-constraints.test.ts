@@ -5,7 +5,7 @@ const EXPECTED_TABLES = [
   "audit_logs", "business_users", "businesses", "categories", "customers", "document_sequences", "expenses",
   "inventory_movements", "invoice_items", "invoices", "payments", "products",
   "purchase_items", "purchases", "quotation_items", "quotations", "refunds", "roles",
-  "sale_items", "sales", "suppliers", "users",
+  "sale_items", "sales", "supplier_payments", "suppliers", "users",
 ];
 
 // Tables that must carry business_id (directly business-owned).
@@ -191,7 +191,7 @@ describe("more integrity rules", () => {
     const rows = await query<{ conname: string; convalidated: boolean }>(
       `select conname, convalidated from pg_constraint
         where contype = 'c' and connamespace = 'public'::regnamespace
-          and conname <> 'refunds_amount_positive'`
+          and conname not in ('refunds_amount_positive','supplier_payments_amount_positive')`
     );
     expect(rows.length).toBe(12);
     for (const r of rows) expect(r.convalidated, r.conname).toBe(false);

@@ -2,6 +2,7 @@ import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
 import {
   centsToString,
+  decimalToCents,
   lineAmount,
   milliToString,
   parseMoney,
@@ -22,9 +23,17 @@ type PurchaseData = {
   discount?: number;
   tax?: number;
   amountPaid?: number;
+  paymentMethod?: string;
+  paymentReference?: string;
   notes?: string;
   items: PurchaseItemData[];
 };
+
+export function purchaseStatus(status: string, total: bigint, paid: bigint) {
+  if (status === "voided") return "voided";
+  if (paid >= total) return "paid";
+  return paid > 0n ? "partial" : "unpaid";
+}
 
 export async function getBusinessPurchases(
   businessId: string
@@ -71,6 +80,7 @@ export async function getBusinessPurchases(
     amountPaid: purchase.amountPaid,
     balanceDue: purchase.balanceDue,
     status: purchase.status,
+    paymentStatus: purchaseStatus(purchase.status, decimalToCents(purchase.total), decimalToCents(purchase.amountPaid)),
     notes: purchase.notes,
     createdAt: purchase.createdAt,
     items: purchase.items.map((item) => ({
@@ -90,7 +100,8 @@ export async function getBusinessPurchases(
 
 export async function createBusinessPurchase(
   businessId: string,
-  data: PurchaseData
+  data: PurchaseData,
+  actorUserId?: string
 ) {
   if (!data.items || data.items.length === 0) {
     throw new AppError(400, "At least one purchase item is required");
@@ -199,6 +210,17 @@ export async function createBusinessPurchase(
 
     const balanceDue = total - amountPaid;
 
+    let paymentMethod = "";
+    if (amountPaid > 0n) {
+      paymentMethod = (data.paymentMethod ?? "").trim();
+      if (!paymentMethod) {
+        throw new AppError(400, "Payment method is required when an amount is paid");
+      }
+      if (paymentMethod.length > 50) {
+        throw new AppError(400, "Payment method must not exceed 50 characters");
+      }
+    }
+
     const purchase = await tx.purchase.create({
       data: {
         businessId: bizId,
@@ -225,6 +247,28 @@ export async function createBusinessPurchase(
       },
       include: { items: true },
     });
+
+    if (amountPaid > 0n) {
+      await tx.supplierPayment.create({
+        data: {
+          businessId: bizId,
+          purchaseId: purchase.id,
+          amount: centsToString(amountPaid),
+          method: paymentMethod,
+          reference: data.paymentReference?.trim() || null,
+          notes: "Paid at the time of purchase",
+          createdBy: actorUserId ? BigInt(actorUserId) : null,
+        },
+      });
+    }
+
+    // What we still owe this supplier (atomic, so concurrent purchases add up).
+    if (balanceDue > 0n) {
+      await tx.supplier.update({
+        where: { id: supplier.id },
+        data: { balance: { increment: centsToString(balanceDue) } },
+      });
+    }
 
     // Atomic increment: concurrent receipts of the same product cannot
     // overwrite each other. Stable order avoids deadlocks.
@@ -266,6 +310,7 @@ export async function createBusinessPurchase(
       amountPaid: purchase.amountPaid,
       balanceDue: purchase.balanceDue,
       status: purchase.status,
+      paymentStatus: purchaseStatus(purchase.status, total, amountPaid),
       notes: purchase.notes,
       createdAt: purchase.createdAt,
       items: purchase.items.map((item) => ({

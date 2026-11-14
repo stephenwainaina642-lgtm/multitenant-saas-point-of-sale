@@ -13,6 +13,8 @@ export const PERMISSION_CATALOG = {
   "suppliers.manage": "Create, edit and archive suppliers",
   "purchases.view": "View purchases",
   "purchases.create": "Record purchases and receive stock",
+  "purchases.pay": "Record payments to suppliers",
+  "purchases.void": "Void purchases",
   "sales.create": "Make sales at the till",
   "sales.view_own": "View own sales",
   "sales.view_all": "View every sale in the business",
@@ -59,7 +61,7 @@ export const BUILT_IN_ROLES: Record<string, Permission[]> = {
   ],
   accountant: [
     "sales.view_all", "payments.view", "expenses.view", "expenses.manage",
-    "purchases.view", "invoices.view", "quotations.view", "reports.view",
+    "purchases.view", "purchases.pay", "invoices.view", "quotations.view", "reports.view",
   ],
 };
 

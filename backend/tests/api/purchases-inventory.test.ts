@@ -10,7 +10,7 @@ describe("purchases and inventory", () => {
     const s = await seedPerfumeBusiness();
     const before = await stockOf(s.oud6.id);
     const res = await post("/purchases", s.t, {
-      supplierId: s.supplier.id, invoiceNumber: "DFT-0042", amountPaid: 20000,
+      supplierId: s.supplier.id, invoiceNumber: "DFT-0042", amountPaid: 20000, paymentMethod: "bank",
       items: [{ productId: s.oud6.id, quantity: 50, unitCost: 470 }],
     });
     expect(res.status).toBe(201);

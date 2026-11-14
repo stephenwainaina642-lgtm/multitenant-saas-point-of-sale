@@ -8,6 +8,7 @@ type Supplier = {
   email: string | null;
   address: string | null;
   notes: string | null;
+  balance?: string;
   isActive: boolean;
   createdAt: string;
 };
@@ -293,6 +294,7 @@ export default function SuppliersWorkspace() {
                 <th>PHONE</th>
                 <th>EMAIL</th>
                 <th>ADDRESS</th>
+                <th>WE OWE</th>
                 <th>REGISTERED</th>
                 <th>ACTIONS</th>
               </tr>
@@ -312,6 +314,7 @@ export default function SuppliersWorkspace() {
                     <td>{supplier.phone || "—"}</td>
                     <td>{supplier.email || "—"}</td>
                     <td>{supplier.address || "—"}</td>
+                    <td>{supplier.balance !== undefined ? `KSh ${Number(supplier.balance).toLocaleString("en-KE", { minimumFractionDigits: 2 })}` : "—"}</td>
                     <td>
                       {supplier.createdAt
                         ? new Date(supplier.createdAt).toLocaleDateString("en-KE")
@@ -341,7 +344,7 @@ export default function SuppliersWorkspace() {
 
               {!loading && filteredSuppliers.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="empty-row">
+                  <td colSpan={7} className="empty-row">
                     {suppliers.length === 0
                       ? "No suppliers have been registered for this business yet."
                       : "No suppliers match your search."}
@@ -351,7 +354,7 @@ export default function SuppliersWorkspace() {
 
               {loading && (
                 <tr>
-                  <td colSpan={6}>Loading suppliers from PostgreSQL...</td>
+                  <td colSpan={7}>Loading suppliers from PostgreSQL...</td>
                 </tr>
               )}
             </tbody>

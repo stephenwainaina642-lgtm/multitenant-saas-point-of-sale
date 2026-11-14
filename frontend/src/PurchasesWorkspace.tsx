@@ -41,6 +41,7 @@ type Purchase = {
   tax: number | string;
   total: number | string;
   amountPaid: number | string;
+  paymentStatus?: string;
   balanceDue: number | string;
   status: string;
   notes: string | null;
@@ -69,6 +70,7 @@ const emptyForm = {
   discount: "0",
   tax: "0",
   amountPaid: "0",
+  paymentMethod: "cash",
   notes: "",
 };
 
@@ -99,6 +101,30 @@ export default function PurchasesWorkspace() {
 
   const token = sessionStorage.getItem("pos_token") ?? "";
   const businessId = sessionStorage.getItem("pos_business_id") ?? "";
+
+  async function payPurchase(purchase: Purchase) {
+    const amount = window.prompt(`Amount paid to ${purchase.supplierName} (balance KES ${Number(purchase.balanceDue).toFixed(2)})`, String(purchase.balanceDue));
+    if (amount === null) return;
+    const method = window.prompt("Payment method (cash, mpesa, bank, cheque)", "cash");
+    if (method === null) return;
+    setError(""); setMessage("");
+    try {
+      await apiRequest(`/purchases/${purchase.id}/payments`, { method: "POST", token, businessId, body: { amount: amount.trim(), method: method.trim() } });
+      setMessage("Supplier payment recorded.");
+      await loadData();
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not record the payment."); }
+  }
+
+  async function voidPurchase(purchase: Purchase) {
+    const reason = window.prompt(`Void PO-${purchase.id}? The stock it added is removed again. Reason:`);
+    if (!reason) return;
+    setError(""); setMessage("");
+    try {
+      await apiRequest(`/purchases/${purchase.id}/void`, { method: "POST", token, businessId, body: { reason } });
+      setMessage("Purchase voided.");
+      await loadData();
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not void the purchase."); }
+  }
 
   const loadData = useCallback(async () => {
     if (!token || !businessId) {
@@ -282,6 +308,7 @@ export default function PurchasesWorkspace() {
       discount: numberValue(form.discount),
       tax: numberValue(form.tax),
       amountPaid: numberValue(form.amountPaid),
+      ...(numberValue(form.amountPaid) > 0 && { paymentMethod: form.paymentMethod }),
       notes: form.notes.trim(),
       items: lines.map((line) => ({
         productId: line.productId,
@@ -404,6 +431,7 @@ export default function PurchasesWorkspace() {
                 <th>PAID</th>
                 <th>BALANCE</th>
                 <th>STATUS</th>
+                <th>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
@@ -421,13 +449,25 @@ export default function PurchasesWorkspace() {
                     <td><strong>{money(purchase.total)}</strong></td>
                     <td>{money(purchase.amountPaid)}</td>
                     <td>{money(purchase.balanceDue)}</td>
-                    <td>{purchase.status}</td>
+                    <td>{purchase.status === "voided" ? "voided" : purchase.paymentStatus ?? purchase.status}</td>
+                    <td>
+                      {purchase.status !== "voided" && (
+                        <div className="customer-actions">
+                          {Number(purchase.balanceDue) > 0 && (
+                            <button type="button" className="button-secondary" onClick={() => void payPurchase(purchase)}>Pay supplier</button>
+                          )}
+                          {Number(purchase.amountPaid) === 0 && (
+                            <button type="button" className="button-secondary" onClick={() => void voidPurchase(purchase)}>Void</button>
+                          )}
+                        </div>
+                      )}
+                    </td>
                   </tr>
                 ))}
 
               {!loading && filteredPurchases.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="empty-row">
+                  <td colSpan={9} className="empty-row">
                     {purchases.length === 0
                       ? "No purchases have been recorded for this business yet."
                       : "No purchases match your search."}
@@ -437,7 +477,7 @@ export default function PurchasesWorkspace() {
 
               {loading && (
                 <tr>
-                  <td colSpan={8}>Loading purchases from PostgreSQL...</td>
+                  <td colSpan={9}>Loading purchases from PostgreSQL...</td>
                 </tr>
               )}
             </tbody>
@@ -661,6 +701,18 @@ export default function PurchasesWorkspace() {
                 onChange={(event) => updateForm("amountPaid", event.target.value)}
               />
             </label>
+
+            {numberValue(form.amountPaid) > 0 && (
+              <label style={labelStyle}>
+                Payment method
+                <select style={{ ...fieldStyle, marginTop: 6 }} value={form.paymentMethod} onChange={(event) => updateForm("paymentMethod", event.target.value)}>
+                  <option value="cash">Cash</option>
+                  <option value="mpesa">M-Pesa</option>
+                  <option value="bank">Bank</option>
+                  <option value="cheque">Cheque</option>
+                </select>
+              </label>
+            )}
 
             <label style={labelStyle}>
               Notes
