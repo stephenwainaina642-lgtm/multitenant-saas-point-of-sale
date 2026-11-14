@@ -55,13 +55,17 @@ export async function withRollback<T>(
 }
 
 /** Apply every prisma/migrations/<dir>/migration.sql in order. */
-export async function applyMigrations(client: pg.Client | pg.PoolClient) {
+export async function applyMigrations(
+  client: pg.Client | pg.PoolClient,
+  include: (name: string) => boolean = () => true
+) {
   const dir = path.resolve(process.cwd(), "prisma/migrations");
   const names = fs
     .readdirSync(dir, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => d.name)
-    .sort();
+    .sort()
+    .filter(include);
   for (const name of names) {
     const file = path.join(dir, name, "migration.sql");
     if (!fs.existsSync(file)) continue;

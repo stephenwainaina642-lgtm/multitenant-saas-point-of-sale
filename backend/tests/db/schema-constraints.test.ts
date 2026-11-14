@@ -99,10 +99,9 @@ describe("unique constraints", () => {
   });
 });
 
-// Each of these asserts what a safe database SHOULD do. Today the database
-// accepts the bad data, so they are marked known defects (see KD-9).
-describe("database-level safety nets (known defects)", () => {
-  it.fails("KD-9 negative stock is rejected by a CHECK constraint", async () => {
+// The database itself refuses bad data, independent of application code.
+describe("database-level safety nets", () => {
+  it("negative stock is rejected by a CHECK constraint", async () => {
     await withRollback(async (c) => {
       const b = (await c.query(`insert into businesses(name) values ('T') returning id`)).rows[0].id;
       await expect(
@@ -111,7 +110,7 @@ describe("database-level safety nets (known defects)", () => {
     });
   });
 
-  it.fails("KD-9 negative or zero payment amounts are rejected by a CHECK constraint", async () => {
+  it("negative or zero payment amounts are rejected by a CHECK constraint", async () => {
     await withRollback(async (c) => {
       const b = (await c.query(`insert into businesses(name) values ('T') returning id`)).rows[0].id;
       const s = (await c.query(`insert into sales(business_id,receipt_number) values ($1,'R') returning id`, [b])).rows[0].id;
@@ -121,32 +120,79 @@ describe("database-level safety nets (known defects)", () => {
     });
   });
 
-  it.fails("KD-9b a sale cannot reference a customer from another business", async () => {
+  it("a sale cannot reference a customer from another business", async () => {
     await withRollback(async (c) => {
       const a = (await c.query(`insert into businesses(name) values ('A') returning id`)).rows[0].id;
       const b = (await c.query(`insert into businesses(name) values ('B') returning id`)).rows[0].id;
       const cust = (await c.query(`insert into customers(business_id,name) values ($1,'c') returning id`, [a])).rows[0].id;
       await expect(
         c.query(`insert into sales(business_id,customer_id,receipt_number) values ($1,$2,'X')`, [b, cust])
-      ).rejects.toBeTruthy();
+      ).rejects.toMatchObject({ code: "23514", message: expect.stringContaining("Cross-business") });
     });
   });
 
-  it.fails("KD-9c a payment cannot belong to a different business than its sale", async () => {
+  it("a payment cannot belong to a different business than its sale", async () => {
     await withRollback(async (c) => {
       const a = (await c.query(`insert into businesses(name) values ('A') returning id`)).rows[0].id;
       const b = (await c.query(`insert into businesses(name) values ('B') returning id`)).rows[0].id;
       const sale = (await c.query(`insert into sales(business_id,receipt_number) values ($1,'R') returning id`, [a])).rows[0].id;
       await expect(
         c.query(`insert into payments(business_id,sale_id,amount,method) values ($1,$2,10,'cash')`, [b, sale])
-      ).rejects.toBeTruthy();
+      ).rejects.toMatchObject({ code: "23514", message: expect.stringContaining("Cross-business") });
     });
   });
 
-  it.fails("KD-9d two global (NULL-business) roles cannot share a name", async () => {
+  it("two global (NULL-business) roles cannot share a name", async () => {
     await withRollback(async (c) => {
       await c.query(`insert into roles(name,business_id) values ('owner',null)`);
       await expect(c.query(`insert into roles(name,business_id) values ('owner',null)`)).rejects.toMatchObject({ code: "23505" });
     });
+  });
+});
+
+describe("more integrity rules", () => {
+  it("sale and sale-item rows cannot use another business's product", async () => {
+    await withRollback(async (c) => {
+      const a = (await c.query(`insert into businesses(name) values ('A') returning id`)).rows[0].id;
+      const b = (await c.query(`insert into businesses(name) values ('B') returning id`)).rows[0].id;
+      const prod = (await c.query(`insert into products(business_id,name) values ($1,'p') returning id`, [a])).rows[0].id;
+      const sale = (await c.query(`insert into sales(business_id,receipt_number) values ($1,'R') returning id`, [b])).rows[0].id;
+      await expect(
+        c.query(`insert into sale_items(sale_id,product_id,quantity,unit_price,total) values ($1,$2,1,1,1)`, [sale, prod])
+      ).rejects.toMatchObject({ code: "23514" });
+    });
+  });
+
+  it("inconsistent sale money (balance_due != total - amount_paid, or overpaid) is rejected", async () => {
+    await withRollback(async (c) => {
+      const b = (await c.query(`insert into businesses(name) values ('A') returning id`)).rows[0].id;
+      await c.query("savepoint s1");
+      await expect(
+        c.query(`insert into sales(business_id,receipt_number,total,amount_paid,balance_due) values ($1,'R1',100,40,10)`, [b])
+      ).rejects.toMatchObject({ code: "23514" });
+      await c.query("rollback to savepoint s1");
+      await expect(
+        c.query(`insert into sales(business_id,receipt_number,total,amount_paid,balance_due) values ($1,'R2',100,150,-50)`, [b])
+      ).rejects.toMatchObject({ code: "23514" });
+    });
+  });
+
+  it("an unknown inventory movement type is rejected", async () => {
+    await withRollback(async (c) => {
+      const b = (await c.query(`insert into businesses(name) values ('A') returning id`)).rows[0].id;
+      const p = (await c.query(`insert into products(business_id,name) values ($1,'p') returning id`, [b])).rows[0].id;
+      await expect(
+        c.query(`insert into inventory_movements(business_id,product_id,type,quantity) values ($1,$2,'TELEPORT',1)`, [b, p])
+      ).rejects.toMatchObject({ code: "23514" });
+    });
+  });
+
+  it("the new CHECK constraints are NOT VALID, so existing rows are never scanned or rejected", async () => {
+    const rows = await query<{ conname: string; convalidated: boolean }>(
+      `select conname, convalidated from pg_constraint
+        where contype = 'c' and connamespace = 'public'::regnamespace`
+    );
+    expect(rows.length).toBe(12);
+    for (const r of rows) expect(r.convalidated, r.conname).toBe(false);
   });
 });

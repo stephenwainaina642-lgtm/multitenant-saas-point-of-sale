@@ -48,7 +48,7 @@ Tests named `KD-n` use `it.fails`: they assert the **correct** behaviour, are gr
 | KD-6 | Concurrent purchase receipts lose stock | fixed (atomic increment) |
 | KD-7 | Decimal quantities rejected in sales | fixed |
 | KD-8 | Credit sales do not update customer balance or enforce credit limit | fixed |
-| KD-9 | No CHECK constraints, no tenant-safe FKs, duplicate NULL-business roles | open (Stage 2b-3) |
+| KD-9 | No CHECK constraints, no tenant-safe links, duplicate NULL-business roles | fixed (additive migration, see `docs/stage-2b-migrations.md`) |
 | KD-10 | Login is case-sensitive, register lowercases the email | fixed |
 
 Still untested because the feature does not exist: sale edit/void/return, employee invitations, custom roles, quotation conversion, supplier balances.
