@@ -35,9 +35,10 @@ export async function authenticate(
     const jwtSecret = process.env.JWT_SECRET;
 
     if (!jwtSecret) {
+      console.error("JWT_SECRET is not configured");
       return res.status(500).json({
         success: false,
-        message: "JWT_SECRET is not configured",
+        message: "Server is not configured correctly",
       });
     }
 

@@ -1,7 +1,11 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
 import dotenv from "dotenv";
 import { testDatabaseConnection } from "./db.js";
+import { loadConfig } from "./lib/config.js";
+import { loginLimiter, registerLimiter } from "./middleware/security.js";
+import { errorHandler, notFoundHandler } from "./middleware/errors.js";
 
 import authRoutes from "./auth/auth.routes.js";
 import businessRoutes from "./business/business.routes.js";
@@ -22,12 +26,32 @@ import roleRoutes from "./roles/role.routes.js";
 
 dotenv.config();
 
+const config = loadConfig();
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = config.port;
 
-app.use(cors());
-app.use(express.json());
+if (config.trustProxy) {
+  app.set("trust proxy", 1);
+}
 
+app.disable("x-powered-by");
+app.use(helmet());
+app.use(
+  cors({
+    origin(origin, callback) {
+      // Non-browser clients (no Origin header) are allowed; browsers must be listed.
+      if (!origin || config.corsOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(null, false);
+    },
+    allowedHeaders: ["Content-Type", "Authorization", "X-Business-ID", "Idempotency-Key"],
+  })
+);
+app.use(express.json({ limit: "200kb" }));
+
+app.use("/api/auth/login", loginLimiter(config));
+app.use("/api/auth/register", registerLimiter(config));
 app.use("/api/auth", authRoutes);
 app.use("/api/businesses", businessRoutes);
 app.use("/api/business-context", businessContextRoutes);
@@ -51,6 +75,9 @@ app.get("/api/health", (_req, res) => {
     message: "POS backend is running",
   });
 });
+
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 app.listen(PORT, async () => {
   console.log(`POS backend running on http://localhost:${PORT}`);

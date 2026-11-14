@@ -1,6 +1,11 @@
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 import prisma from "../lib/prisma.js";
+import { AppError } from "../lib/errors.js";
+import { signToken } from "../lib/token.js";
+
+// Compared against when the email is unknown, so response time does not reveal
+// whether an account exists.
+const DUMMY_HASH = "$2b$12$C6UzMDM.H6dfI/f/IKcEeO9r7GDlmFqGkgLBvqfoWzgs5tSJ0RZ3W";
 
 type LoginResult = {
   token: string;
@@ -33,30 +38,16 @@ export async function loginUser(
     },
   });
 
-  if (!user || !user.isActive) {
-    throw new Error("Invalid email or password");
-  }
-
   const passwordMatches = await bcrypt.compare(
     password,
-    user.passwordHash
+    user?.passwordHash ?? DUMMY_HASH
   );
 
-  if (!passwordMatches) {
-    throw new Error("Invalid email or password");
+  if (!user || !user.isActive || !passwordMatches) {
+    throw new AppError(401, "Invalid email or password");
   }
 
-  const jwtSecret = process.env.JWT_SECRET;
-
-  if (!jwtSecret) {
-    throw new Error("JWT_SECRET is not configured");
-  }
-
-  const token = jwt.sign(
-    { userId: user.id.toString() },
-    jwtSecret,
-    { expiresIn: "7d" }
-  );
+  const token = signToken(user.id.toString());
 
   return {
     token,

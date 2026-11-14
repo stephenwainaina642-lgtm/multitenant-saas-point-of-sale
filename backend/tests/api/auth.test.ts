@@ -20,7 +20,7 @@ describe("authentication and business context", () => {
     const res = await post("/auth/register", undefined, {
       name: "x", email: t.email, password: PASSWORD, businessName: "Other",
     });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(409);
   });
 
   it("rejects passwords shorter than 8 characters", async () => {
