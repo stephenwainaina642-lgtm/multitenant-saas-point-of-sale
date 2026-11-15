@@ -32,29 +32,18 @@ const navigation = [
   { name: "Settings", icon: "G" },
 ];
 
-type DashboardSale = {
-  id: string;
-  receiptNumber: string;
-  customerName: string | null;
-  salespersonId?: string | null;
-  salespersonName?: string | null;
-  salespersonEmail?: string | null;
-  saleDate: string;
-  createdAt: string;
-  total: number | string;
-  amountPaid: number | string;
-  balanceDue: number | string;
-  paymentStatus: string;
-  status: string;
-};
-
-type DashboardProduct = {
-  id: string;
-  name: string;
-  sku: string | null;
-  stockQuantity: number | string;
-  minimumStock: number | string;
-  unitOfMeasure: string;
+type DashboardData = {
+  timeZone: string;
+  sales: { today: { count: number; revenue: number }; thisMonth: { count: number; revenue: number }; allTime: { count: number; revenue: number } } | null;
+  receivables: { outstanding: number; unpaidSales: number } | null;
+  payables: { outstanding: number; unpaidPurchases: number } | null;
+  stock: {
+    productCount: number; units: number; value: number; lowStockCount: number;
+    lowStock: { id: string; name: string; sku: string | null; unitOfMeasure: string; stockQuantity: number; minimumStock: number }[];
+  } | null;
+  charts: Record<"week" | "month" | "year", { label: string; total: number }[]> | null;
+  performance: { id: string; name: string; email: string; salesCount: number; revenue: number; collected: number; outstanding: number }[] | null;
+  recentSales: { id: string; receiptNumber: string; customerName: string | null; saleDate: string; total: number; paymentStatus: string; status: string }[] | null;
 };
 
 const money = (amount: number) =>
@@ -81,70 +70,19 @@ function App() {
 
 
 
-  const [sales, setSales] = useState<DashboardSale[]>([]);
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
 
+  // The server computes every figure (exact money, in the business's own time zone).
   const chartData = useMemo(() => {
-    const now = new Date();
-    const buckets: { day: string; start: Date; end: Date; total: number }[] = [];
-
-    if (period === "This year") {
-      for (let month = 0; month < 12; month++) {
-        buckets.push({
-          day: new Date(now.getFullYear(), month, 1).toLocaleDateString("en-KE", { month: "short" }),
-          start: new Date(now.getFullYear(), month, 1),
-          end: new Date(now.getFullYear(), month + 1, 1),
-          total: 0,
-        });
-      }
-    } else if (period === "This month") {
-      for (let week = 0; week < 5; week++) {
-        const start = new Date(now.getFullYear(), now.getMonth(), 1 + week * 7);
-        const end = new Date(now.getFullYear(), now.getMonth(), 1 + (week + 1) * 7);
-        buckets.push({
-          day: `Week ${week + 1}`,
-          start,
-          end,
-          total: 0,
-        });
-      }
-    } else {
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const monday = new Date(today);
-      monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
-
-      for (let day = 0; day < 7; day++) {
-        const start = new Date(monday);
-        start.setDate(monday.getDate() + day);
-        const end = new Date(start);
-        end.setDate(start.getDate() + 1);
-        buckets.push({
-          day: start.toLocaleDateString("en-KE", { weekday: "short" }),
-          start,
-          end,
-          total: 0,
-        });
-      }
-    }
-
-    for (const sale of sales) {
-      const saleDate = new Date(sale.saleDate);
-      if (Number.isNaN(saleDate.getTime())) continue;
-
-      const bucket = buckets.find(
-        (item) => saleDate >= item.start && saleDate < item.end
-      );
-
-      if (bucket) bucket.total += Number(sale.total) || 0;
-    }
-
-    const maximum = Math.max(...buckets.map((item) => item.total), 0);
-
-    return buckets.map((item) => ({
-      day: item.day,
+    const key = period === "This year" ? "year" : period === "This month" ? "month" : "week";
+    const series = dashboard?.charts?.[key] ?? [];
+    const maximum = Math.max(...series.map((item) => item.total), 0);
+    return series.map((item) => ({
+      day: item.label,
       total: item.total,
       value: maximum > 0 ? (item.total / maximum) * 100 : 0,
     }));
-  }, [sales, period]);
+  }, [dashboard, period]);
 
   const chartMaximum = Math.max(...chartData.map((item) => item.total), 1);
   const chartAxisLabels = [1, 0.75, 0.5, 0.25, 0].map((fraction) =>
@@ -153,7 +91,6 @@ function App() {
       maximumFractionDigits: 1,
     }).format(chartMaximum * fraction)
   );
-  const [products, setProducts] = useState<DashboardProduct[]>([]);
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [dashboardError, setDashboardError] = useState("");
 
@@ -171,15 +108,10 @@ function App() {
       }
 
       try {
-        const [salesResponse, productsResponse] = await Promise.all([
-          apiRequest<DashboardSale[]>("/sales", { token, businessId }),
-          apiRequest<DashboardProduct[]>("/products", { token, businessId }),
-        ]);
+        const response = await apiRequest<DashboardData>("/dashboard", { token, businessId });
 
         if (!cancelled) {
-          // Voided sales are history only: they never count as revenue or money owed.
-          setSales(Array.isArray(salesResponse.data) ? salesResponse.data.filter((sale) => sale.status !== "voided") : []);
-          setProducts(Array.isArray(productsResponse.data) ? productsResponse.data : []);
+          setDashboard(response.data ?? null);
           setDashboardError("");
         }
       } catch (error) {
@@ -199,65 +131,26 @@ function App() {
     };
   }, []);
 
+  const recentSales = useMemo(() => dashboard?.recentSales ?? [], [dashboard]);
   const filteredTransactions = useMemo(
     () =>
-      sales.filter((sale) =>
+      recentSales.filter((sale) =>
         `${sale.receiptNumber} ${sale.customerName || "Walk-in customer"} ${sale.paymentStatus}`
           .toLowerCase()
           .includes(search.toLowerCase())
       ),
-    [sales, search]
+    [recentSales, search]
   );
 
-  const totalRevenue = sales.reduce((sum, sale) => sum + (Number(sale.total) || 0), 0);
-  const totalOutstanding = sales.reduce(
-    (sum, sale) => sum + (Number(sale.balanceDue) || 0),
-    0
-  );
-
-  const salespersonPerformance = useMemo(() => {
-    const performance = new Map<string, {
-      id: string;
-      name: string;
-      email: string;
-      salesCount: number;
-      revenue: number;
-      collected: number;
-      outstanding: number;
-    }>();
-
-    for (const sale of sales) {
-      const id = sale.salespersonId || "unassigned";
-      const name = sale.salespersonName || "Unassigned salesperson";
-      const email = sale.salespersonEmail || "";
-      const current = performance.get(id) || {
-        id,
-        name,
-        email,
-        salesCount: 0,
-        revenue: 0,
-        collected: 0,
-        outstanding: 0,
-      };
-
-      current.salesCount += 1;
-      current.revenue += Number(sale.total) || 0;
-      current.collected += Number(sale.amountPaid) || 0;
-      current.outstanding += Number(sale.balanceDue) || 0;
-      performance.set(id, current);
-    }
-
-    return Array.from(performance.values()).sort(
-      (a, b) => b.revenue - a.revenue
-    );
-  }, [sales]);
-  const stockUnits = products.reduce(
-    (sum, product) => sum + (Number(product.stockQuantity) || 0),
-    0
-  );
-  const lowStockProducts = products.filter(
-    (product) => Number(product.stockQuantity) <= Number(product.minimumStock)
-  );
+  const totalRevenue = dashboard?.sales?.allTime.revenue ?? 0;
+  const totalOrders = dashboard?.sales?.allTime.count ?? 0;
+  const totalOutstanding = dashboard?.receivables?.outstanding ?? 0;
+  const unpaidSales = dashboard?.receivables?.unpaidSales ?? 0;
+  const salespersonPerformance = useMemo(() => dashboard?.performance ?? [], [dashboard]);
+  const stockUnits = dashboard?.stock?.units ?? 0;
+  const lowStockProducts = dashboard?.stock?.lowStock ?? [];
+  const lowStockCount = dashboard?.stock?.lowStockCount ?? 0;
+  const businessTimeZone = dashboard?.timeZone ?? "Africa/Nairobi";
 
   function selectPage(name: string) {
     setActivePage(name);
@@ -329,7 +222,7 @@ function App() {
           </div>
           <div className="topbar-actions">
             <div className="system-status"><span></span> Connected</div>
-            <button className="icon-button notification-button" aria-label="Notifications" onClick={() => setNotice(`${lowStockProducts.length} products need restocking.`)}><i></i></button>
+            <button className="icon-button notification-button" aria-label="Notifications" onClick={() => setNotice(`${lowStockCount} products need restocking.`)}><i></i></button>
             <div className="topbar-avatar">{userInitials}</div>
           </div>
         </header>
@@ -399,25 +292,25 @@ function App() {
             <article className="metric-card">
               <div className="metric-top"><span>Total revenue</span><span className="metric-icon green"></span></div>
               <div className="metric-value">{money(totalRevenue)}</div>
-              <div className="metric-foot"><span className="neutral-tag">Recorded sales</span><span>current records</span></div>
+              <div className="metric-foot"><span className="neutral-tag">Today {money(dashboard?.sales?.today.revenue ?? 0)}</span><span>{dashboard?.sales?.today.count ?? 0} sales</span></div>
               <div className="mini-bars"><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /></div>
             </article>
             <article className="metric-card">
               <div className="metric-top"><span>Total orders</span><span className="metric-icon blue"></span></div>
-              <div className="metric-value">{sales.length}</div>
-              <div className="metric-foot"><span className="neutral-tag">Recorded orders</span><span>current records</span></div>
+              <div className="metric-value">{totalOrders.toLocaleString("en-KE")}</div>
+              <div className="metric-foot"><span className="neutral-tag">This month {dashboard?.sales?.thisMonth.count ?? 0}</span><span>completed sales</span></div>
               <div className="metric-line blue-line"><i /></div>
             </article>
             <article className="metric-card">
               <div className="metric-top"><span>Products in stock</span><span className="metric-icon purple"></span></div>
               <div className="metric-value">{stockUnits.toLocaleString("en-KE")}</div>
-              <div className="metric-foot"><span className="trend negative">{lowStockProducts.length} low stock</span><span>items need attention</span></div>
+              <div className="metric-foot"><span className="trend negative">{lowStockCount} low stock</span><span>items need attention</span></div>
               <div className="stock-progress"><i /></div>
             </article>
             <article className="metric-card">
               <div className="metric-top"><span>Outstanding payments</span><span className="metric-icon orange"></span></div>
               <div className="metric-value">{money(totalOutstanding)}</div>
-              <div className="metric-foot"><span className="neutral-tag">{sales.filter((sale) => Number(sale.balanceDue) > 0 && sale.status !== "CANCELLED").length} invoices</span><span>awaiting payment</span></div>
+              <div className="metric-foot"><span className="neutral-tag">{unpaidSales} unpaid sales</span><span>awaiting payment</span></div>
               <div className="metric-line orange-line"><i /></div>
             </article>
           </section>
@@ -453,7 +346,7 @@ function App() {
             <article className="panel stock-panel">
               <div className="panel-heading">
                 <div><h2>Low stock alerts</h2><p>Products that need restocking</p></div>
-                <span className="alert-count">{lowStockProducts.length}</span>
+                <span className="alert-count">{lowStockCount}</span>
               </div>
               <div className="stock-list">
             {lowStockProducts.length > 0 ? (
@@ -465,7 +358,7 @@ function App() {
                     <small>{item.sku || "No SKU"}</small>
                   </div>
                   <div className="stock-quantity">
-                    <strong>{Number(item.stockQuantity).toLocaleString("en-KE")}</strong>
+                    <strong>{item.stockQuantity.toLocaleString("en-KE")}</strong>
                     <small>{item.unitOfMeasure} left</small>
                   </div>
                 </div>
@@ -528,15 +421,15 @@ function App() {
             </div>
             <div className="table-scroll">
               <table>
-                <thead><tr><th>INVOICE</th><th>CUSTOMER</th><th>DATE</th><th>PAYMENT METHOD</th><th>AMOUNT</th><th>STATUS</th></tr></thead>
+                <thead><tr><th>INVOICE</th><th>CUSTOMER</th><th>DATE</th><th>PAYMENT</th><th>AMOUNT</th><th>STATUS</th></tr></thead>
                 <tbody>
                   {filteredTransactions.map((item) => (
                     <tr key={item.id}>
                       <td><strong className="invoice-id">{item.receiptNumber}</strong></td>
                       <td><div className="customer-cell"><span className="customer-avatar">{(item.customerName || "Walk-in").split(" ").map((part) => part[0]).slice(0, 2).join("")}</span>{item.customerName || "Walk-in customer"}</div></td>
-                      <td className="date-cell">{new Date(item.saleDate || item.createdAt).toLocaleString("en-KE")}</td>
+                      <td className="date-cell">{new Date(item.saleDate).toLocaleString("en-KE", { timeZone: businessTimeZone })}</td>
                       <td><span className="payment-method">{item.paymentStatus}</span></td>
-                      <td><strong>{money(Number(item.total) || 0)}</strong></td>
+                      <td><strong>{money(item.total)}</strong></td>
                       <td><span className={`status ${(item.status || "recorded").toLowerCase()}`}><i />{item.status}</span></td>
                     </tr>
                   ))}
@@ -544,7 +437,7 @@ function App() {
                 </tbody>
               </table>
             </div>
-            <div className="table-footer"><span>Showing {filteredTransactions.length} of {sales.length} recorded sales</span><span className="demo-note">Live business data</span></div>
+            <div className="table-footer"><span>Showing {filteredTransactions.length} of the latest {recentSales.length} sales</span><span className="demo-note">Live business data</span></div>
           </section>
 
             </>
