@@ -63,3 +63,14 @@ export async function loginUser(
     })),
   };
 }
+
+/** Lets a signed-in user replace their own password (e.g. the temporary one an owner issued). */
+export async function changePassword(userId: bigint, currentPassword: string, newPassword: string) {
+  if (newPassword.length < 8) throw new AppError(400, "New password must be at least 8 characters");
+  if (newPassword.length > 200) throw new AppError(400, "New password is too long");
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const ok = user ? await bcrypt.compare(currentPassword, user.passwordHash) : false;
+  if (!user || !user.isActive || !ok) throw new AppError(400, "Current password is incorrect");
+  if (currentPassword === newPassword) throw new AppError(400, "New password must be different from the current one");
+  await prisma.user.update({ where: { id: userId }, data: { passwordHash: await bcrypt.hash(newPassword, 12) } });
+}

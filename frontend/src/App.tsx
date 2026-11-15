@@ -12,6 +12,7 @@ import InvoicesWorkspace from "./InvoicesWorkspace";
 import QuotationsWorkspace from "./QuotationsWorkspace";
 import ReportsWorkspace from "./ReportsWorkspace";
 import BusinessSettingsWorkspace from "./BusinessSettingsWorkspace";
+import ChangePasswordPanel from "./ChangePasswordPanel";
 import EmployeesWorkspace from "./EmployeesWorkspace";
 import { apiRequest } from "./api/client";
 import { can, storePermissions } from "./permissions";
@@ -304,7 +305,10 @@ function App() {
           ) : activePage === "Reports" ? (
             <ReportsWorkspace />
           ) : activePage === "Settings" ? (
-            <BusinessSettingsWorkspace />
+            <>
+              <BusinessSettingsWorkspace />
+              <ChangePasswordPanel />
+            </>
           ) : (
             <>
           <section className="metrics-grid">

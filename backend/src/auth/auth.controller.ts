@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
-import { loginUser } from "./auth.service.js";
+import { changePassword, loginUser } from "./auth.service.js";
+import type { AuthenticatedRequest } from "./auth.middleware.js";
 
 export async function loginController(
   req: Request,
@@ -25,6 +26,19 @@ export async function loginController(
     });
   } catch (error) {
     // AppError keeps its status (401); anything else becomes a generic 500.
+    return next(error);
+  }
+}
+
+export async function changePasswordController(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  try {
+    const { currentPassword, newPassword } = req.body ?? {};
+    if (typeof currentPassword !== "string" || typeof newPassword !== "string" || !currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: "Current and new password are required" });
+    }
+    await changePassword(BigInt(req.user!.userId), currentPassword, newPassword);
+    return res.status(200).json({ success: true, message: "Password changed" });
+  } catch (error) {
     return next(error);
   }
 }

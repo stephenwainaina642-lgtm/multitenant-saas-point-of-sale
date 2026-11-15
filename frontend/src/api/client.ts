@@ -14,6 +14,7 @@ export async function apiRequest<T>(
     token?: string;
     businessId?: string;
     body?: unknown;
+    idempotencyKey?: string;
   } = {}
 ): Promise<ApiResponse<T>> {
   const headers: Record<string, string> = {
@@ -26,6 +27,10 @@ export async function apiRequest<T>(
 
   if (options.businessId) {
     headers["X-Business-ID"] = options.businessId;
+  }
+
+  if (options.idempotencyKey) {
+    headers["Idempotency-Key"] = options.idempotencyKey;
   }
 
   const response = await fetch(`${API_BASE_URL}${path}`, {

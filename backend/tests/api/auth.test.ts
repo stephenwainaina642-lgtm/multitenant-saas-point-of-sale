@@ -63,4 +63,30 @@ describe("authentication and business context", () => {
     });
     expect(res.status).toBe(200);
   });
+
+  describe("change password", () => {
+    const login = (email: string, password: string) => post("/auth/login", undefined, { email, password });
+
+    it("needs a sign-in, the right current password and a valid new one", async () => {
+      const t = await registerTenant("Pw Shop");
+      const body = { currentPassword: PASSWORD, newPassword: "Brand-New-Pass-9" };
+      expect((await post("/auth/change-password", undefined, body)).status).toBe(401);
+      expect((await post("/auth/change-password", t, { ...body, currentPassword: "wrong-password" })).status).toBe(400);
+      expect((await post("/auth/change-password", t, { ...body, newPassword: "short" })).status).toBe(400);
+      expect((await post("/auth/change-password", t, { ...body, newPassword: PASSWORD })).status).toBe(400);
+      expect((await post("/auth/change-password", t, { newPassword: "Brand-New-Pass-9" })).status).toBe(400);
+      // nothing changed by the refusals
+      expect((await login(t.email, PASSWORD)).status).toBe(200);
+    });
+
+    it("replaces only the caller's password", async () => {
+      const a = await registerTenant("Pw Shop A");
+      const b = await registerTenant("Pw Shop B");
+      const res = await post("/auth/change-password", a, { currentPassword: PASSWORD, newPassword: "Brand-New-Pass-9" });
+      expect(res.status).toBe(200);
+      expect((await login(a.email, PASSWORD)).status).toBe(401);
+      expect((await login(a.email, "Brand-New-Pass-9")).status).toBe(200);
+      expect((await login(b.email, PASSWORD)).status).toBe(200);
+    });
+  });
 });

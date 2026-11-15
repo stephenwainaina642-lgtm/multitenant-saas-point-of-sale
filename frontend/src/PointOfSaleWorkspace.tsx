@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest } from "./api/client";
 
 type Product = {
@@ -44,6 +44,7 @@ export default function PointOfSaleWorkspace() {
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const saleKeyRef = useRef<{ fingerprint: string; key: string } | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [receipt, setReceipt] = useState<CreatedSale | null>(null);
@@ -227,28 +228,37 @@ export default function PointOfSaleWorkspace() {
 
     setSaving(true);
     try {
+      const payload = {
+        discount: discountValue,
+        tax: taxValue,
+        amountPaid: paid,
+        paymentMethod,
+        notes: notes.trim(),
+        items: cart.map((item) => ({
+          productId: item.product.id,
+          quantity: item.quantity,
+          unitPrice: Number(item.product.sellingPrice),
+        })),
+      };
+      // The same sale re-sent after a dropped connection or a double click carries the same key,
+      // so the server records it once. Any change to the sale gets a fresh key.
+      const fingerprint = JSON.stringify(payload);
+      if (saleKeyRef.current?.fingerprint !== fingerprint) {
+        saleKeyRef.current = { fingerprint, key: crypto.randomUUID() };
+      }
       const response = await apiRequest<CreatedSale>("/sales", {
         method: "POST",
         token,
         businessId,
-        body: {
-          discount: discountValue,
-          tax: taxValue,
-          amountPaid: paid,
-          paymentMethod,
-          notes: notes.trim(),
-          items: cart.map((item) => ({
-            productId: item.product.id,
-            quantity: item.quantity,
-            unitPrice: Number(item.product.sellingPrice),
-          })),
-        },
+        idempotencyKey: saleKeyRef.current.key,
+        body: payload,
       });
 
       if (!response.data) {
         throw new Error("The server did not return sale details. Check Sales before retrying.");
       }
 
+      saleKeyRef.current = null;
       setReceipt(response.data);
       setMessage("Sale completed successfully.");
       setCart([]);
