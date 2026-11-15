@@ -284,6 +284,7 @@ model Sale {
   payments Payment[]
   refunds  Refund[]
   invoice  Invoice?
+  quotation Quotation?
 
   @@unique([businessId, receiptNumber])
   @@unique([businessId, idempotencyKey])
@@ -391,12 +392,14 @@ model Quotation {
   total           Decimal   @default(0) @db.Decimal(12, 2)
   status          String    @default("draft") @db.VarChar(50)
   notes           String?
+  convertedSaleId BigInt?   @unique @map("converted_sale_id")
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  business Business        @relation(fields: [businessId], references: [id])
-  customer Customer?       @relation(fields: [customerId], references: [id])
-  items    QuotationItem[]
+  business      Business        @relation(fields: [businessId], references: [id])
+  customer      Customer?       @relation(fields: [customerId], references: [id])
+  convertedSale Sale?           @relation(fields: [convertedSaleId], references: [id])
+  items         QuotationItem[]
 
   @@unique([businessId, quotationNumber])
   @@index([businessId])

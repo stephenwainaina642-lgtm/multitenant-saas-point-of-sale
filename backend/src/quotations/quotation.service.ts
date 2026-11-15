@@ -1,368 +1,328 @@
 import prisma from "../lib/prisma.js";
+import { AppError } from "../lib/errors.js";
+import { centsToString, decimalToCents } from "../lib/money.js";
+import { buildSaleLines, computeSaleTotals, type RawSaleItem } from "../sales/sale-calc.js";
+import { createBusinessSale } from "../sales/sale.service.js";
 
-type QuotationItemData = {
-  productId: string;
-  quantity: number;
-  unitPrice: number;
-  discount?: number;
-  tax?: number;
+const MAX_NUMBER_ATTEMPTS = 25;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export type QuotationData = {
+  customerId?: unknown; quotationNumber?: unknown; quotationDate?: unknown; expiryDate?: unknown;
+  discount?: unknown; tax?: unknown; notes?: unknown; items?: unknown;
 };
 
-type QuotationData = {
-  customerId?: string;
-  quotationNumber: string;
-  quotationDate?: string;
-  expiryDate?: string;
-  discount?: number;
-  tax?: number;
-  status?: string;
-  notes?: string;
-  items: QuotationItemData[];
+const include = {
+  customer: { select: { id: true, name: true, phone: true, email: true, address: true } },
+  convertedSale: { select: { id: true, receiptNumber: true } },
+  items: {
+    orderBy: { id: "asc" as const },
+    include: { product: { select: { id: true, name: true, sku: true, unitOfMeasure: true } } },
+  },
 };
 
-export async function getBusinessQuotations(
-  businessId: string
-) {
-  const quotations = await prisma.quotation.findMany({
-    where: {
-      businessId: BigInt(businessId),
-    },
-    include: {
-      customer: {
-        select: {
-          id: true,
-          name: true,
-          phone: true,
-        },
-      },
-      items: {
-        include: {
-          product: {
-            select: {
-              id: true,
-              name: true,
-              sku: true,
-              unitOfMeasure: true,
-            },
-          },
-        },
-      },
-    },
-    orderBy: {
-      quotationDate: "desc",
-    },
-  });
-
-  return quotations.map((quotation) => ({
-    id: quotation.id.toString(),
-    quotationNumber: quotation.quotationNumber,
-    customerId: quotation.customer?.id.toString() || null,
-    customerName: quotation.customer?.name || null,
-    customerPhone: quotation.customer?.phone || null,
-    quotationDate: quotation.quotationDate,
-    expiryDate: quotation.expiryDate,
-    subtotal: quotation.subtotal,
-    discount: quotation.discount,
-    tax: quotation.tax,
-    total: quotation.total,
-    status: quotation.status,
-    notes: quotation.notes,
-    items: quotation.items.map((item) => ({
-      id: item.id.toString(),
-      productId: item.productId.toString(),
-      productName: item.product.name,
-      sku: item.product.sku,
-      unitOfMeasure: item.product.unitOfMeasure,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      discount: item.discount,
-      tax: item.tax,
-      total: item.total,
-    })),
-    createdAt: quotation.createdAt,
-    updatedAt: quotation.updatedAt,
-  }));
+/** "expired" is derived: an open quotation (draft or sent) past its expiry date. */
+function effectiveStatus(q: { status: string; expiryDate: Date | null }) {
+  if ((q.status === "draft" || q.status === "sent") && q.expiryDate && q.expiryDate.getTime() < Date.now()) {
+    return "expired";
+  }
+  return q.status;
 }
 
-export async function getBusinessQuotationById(
-  businessId: string,
-  quotationId: string
-) {
-  const quotation = await prisma.quotation.findFirst({
-    where: {
-      id: BigInt(quotationId),
-      businessId: BigInt(businessId),
-    },
-    include: {
-      customer: {
-        select: {
-          id: true,
-          name: true,
-          phone: true,
-          email: true,
-          address: true,
-        },
-      },
-      items: {
-        include: {
-          product: {
-            select: {
-              id: true,
-              name: true,
-              sku: true,
-              unitOfMeasure: true,
-            },
-          },
-        },
-      },
-    },
-  });
-
-  if (!quotation) {
-    throw new Error("Quotation not found");
-  }
-
+function present(q: any) {
   return {
-    id: quotation.id.toString(),
-    quotationNumber: quotation.quotationNumber,
-    customerId: quotation.customer?.id.toString() || null,
-    customer: quotation.customer
-      ? {
-          id: quotation.customer.id.toString(),
-          name: quotation.customer.name,
-          phone: quotation.customer.phone,
-          email: quotation.customer.email,
-          address: quotation.customer.address,
-        }
+    id: q.id.toString(),
+    quotationNumber: q.quotationNumber,
+    customerId: q.customer?.id.toString() ?? null,
+    customerName: q.customer?.name ?? null,
+    customer: q.customer
+      ? { id: q.customer.id.toString(), name: q.customer.name, phone: q.customer.phone, email: q.customer.email, address: q.customer.address }
       : null,
-    quotationDate: quotation.quotationDate,
-    expiryDate: quotation.expiryDate,
-    subtotal: quotation.subtotal,
-    discount: quotation.discount,
-    tax: quotation.tax,
-    total: quotation.total,
-    status: quotation.status,
-    notes: quotation.notes,
-    items: quotation.items.map((item) => ({
-      id: item.id.toString(),
-      productId: item.productId.toString(),
-      productName: item.product.name,
-      sku: item.product.sku,
-      unitOfMeasure: item.product.unitOfMeasure,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      discount: item.discount,
-      tax: item.tax,
-      total: item.total,
+    quotationDate: q.quotationDate,
+    expiryDate: q.expiryDate,
+    subtotal: q.subtotal, discount: q.discount, tax: q.tax, total: q.total,
+    status: effectiveStatus(q),
+    storedStatus: q.status,
+    notes: q.notes,
+    convertedSaleId: q.convertedSale?.id.toString() ?? null,
+    convertedReceiptNumber: q.convertedSale?.receiptNumber ?? null,
+    items: q.items.map((item: any) => ({
+      id: item.id.toString(), productId: item.productId.toString(), productName: item.product.name,
+      sku: item.product.sku, unitOfMeasure: item.product.unitOfMeasure, quantity: item.quantity,
+      unitPrice: item.unitPrice, discount: item.discount, tax: item.tax, total: item.total,
     })),
-    createdAt: quotation.createdAt,
-    updatedAt: quotation.updatedAt,
+    createdAt: q.createdAt,
+    updatedAt: q.updatedAt,
   };
 }
 
-export async function createBusinessQuotation(
-  businessId: string,
-  data: QuotationData
-) {
-  if (!data.quotationNumber?.trim()) {
-    throw new Error("Quotation number is required");
+function parseDate(value: unknown, field: string): Date | null {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value !== "string") throw new AppError(400, `Invalid ${field}`);
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime()) || d.getUTCFullYear() < 2000 || d.getUTCFullYear() > 2100) {
+    throw new AppError(400, `Invalid ${field}`);
   }
+  return d;
+}
 
-  if (!Array.isArray(data.items) || data.items.length === 0) {
-    throw new Error("At least one quotation item is required");
-  }
+function parseNotes(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value !== "string" || value.length > 2000) throw new AppError(400, "Notes must be text of at most 2000 characters");
+  return value.trim() || null;
+}
 
-  const quotationDate = data.quotationDate
-    ? new Date(data.quotationDate)
-    : new Date();
-
-  if (Number.isNaN(quotationDate.getTime())) {
-    throw new Error("Invalid quotation date");
-  }
-
-  let expiryDate: Date | undefined;
-
-  if (data.expiryDate) {
-    expiryDate = new Date(data.expiryDate);
-
-    if (Number.isNaN(expiryDate.getTime())) {
-      throw new Error("Invalid expiry date");
-    }
-  }
-
-  const quotationDiscount = Number(data.discount || 0);
-  const quotationTax = Number(data.tax || 0);
-
-  if (
-    !Number.isFinite(quotationDiscount) ||
-    quotationDiscount < 0
-  ) {
-    throw new Error("Invalid quotation discount");
-  }
-
-  if (!Number.isFinite(quotationTax) || quotationTax < 0) {
-    throw new Error("Invalid quotation tax");
-  }
-
-  return prisma.$transaction(async (tx) => {
-    const existingQuotation = await tx.quotation.findFirst({
-      where: {
-        businessId: BigInt(businessId),
-        quotationNumber: data.quotationNumber.trim(),
-      },
-    });
-
-    if (existingQuotation) {
-      throw new Error("Quotation number already exists");
-    }
-
-    if (data.customerId) {
-      const customer = await tx.customer.findFirst({
-        where: {
-          id: BigInt(data.customerId),
-          businessId: BigInt(businessId),
-          isActive: true,
-        },
-      });
-
-      if (!customer) {
-        throw new Error("Customer not found");
-      }
-    }
-
-    const productIds = data.items.map((item) =>
-      BigInt(item.productId)
-    );
-
-    const products = await tx.product.findMany({
-      where: {
-        id: {
-          in: productIds,
-        },
-        businessId: BigInt(businessId),
-        isActive: true,
-      },
-    });
-
-    if (products.length !== data.items.length) {
-      throw new Error("One or more products not found");
-    }
-
-    const productMap = new Map(
-      products.map((product) => [
-        product.id.toString(),
-        product,
-      ])
-    );
-
-    let subtotal = 0;
-
-    const items = data.items.map((item) => {
-      const quantity = Number(item.quantity);
-      const unitPrice = Number(item.unitPrice);
-      const discount = Number(item.discount || 0);
-      const tax = Number(item.tax || 0);
-
-      if (!Number.isFinite(quantity) || quantity <= 0) {
-        throw new Error("Item quantity must be greater than zero");
-      }
-
-      if (!Number.isFinite(unitPrice) || unitPrice < 0) {
-        throw new Error("Item unit price cannot be negative");
-      }
-
-      if (!Number.isFinite(discount) || discount < 0) {
-        throw new Error("Invalid item discount");
-      }
-
-      if (!Number.isFinite(tax) || tax < 0) {
-        throw new Error("Invalid item tax");
-      }
-
-      const product = productMap.get(item.productId);
-
-      if (!product) {
-        throw new Error("Product not found");
-      }
-
-      const lineSubtotal = quantity * unitPrice;
-      const lineTotal =
-        lineSubtotal - discount + tax;
-
-      if (lineTotal < 0) {
-        throw new Error(
-          `Invalid total for product: ${product.name}`
-        );
-      }
-
-      subtotal += lineSubtotal;
-
-      return {
-        productId: product.id,
-        quantity,
-        unitPrice,
-        discount,
-        tax,
-        total: lineTotal,
-      };
-    });
-
-    const total =
-      subtotal - quotationDiscount + quotationTax;
-
-    if (total < 0) {
-      throw new Error("Quotation total cannot be negative");
-    }
-
-    const quotation = await tx.quotation.create({
-      data: {
-        businessId: BigInt(businessId),
-        customerId: data.customerId
-          ? BigInt(data.customerId)
-          : null,
-        quotationNumber: data.quotationNumber.trim(),
-        quotationDate,
-        ...(expiryDate && {
-          expiryDate,
-        }),
-        subtotal,
-        discount: quotationDiscount,
-        tax: quotationTax,
-        total,
-        status: data.status?.trim().toLowerCase() || "draft",
-        notes: data.notes?.trim() || null,
-        items: {
-          create: items,
-        },
-      },
-      include: {
-        items: true,
-      },
-    });
-
-    return {
-      id: quotation.id.toString(),
-      quotationNumber: quotation.quotationNumber,
-      customerId: quotation.customerId?.toString() || null,
-      subtotal: quotation.subtotal,
-      discount: quotation.discount,
-      tax: quotation.tax,
-      total: quotation.total,
-      status: quotation.status,
-      notes: quotation.notes,
-      items: quotation.items.map((item) => ({
-        id: item.id.toString(),
-        productId: item.productId.toString(),
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        discount: item.discount,
-        tax: item.tax,
-        total: item.total,
-      })),
-      quotationDate: quotation.quotationDate,
-      expiryDate: quotation.expiryDate,
-      createdAt: quotation.createdAt,
-      updatedAt: quotation.updatedAt,
-    };
+function parseItems(value: unknown): RawSaleItem[] {
+  if (!Array.isArray(value) || value.length === 0) throw new AppError(400, "At least one quotation item is required");
+  if (value.length > 200) throw new AppError(400, "A quotation can have at most 200 items");
+  return value.map((raw) => {
+    if (!raw || typeof raw !== "object") throw new AppError(400, "Invalid quotation item");
+    const r = raw as Record<string, any>;
+    return { productId: String(r.productId ?? ""), quantity: r.quantity, unitPrice: r.unitPrice, discount: r.discount, tax: r.tax };
   });
+}
+
+async function resolveCustomer(tx: any, businessId: bigint, value: unknown): Promise<bigint | null> {
+  if (value === undefined || value === null || value === "") return null;
+  if (!/^[1-9]\d*$/.test(String(value))) throw new AppError(400, "Invalid customer");
+  const customer = await tx.customer.findFirst({ where: { id: BigInt(String(value)), businessId, isActive: true } });
+  if (!customer) throw new AppError(404, "Customer not found");
+  return customer.id;
+}
+
+async function nextNumber(tx: any, businessId: bigint): Promise<string> {
+  for (let attempt = 0; attempt < MAX_NUMBER_ATTEMPTS; attempt++) {
+    const [seq] = await tx.$queryRaw<{ n: bigint }[]>`
+      INSERT INTO document_sequences (business_id, kind, next_value)
+      VALUES (${businessId}, 'quotation', 2)
+      ON CONFLICT (business_id, kind)
+      DO UPDATE SET next_value = document_sequences.next_value + 1
+      RETURNING next_value - 1 AS n`;
+    const candidate = `QUO-${seq!.n.toString().padStart(6, "0")}`;
+    const clash = await tx.quotation.findFirst({ where: { businessId, quotationNumber: candidate }, select: { id: true } });
+    if (!clash) return candidate;
+  }
+  throw new AppError(500, "Could not allocate a quotation number");
+}
+
+function checkDates(date: Date, expiry: Date | null) {
+  if (expiry && expiry.getTime() < date.getTime() - DAY_MS) {
+    throw new AppError(400, "The expiry date cannot be before the quotation date");
+  }
+}
+
+async function findOwn(businessId: string, idText: string) {
+  if (!/^[1-9]\d*$/.test(idText)) throw new AppError(404, "Quotation not found");
+  const q = await prisma.quotation.findFirst({ where: { id: BigInt(idText), businessId: BigInt(businessId) }, include });
+  if (!q) throw new AppError(404, "Quotation not found");
+  return q;
+}
+
+export async function getBusinessQuotations(businessId: string) {
+  const rows = await prisma.quotation.findMany({
+    where: { businessId: BigInt(businessId) }, include,
+    orderBy: [{ quotationDate: "desc" }, { id: "desc" }],
+  });
+  return rows.map(present);
+}
+
+export async function getBusinessQuotationById(businessId: string, idText: string) {
+  return present(await findOwn(businessId, idText));
+}
+
+export async function createBusinessQuotation(businessId: string, data: QuotationData, actorUserId?: string) {
+  const bizId = BigInt(businessId);
+  const items = parseItems(data.items);
+  const quotationDate = parseDate(data.quotationDate, "quotation date") ?? new Date();
+  const expiryDate = parseDate(data.expiryDate, "expiry date");
+  checkDates(quotationDate, expiryDate);
+  const notes = parseNotes(data.notes);
+
+  let manualNumber: string | null = null;
+  if (data.quotationNumber !== undefined && data.quotationNumber !== null && data.quotationNumber !== "") {
+    if (typeof data.quotationNumber !== "string") throw new AppError(400, "Invalid quotation number");
+    manualNumber = data.quotationNumber.trim();
+    if (!manualNumber || manualNumber.length > 100) throw new AppError(400, "Quotation number must be 1-100 characters");
+  }
+
+  const created = await prisma.$transaction(async (tx) => {
+    const customerId = await resolveCustomer(tx, bizId, data.customerId);
+    const lines = await buildSaleLines(tx, bizId, items);
+    const totals = computeSaleTotals(lines, data.discount, data.tax);
+
+    let quotationNumber = manualNumber;
+    if (quotationNumber) {
+      const clash = await tx.quotation.findFirst({ where: { businessId: bizId, quotationNumber }, select: { id: true } });
+      if (clash) throw new AppError(409, "Quotation number already exists");
+    } else {
+      quotationNumber = await nextNumber(tx, bizId);
+    }
+
+    const q = await tx.quotation.create({
+      data: {
+        businessId: bizId, customerId, quotationNumber, quotationDate,
+        ...(expiryDate && { expiryDate }),
+        subtotal: centsToString(totals.subtotal), discount: centsToString(totals.discount),
+        tax: centsToString(totals.tax), total: centsToString(totals.total),
+        status: "draft", notes: notes ?? null,
+        items: {
+          create: lines.map((l) => ({
+            productId: l.productId, quantity: Number(l.quantity) / 1000, unitPrice: centsToString(l.unitPrice),
+            discount: centsToString(l.discount), tax: centsToString(l.tax), total: centsToString(l.total),
+          })),
+        },
+      },
+    });
+    await tx.auditLog.create({
+      data: {
+        businessId: bizId, userId: actorUserId ? BigInt(actorUserId) : null, action: "quotation.create",
+        entity: "quotation", entityId: q.id, details: { quotationNumber, total: centsToString(totals.total) },
+      },
+    });
+    return q;
+  }).catch((e: any) => {
+    if (e?.code === "P2002") throw new AppError(409, "Quotation number already exists");
+    throw e;
+  });
+
+  return getBusinessQuotationById(businessId, created.id.toString());
+}
+
+/** Draft and sent quotations can be edited; anything decided or converted is history. */
+export async function updateBusinessQuotation(businessId: string, idText: string, data: QuotationData, actorUserId?: string) {
+  const bizId = BigInt(businessId);
+  const before = await findOwn(businessId, idText);
+  if (before.status !== "draft" && before.status !== "sent") {
+    throw new AppError(409, `A ${before.status} quotation can no longer be edited`);
+  }
+  const items = parseItems(data.items);
+  const quotationDate = parseDate(data.quotationDate, "quotation date") ?? before.quotationDate;
+  const expiryDate = data.expiryDate === undefined ? before.expiryDate : parseDate(data.expiryDate, "expiry date");
+  checkDates(quotationDate, expiryDate);
+  const notes = parseNotes(data.notes);
+
+  await prisma.$transaction(async (tx) => {
+    const locked = await tx.$queryRaw<{ status: string }[]>`
+      SELECT status FROM quotations WHERE id = ${before.id} AND business_id = ${bizId} FOR UPDATE`;
+    if (locked[0]?.status !== "draft" && locked[0]?.status !== "sent") {
+      throw new AppError(409, "This quotation can no longer be edited");
+    }
+    const customerId = data.customerId === undefined ? before.customerId : await resolveCustomer(tx, bizId, data.customerId);
+    const lines = await buildSaleLines(tx, bizId, items);
+    const totals = computeSaleTotals(lines, data.discount, data.tax);
+
+    await tx.quotationItem.deleteMany({ where: { quotationId: before.id } });
+    await tx.quotation.update({
+      where: { id: before.id },
+      data: {
+        customerId, quotationDate, expiryDate,
+        ...(notes !== undefined && { notes }),
+        subtotal: centsToString(totals.subtotal), discount: centsToString(totals.discount),
+        tax: centsToString(totals.tax), total: centsToString(totals.total), updatedAt: new Date(),
+        items: {
+          create: lines.map((l) => ({
+            productId: l.productId, quantity: Number(l.quantity) / 1000, unitPrice: centsToString(l.unitPrice),
+            discount: centsToString(l.discount), tax: centsToString(l.tax), total: centsToString(l.total),
+          })),
+        },
+      },
+    });
+    await tx.auditLog.create({
+      data: {
+        businessId: bizId, userId: actorUserId ? BigInt(actorUserId) : null, action: "quotation.update",
+        entity: "quotation", entityId: before.id,
+        details: { before: { total: before.total.toFixed(2), items: before.items.length }, after: { total: centsToString(totals.total), items: lines.length } },
+      },
+    });
+  });
+  return getBusinessQuotationById(businessId, idText);
+}
+
+const TRANSITIONS: Record<string, string[]> = {
+  draft: ["sent", "accepted", "rejected"],
+  sent: ["accepted", "rejected"],
+};
+
+export async function setQuotationStatus(businessId: string, idText: string, status: unknown, actorUserId?: string) {
+  const bizId = BigInt(businessId);
+  if (typeof status !== "string" || !["sent", "accepted", "rejected"].includes(status)) {
+    throw new AppError(400, "Status must be one of: sent, accepted, rejected");
+  }
+  const q = await findOwn(businessId, idText);
+  if (effectiveStatus(q) === "expired") throw new AppError(409, "This quotation has expired. Edit its expiry date first");
+  if (!TRANSITIONS[q.status]?.includes(status)) {
+    throw new AppError(409, `A ${q.status} quotation cannot be marked ${status}`);
+  }
+  await prisma.$transaction(async (tx) => {
+    const changed = await tx.quotation.updateMany({
+      where: { id: q.id, businessId: bizId, status: q.status },
+      data: { status, updatedAt: new Date() },
+    });
+    if (changed.count === 0) throw new AppError(409, "The quotation changed while you were editing it. Reload and try again");
+    await tx.auditLog.create({
+      data: {
+        businessId: bizId, userId: actorUserId ? BigInt(actorUserId) : null, action: "quotation.status",
+        entity: "quotation", entityId: q.id, details: { from: q.status, to: status },
+      },
+    });
+  });
+  return getBusinessQuotationById(businessId, idText);
+}
+
+/** Turns an accepted quotation into a real sale (stock, balance and receipt number follow the normal rules). */
+export async function convertQuotationToSale(
+  businessId: string, idText: string,
+  data: { amountPaid?: unknown; paymentMethod?: unknown },
+  actor: { userId: string }
+) {
+  const bizId = BigInt(businessId);
+  const q = await findOwn(businessId, idText);
+  if (q.convertedSaleId) throw new AppError(409, `This quotation was already converted to sale ${q.convertedSale?.receiptNumber}`);
+  if (q.status !== "accepted") throw new AppError(409, "Only an accepted quotation can be converted to a sale");
+
+  const lineDiscounts = q.items.reduce((t, i) => t + decimalToCents(i.discount), 0n);
+  const lineTax = q.items.reduce((t, i) => t + decimalToCents(i.tax), 0n);
+  const saleDiscount = decimalToCents(q.discount) - lineDiscounts;
+  const saleTax = decimalToCents(q.tax) - lineTax;
+
+  let sale: any;
+  try {
+    sale = await createBusinessSale(
+      businessId, actor.userId,
+      {
+        ...(q.customerId && { customerId: q.customerId.toString() }),
+        discount: Number(centsToString(saleDiscount < 0n ? 0n : saleDiscount)),
+        tax: Number(centsToString(saleTax < 0n ? 0n : saleTax)),
+        ...(data.amountPaid !== undefined && { amountPaid: Number(data.amountPaid) }),
+        ...(typeof data.paymentMethod === "string" && { paymentMethod: data.paymentMethod }),
+        notes: `From quotation ${q.quotationNumber}`,
+        items: q.items.map((i) => ({
+          productId: i.productId.toString(), quantity: Number(i.quantity), unitPrice: Number(i.unitPrice),
+          discount: Number(i.discount), tax: Number(i.tax),
+        })),
+      },
+      { idempotencyKey: `quotation-${q.id}` }
+    );
+  } catch (e) {
+    if (e instanceof AppError && /does not match the saved selling price/.test(e.message)) {
+      throw new AppError(409, `${e.message}. Prices changed since this quotation was made; create a new quotation`);
+    }
+    throw e;
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.quotation.updateMany({
+      where: { id: q.id, businessId: bizId, convertedSaleId: null },
+      data: { status: "converted", convertedSaleId: BigInt(sale.id), updatedAt: new Date() },
+    });
+    await tx.auditLog.create({
+      data: {
+        businessId: bizId, userId: BigInt(actor.userId), action: "quotation.convert",
+        entity: "quotation", entityId: q.id, details: { saleId: sale.id, receiptNumber: sale.receiptNumber },
+      },
+    });
+  });
+
+  return { quotation: await getBusinessQuotationById(businessId, idText), sale };
 }

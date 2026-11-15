@@ -9,6 +9,7 @@ import SuppliersWorkspace from "./SuppliersWorkspace";
 import PurchasesWorkspace from "./PurchasesWorkspace";
 import ExpensesWorkspace from "./ExpensesWorkspace";
 import InvoicesWorkspace from "./InvoicesWorkspace";
+import QuotationsWorkspace from "./QuotationsWorkspace";
 import ReportsWorkspace from "./ReportsWorkspace";
 import BusinessSettingsWorkspace from "./BusinessSettingsWorkspace";
 import EmployeesWorkspace from "./EmployeesWorkspace";
@@ -24,6 +25,7 @@ const navigation = [
   { name: "Suppliers", icon: "S" },
   { name: "Purchases", icon: "B" },
   { name: "Sales", icon: "S" },
+  { name: "Quotations", icon: "Q" },
   { name: "Invoices", icon: "I" },
   { name: "Expenses", icon: "E" },
   { name: "Reports", icon: "R" },
@@ -381,6 +383,8 @@ function App() {
             <SuppliersWorkspace />
           ) : activePage === "Purchases" ? (
             <PurchasesWorkspace />
+          ) : activePage === "Quotations" ? (
+            <QuotationsWorkspace />
           ) : activePage === "Invoices" ? (
             <InvoicesWorkspace />
           ) : activePage === "Expenses" ? (
