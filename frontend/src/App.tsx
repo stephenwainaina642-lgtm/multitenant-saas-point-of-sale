@@ -174,11 +174,7 @@ function App() {
 
   function selectPage(name: string) {
     setActivePage(name);
-    if (name !== "Dashboard" && name !== "Settings") {
-      setNotice(`${name} workspace selected. We will connect this section to the backend next.`);
-    } else {
-      setNotice("");
-    }
+    setNotice("");
   }
 
   return (
