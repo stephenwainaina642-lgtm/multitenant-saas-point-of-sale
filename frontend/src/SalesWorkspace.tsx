@@ -1,3 +1,4 @@
+import { can } from "./permissions";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
 
@@ -417,8 +418,8 @@ export default function SalesWorkspace() {
 
             {selectedSale.status === "completed" && !adjust && (
               <div className="sale-detail-action-buttons" style={{ margin: "8px 0" }}>
-                <button type="button" className="sales-view-button" onClick={() => startAdjust("edit")}>Edit quantities</button>
-                <button type="button" className="sales-view-button" onClick={() => startAdjust("void")}>Void sale</button>
+                {can("sales.edit") && <button type="button" className="sales-view-button" onClick={() => startAdjust("edit")}>Edit quantities</button>}
+                {can("sales.void") && <button type="button" className="sales-view-button" onClick={() => startAdjust("void")}>Void sale</button>}
               </div>
             )}
 

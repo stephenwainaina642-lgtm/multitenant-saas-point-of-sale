@@ -141,4 +141,24 @@ describe("dashboard", () => {
       await query(`alter database "${db}" set timezone = '${tz}'`);
     }
   });
+
+  it("tells the screens which permissions the member holds (business select and dashboard)", async () => {
+    const s = await seedPhoneShop();
+    const cashier = await addEmployee(s.t, "Counter", ["sales.create", "sales.view_own", "payments.create"]);
+    const accountant = await addEmployee(s.t, "Accountant");   // built-in defaults
+
+    const pick = async (t: any) => (await post("/business-context/select", { token: t.token }, { businessId: t.businessId })).body.data;
+    const owner = await pick(s.t);
+    expect(owner.permissions).toContain("settings.manage");
+    expect(owner.permissions).toContain("sales.void");
+
+    const c = await pick(cashier);
+    expect(c.permissions).toEqual(["payments.create", "sales.create", "sales.view_own"]);
+    expect((await dash(cashier)).permissions).toEqual(c.permissions);
+
+    const a = await pick(accountant);
+    expect(a.permissions).toContain("reports.view");
+    expect(a.permissions).not.toContain("sales.void");
+    expect(a.permissions).not.toContain("roles.manage");
+  });
 });

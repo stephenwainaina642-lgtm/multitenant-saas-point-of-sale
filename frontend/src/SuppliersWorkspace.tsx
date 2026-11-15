@@ -1,4 +1,5 @@
-﻿import { useCallback, useEffect, useMemo, useState } from "react";
+import { can } from "./permissions";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
 
 type Supplier = {
@@ -321,6 +322,7 @@ export default function SuppliersWorkspace() {
                         : "—"}
                     </td>
                     <td>
+                      {can("suppliers.manage") && (
                       <div className="supplier-actions">
                         <button
                           type="button"
@@ -338,6 +340,7 @@ export default function SuppliersWorkspace() {
                           Deactivate
                         </button>
                       </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -362,6 +365,7 @@ export default function SuppliersWorkspace() {
         </div>
       </article>
 
+      {can("suppliers.manage") && (
       <article className="panel supplier-form-panel" style={{ padding: 24 }}>
         <div className="panel-heading">
           <div>
@@ -457,6 +461,7 @@ export default function SuppliersWorkspace() {
           </div>
         </form>
       </article>
+      )}
     </section>
   );
 }

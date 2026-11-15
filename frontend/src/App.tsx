@@ -14,6 +14,23 @@ import ReportsWorkspace from "./ReportsWorkspace";
 import BusinessSettingsWorkspace from "./BusinessSettingsWorkspace";
 import EmployeesWorkspace from "./EmployeesWorkspace";
 import { apiRequest } from "./api/client";
+import { can, storePermissions } from "./permissions";
+
+/** The permission a member needs to see each screen (the server enforces the same rules). */
+const navigationPermissions: Record<string, string[]> = {
+  "Point of Sale": ["sales.create"],
+  Products: ["products.view"],
+  Inventory: ["inventory.view", "inventory.adjust"],
+  Customers: ["customers.view"],
+  Employees: ["employees.manage"],
+  Suppliers: ["suppliers.view"],
+  Purchases: ["purchases.view"],
+  Sales: ["sales.view_all", "sales.view_own"],
+  Quotations: ["quotations.view"],
+  Invoices: ["invoices.view"],
+  Expenses: ["expenses.view"],
+  Reports: ["reports.view"],
+};
 
 const navigation = [
   { name: "Dashboard", icon: "D" },
@@ -33,6 +50,7 @@ const navigation = [
 ];
 
 type DashboardData = {
+  permissions?: string[];
   timeZone: string;
   sales: { today: { count: number; revenue: number }; thisMonth: { count: number; revenue: number }; allTime: { count: number; revenue: number } } | null;
   receivables: { outstanding: number; unpaidSales: number } | null;
@@ -111,6 +129,7 @@ function App() {
         const response = await apiRequest<DashboardData>("/dashboard", { token, businessId });
 
         if (!cancelled) {
+          storePermissions(response.data?.permissions);
           setDashboard(response.data ?? null);
           setDashboardError("");
         }
@@ -184,7 +203,7 @@ function App() {
 
         <div className="nav-label">MAIN MENU</div>
         <nav className="navigation">
-          {navigation.map((item) => (
+          {navigation.filter((item) => !navigationPermissions[item.name] || can(...navigationPermissions[item.name]!)).map((item) => (
             <button
               key={item.name}
               className={`nav-item ${activePage === item.name ? "active" : ""}`}

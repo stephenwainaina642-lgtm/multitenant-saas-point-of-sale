@@ -1,4 +1,5 @@
-﻿import { useCallback, useEffect, useMemo, useState } from "react";
+import { can } from "./permissions";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
 
 type Expense = {
@@ -342,10 +343,12 @@ export default function ExpensesWorkspace() {
                       <strong>{money(expense.amount)}</strong>
                     </td>
                     <td>
+                      {can("expenses.manage") && (
                       <div className="customer-actions">
                         <button type="button" className="button-secondary" onClick={() => startEdit(expense)}>Edit</button>
                         <button type="button" className="button-secondary" onClick={() => void deleteExpense(expense)}>Delete</button>
                       </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -370,6 +373,7 @@ export default function ExpensesWorkspace() {
         </div>
       </article>
 
+      {can("expenses.manage") && (
       <article className="panel supplier-form-panel" style={{ padding: 24 }}>
         <div className="panel-heading">
           <div>
@@ -497,6 +501,7 @@ export default function ExpensesWorkspace() {
           </div>
         </form>
       </article>
+      )}
     </section>
   );
 }

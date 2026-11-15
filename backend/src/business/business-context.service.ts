@@ -1,4 +1,5 @@
 import prisma from "../lib/prisma.js";
+import { resolvePermissions } from "../auth/permissions.js";
 
 export async function verifyBusinessAccess(
   userId: string,
@@ -28,5 +29,12 @@ export async function verifyBusinessAccess(
     businessName: membership.business.name,
     businessType: membership.business.businessType,
     role: membership.role.name,
+    permissions: Array.from(
+      resolvePermissions(
+        membership.role.name,
+        membership.role.permissions,
+        membership.business.ownerUserId === BigInt(userId)
+      )
+    ).sort(),
   };
 }

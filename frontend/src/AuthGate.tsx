@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { apiRequest } from "./api/client";
 import "./AuthGate.css";
+import { storePermissions } from "./permissions";
 
 type Business = {
   id: string;
@@ -19,6 +20,7 @@ type SelectedBusiness = {
   businessName: string;
   businessType: string;
   role: string;
+  permissions?: string[];
 };
 
 type Props = {
@@ -55,6 +57,7 @@ export default function AuthGate({ onAuthenticated }: Props) {
     sessionStorage.setItem("pos_business_id", response.data!.businessId);
     sessionStorage.setItem("pos_business_name", response.data!.businessName);
     sessionStorage.setItem("pos_business_role", response.data!.role);
+    storePermissions(response.data!.permissions);
     sessionStorage.setItem("pos_user_name", sessionStorage.getItem("pos_pending_user") || "");
     sessionStorage.removeItem("pos_pending_user");
     onAuthenticated();

@@ -1,3 +1,4 @@
+import { can } from "./permissions";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
 
@@ -70,7 +71,7 @@ export default function InvoicesWorkspace() {
       <article className="panel" style={{ padding: 24 }}>
         <div className="panel-heading">
           <div><h2>Invoices</h2><p>Invoices always show the sale's current payments and balance</p></div>
-          <button type="button" className="button-primary" onClick={() => setShowForm((v) => !v)}>{showForm ? "Close form" : "New invoice"}</button>
+          {can("invoices.manage") && <button type="button" className="button-primary" onClick={() => setShowForm((v) => !v)}>{showForm ? "Close form" : "New invoice"}</button>}
         </div>
         <div className="customer-summary">
           <div><span className="customer-summary-label">Invoices</span><strong>{invoices.length}</strong></div>

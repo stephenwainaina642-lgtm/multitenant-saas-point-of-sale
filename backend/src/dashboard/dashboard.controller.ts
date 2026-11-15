@@ -21,7 +21,12 @@ export async function getDashboardController(req: BusinessRequest, res: Response
       seeStock: has("products.view"),
       seePayables: has("purchases.view"),
     });
-    res.status(200).json({ success: true, message: "Dashboard retrieved successfully", data });
+    res.status(200).json({
+      success: true,
+      message: "Dashboard retrieved successfully",
+      // Fresh on every load, so the screens follow a role change without signing in again.
+      data: { ...data, permissions: Array.from(req.permissions ?? []).sort() },
+    });
   } catch (error) {
     next(error);
   }

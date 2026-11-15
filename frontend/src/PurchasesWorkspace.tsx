@@ -1,4 +1,5 @@
-﻿import { useCallback, useEffect, useMemo, useState } from "react";
+import { can } from "./permissions";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
 
 type Supplier = {
@@ -453,10 +454,10 @@ export default function PurchasesWorkspace() {
                     <td>
                       {purchase.status !== "voided" && (
                         <div className="customer-actions">
-                          {Number(purchase.balanceDue) > 0 && (
+                          {can("purchases.pay") && Number(purchase.balanceDue) > 0 && (
                             <button type="button" className="button-secondary" onClick={() => void payPurchase(purchase)}>Pay supplier</button>
                           )}
-                          {Number(purchase.amountPaid) === 0 && (
+                          {can("purchases.void") && Number(purchase.amountPaid) === 0 && (
                             <button type="button" className="button-secondary" onClick={() => void voidPurchase(purchase)}>Void</button>
                           )}
                         </div>
@@ -485,6 +486,7 @@ export default function PurchasesWorkspace() {
         </div>
       </article>
 
+      {can("purchases.create") && (
       <article className="panel supplier-form-panel" style={{ padding: 24 }}>
         <div className="panel-heading">
           <div>
@@ -784,6 +786,7 @@ export default function PurchasesWorkspace() {
           </div>
         </form>
       </article>
+      )}
     </section>
   );
 }

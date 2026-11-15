@@ -1,3 +1,4 @@
+import { can } from "./permissions";
 import { useCallback, useEffect, useState } from "react";
 import { apiRequest } from "./api/client";
 
@@ -390,6 +391,7 @@ export default function ProductsWorkspace() {
                     )}
                   </td>
                   <td>
+                    {can("products.manage") && (<>
                     <button
                       type="button"
                       className="button-secondary"
@@ -406,6 +408,7 @@ export default function ProductsWorkspace() {
                     >
                       Deactivate
                     </button>
+                    </>)}
                   </td>
                 </tr>
               ))}
@@ -492,6 +495,7 @@ export default function ProductsWorkspace() {
           </form>
         </article>
       )}
+      {can("products.manage") && (
       <article className="panel" style={{ padding: 24 }}>
         <div className="panel-heading">
           <div>
@@ -548,6 +552,7 @@ export default function ProductsWorkspace() {
           </div>
         </form>
       </article>
+      )}
     </section>
   );
 }

@@ -1,3 +1,4 @@
+import { can } from "./permissions";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
 
@@ -106,7 +107,7 @@ export default function QuotationsWorkspace() {
       <article className="panel" style={{ padding: 24 }}>
         <div className="panel-heading">
           <div><h2>Quotations</h2><p>Quote, get acceptance, then turn it into a sale in one click</p></div>
-          <button type="button" className="button-primary" onClick={() => setShowForm((v) => !v)}>{showForm ? "Close form" : "New quotation"}</button>
+          {can("quotations.manage") && <button type="button" className="button-primary" onClick={() => setShowForm((v) => !v)}>{showForm ? "Close form" : "New quotation"}</button>}
         </div>
         {error && <p className="customer-notice" role="alert">{error}</p>}
         {message && <p className="customer-notice" role="status">{message}</p>}
@@ -158,12 +159,12 @@ export default function QuotationsWorkspace() {
                   <td>{q.status}{q.convertedReceiptNumber ? ` (${q.convertedReceiptNumber})` : ""}</td>
                   <td><div className="customer-actions">
                     <button type="button" className="button-secondary" onClick={() => setSelected(q)}>View / print</button>
-                    {q.status === "draft" && <button type="button" className="button-secondary" onClick={() => void setStatus(q, "sent")}>Mark sent</button>}
-                    {(q.status === "draft" || q.status === "sent") && <>
+                    {can("quotations.manage") && q.status === "draft" && <button type="button" className="button-secondary" onClick={() => void setStatus(q, "sent")}>Mark sent</button>}
+                    {can("quotations.manage") && (q.status === "draft" || q.status === "sent") && <>
                       <button type="button" className="button-secondary" onClick={() => void setStatus(q, "accepted")}>Accepted</button>
                       <button type="button" className="button-secondary" onClick={() => void setStatus(q, "rejected")}>Rejected</button>
                     </>}
-                    {q.status === "accepted" && <button type="button" className="button-primary" onClick={() => void convert(q)}>Convert to sale</button>}
+                    {can("quotations.manage") && q.status === "accepted" && <button type="button" className="button-primary" onClick={() => void convert(q)}>Convert to sale</button>}
                   </div></td>
                 </tr>
               ))}

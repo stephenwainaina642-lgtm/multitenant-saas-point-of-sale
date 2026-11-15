@@ -1,3 +1,4 @@
+import { can } from "./permissions";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
 
@@ -206,6 +207,7 @@ export default function InventoryWorkspace() {
           Receive stock, record stock leaving, or reconcile stock against a physical count.
         </p>
 
+        {can("inventory.adjust") && (
         <form className="inventory-form" onSubmit={handleSubmit}>
           <label className="inventory-field">
             Product
@@ -273,6 +275,7 @@ export default function InventoryWorkspace() {
             </button>
           </div>
         </form>
+        )}
       </section>
 
       <section className="inventory-panel">

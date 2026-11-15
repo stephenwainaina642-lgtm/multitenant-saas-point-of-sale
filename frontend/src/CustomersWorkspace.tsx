@@ -1,4 +1,5 @@
-﻿import { useCallback, useEffect, useMemo, useState } from "react";
+import { can } from "./permissions";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
 
 type Customer = {
@@ -327,6 +328,7 @@ export default function CustomersWorkspace() {
                         : "—"}
                     </td>
                     <td>
+                      {can("customers.manage") && (
                       <div className="customer-actions">
                         <button
                           type="button"
@@ -344,6 +346,7 @@ export default function CustomersWorkspace() {
                           Deactivate
                         </button>
                       </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -368,6 +371,7 @@ export default function CustomersWorkspace() {
         </div>
       </article>
 
+      {can("customers.manage") && (
       <article className="panel customer-form-panel" style={{ padding: 24 }}>
         <div className="panel-heading">
           <div>
@@ -473,6 +477,7 @@ export default function CustomersWorkspace() {
           </div>
         </form>
       </article>
+      )}
     </section>
   );
 }
