@@ -91,7 +91,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .help-card button { padding: 0; border: 0; background: transparent; color: var(--green-dark); font-size: 10px; font-weight: 700; }
 .profile { display: flex; align-items: center; gap: 9px; padding: 13px 4px 3px; border-top: 1px solid var(--border); }
 .profile-avatar { background: #e8eee9; color: #42664e; font-size: 10px; }
-.profile-menu { border: 0; background: transparent; color: #69766d; }
+.profile-menu { border: 0; background: transparent; color: #69766d; font-size: 11px; cursor: pointer; text-decoration: underline; }
 
 .main-content { min-height: 100vh; min-width: 0; margin-left: 248px; }
 .topbar {
@@ -105,6 +105,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .topbar-actions { display: flex; align-items: center; gap: 17px; }
 .system-status { display: flex; align-items: center; gap: 7px; color: #6d7b70; font-size: 10px; }
 .system-status span { width: 7px; height: 7px; border-radius: 50%; background: #39a76d; }
+.topbar-signout { display: none; border: 1px solid #d6e2d9; background: white; color: #356b49; border-radius: 8px; padding: 6px 10px; font-size: 11px; cursor: pointer; }
 .icon-button { position: relative; border: 0; background: transparent; color: #59665d; font-size: 21px; }
 .notification-button i { position: absolute; top: 2px; right: 1px; width: 7px; height: 7px; border: 1px solid white; border-radius: 50%; background: #e58b67; }
 .topbar-avatar { width: 33px; height: 33px; background: #e7f1e9; color: #356b49; font-size: 10px; }
@@ -369,6 +370,7 @@ tbody tr:hover { background: #fbfcfb; }
   th, td { padding-left: 12px; padding-right: 12px; }
 }
 @media (max-width: 900px) {
+  .topbar-signout { display: inline-block; }
   .sidebar { width: 68px; align-items: center; padding: 20px 9px 12px; }
   .brand { padding: 0 0 28px; }
   .brand > div:not(.brand-mark), .workspace-label, .business-switch, .nav-label, .nav-item > span:not(.nav-icon), .sidebar-bottom { display: none; }
@@ -702,7 +704,7 @@ tbody tr:hover { background: #f7faf7; }
   .nav-item > span:not(.nav-icon),
   .help-card,
   .profile-info,
-  .profile-menu { display: none; }
+  .profile-menu { font-size: 10px; }
   .business-switch { justify-content: center; padding: 8px 4px; }
   .nav-item { justify-content: center; padding: 12px 5px; }
   .nav-icon { width: auto; }

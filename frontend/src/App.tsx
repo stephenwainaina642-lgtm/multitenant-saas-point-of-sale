@@ -172,6 +172,15 @@ function App() {
   const lowStockCount = dashboard?.stock?.lowStockCount ?? 0;
   const businessTimeZone = dashboard?.timeZone ?? "Africa/Nairobi";
 
+  function signOut() {
+    try {
+      sessionStorage.clear();
+    } catch {
+      /* storage unavailable */
+    }
+    window.location.reload();
+  }
+
   function selectPage(name: string) {
     setActivePage(name);
     setNotice("");
@@ -189,14 +198,13 @@ function App() {
         </div>
 
         <div className="workspace-label">WORKSPACE</div>
-        <button className="business-switch" onClick={() => setNotice("Business switching will be connected to your account.")}>
+        <div className="business-switch" style={{ cursor: "default" }}>
           <span className="business-avatar">S</span>
           <span className="business-info">
             <strong>{sessionStorage.getItem("pos_business_name") || "Your Business"}</strong>
             <small>Business workspace</small>
           </span>
-          <span className="chevron">{'>'}</span>
-        </button>
+        </div>
 
         <div className="nav-label">MAIN MENU</div>
         <nav className="navigation">
@@ -214,19 +222,13 @@ function App() {
         </nav>
 
         <div className="sidebar-bottom">
-          <div className="help-card">
-            <div className="help-icon">i</div>
-            <strong>Need a hand?</strong>
-            <p>Your business tools, all in one place.</p>
-            <button onClick={() => setNotice("Help centre selected.")}>Visit help centre</button>
-          </div>
           <div className="profile">
             <div className="profile-avatar">{userInitials}</div>
             <div className="profile-info">
               <strong>{currentUserName}</strong>
               <small>{`${currentBusinessRole} · ${currentBusinessName}`}</small>
             </div>
-            <button className="profile-menu" onClick={() => setNotice("Account settings selected.")}>...</button>
+            <button className="profile-menu" onClick={signOut} title="Sign out" aria-label="Sign out">Sign out</button>
           </div>
         </div>
       </aside>
@@ -237,7 +239,8 @@ function App() {
             <span>Workspace</span><span className="crumb-separator">/</span><strong>{activePage}</strong>
           </div>
           <div className="topbar-actions">
-            <div className="system-status"><span></span> Connected</div>
+            <button type="button" className="topbar-signout" onClick={signOut}>Sign out</button>
+            <div className="system-status"><span style={dashboardError ? { background: "#d9534f" } : undefined}></span> {dashboardError ? "Connection problem" : "Connected"}</div>
             <button className="icon-button notification-button" aria-label="Notifications" onClick={() => setNotice(`${lowStockCount} products need restocking.`)}><i></i></button>
             <div className="topbar-avatar">{userInitials}</div>
           </div>
@@ -256,8 +259,12 @@ function App() {
             </div>
                         {activePage !== "Settings" && (
               <div className="welcome-actions">
-                <button className="button-secondary" onClick={() => setNotice("Report export will be connected to live business data.")}><span>Export report</span></button>
-                <button className="button-primary" onClick={() => selectPage("Point of Sale")}><span>New sale</span></button>
+                {can("reports.view") && (
+                  <button className="button-secondary" onClick={() => selectPage("Reports")}><span>Reports</span></button>
+                )}
+                {can("sales.create") && (
+                  <button className="button-primary" onClick={() => selectPage("Point of Sale")}><span>New sale</span></button>
+                )}
               </div>
             )}
           </section>
