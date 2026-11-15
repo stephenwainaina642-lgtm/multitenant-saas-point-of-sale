@@ -1,6 +1,7 @@
 import { can } from "./permissions";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
+import Letterhead from "./Letterhead";
 
 type Sale = {
   id: string;
@@ -221,7 +222,6 @@ export default function SalesWorkspace() {
     [sales]
   );
 
-  const businessName = sessionStorage.getItem("pos_business_name") || "Business";
 
   return (
     <section className="sales-workspace">
@@ -463,7 +463,7 @@ export default function SalesWorkspace() {
 
             <div className="sale-receipt-print-area">
               <header className="sale-receipt-header">
-                <p className="sale-receipt-brand">{businessName}</p>
+                <Letterhead />
                 <h1>SALES RECEIPT</h1>
                 <p className="sale-receipt-number">
                   {selectedSale.receiptNumber || `Sale #${selectedSale.id}`}

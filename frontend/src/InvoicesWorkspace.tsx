@@ -1,6 +1,7 @@
 import { can } from "./permissions";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
+import Letterhead from "./Letterhead";
 
 type InvoiceItem = { id: string; productName: string; quantity: string | number; unitPrice: string | number; discount: string | number; tax: string | number; total: string | number };
 type Invoice = {
@@ -19,7 +20,6 @@ const labelStyle: React.CSSProperties = { display: "block", fontSize: 12, fontWe
 export default function InvoicesWorkspace() {
   const token = sessionStorage.getItem("pos_token") ?? "";
   const businessId = sessionStorage.getItem("pos_business_id") ?? "";
-  const businessName = sessionStorage.getItem("pos_business_name") || "Business";
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [sales, setSales] = useState<SaleRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,7 +122,7 @@ export default function InvoicesWorkspace() {
       {selected && (
         <article className="panel" style={{ padding: 24 }}>
           <div className="sale-receipt-print-area">
-            <p className="sale-receipt-brand">{businessName}</p>
+            <Letterhead />
             <h2>Invoice {selected.invoiceNumber}{selected.status === "void" ? " (VOID)" : ""}</h2>
             <p>Date {day(selected.invoiceDate)}{selected.dueDate ? ` · Due ${day(selected.dueDate)}` : ""} · Sale {selected.receiptNumber}</p>
             <p><strong>Bill to:</strong> {selected.customer?.name ?? "Walk-in customer"}{selected.customer?.phone ? ` · ${selected.customer.phone}` : ""}{selected.customer?.address ? ` · ${selected.customer.address}` : ""}</p>

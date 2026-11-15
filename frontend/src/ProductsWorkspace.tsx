@@ -1,4 +1,5 @@
 import { can } from "./permissions";
+import ImportPanel from "./ImportPanel";
 import { useCallback, useEffect, useState } from "react";
 import { apiRequest } from "./api/client";
 
@@ -320,6 +321,7 @@ export default function ProductsWorkspace() {
 
   return (
     <section className="products-workspace" style={{ display: "grid", gap: 20 }}>
+      {can("products.manage") && <ImportPanel kind="products" onImported={() => void loadProducts()} />}
       <article className="panel" style={{ padding: 24 }}>
         <div className="panel-heading">
           <div>

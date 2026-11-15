@@ -7,6 +7,17 @@ type ApiResponse<T> = {
   data?: T;
 };
 
+/** A failed request; `data` carries the server's detail (e.g. import row errors) when it sent any. */
+export class ApiError extends Error {
+  status: number;
+  data?: unknown;
+  constructor(message: string, status: number, data?: unknown) {
+    super(message);
+    this.status = status;
+    this.data = data;
+  }
+}
+
 export async function apiRequest<T>(
   path: string,
   options: {
@@ -45,7 +56,7 @@ export async function apiRequest<T>(
   const result = (await response.json()) as ApiResponse<T>;
 
   if (!response.ok || !result.success) {
-    throw new Error(result.message || `Request failed (${response.status})`);
+    throw new ApiError(result.message || `Request failed (${response.status})`, response.status, result.data);
   }
 
   return result;

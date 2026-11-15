@@ -5,6 +5,7 @@ type Product = {
   id: string;
   name: string;
   sku: string | null;
+  barcode?: string | null;
   sellingPrice: number | string;
   stockQuantity: number | string;
   unitOfMeasure: string;
@@ -101,12 +102,29 @@ export default function PointOfSaleWorkspace() {
     }
   }, [total, amountPaidManuallyEdited]);
 
-  function addProduct() {
+  /** A barcode scanner types the code and presses Enter: add that exact product to the cart. */
+  function scanCode(raw: string) {
+    const code = raw.trim().toLowerCase();
+    if (!code) return;
+    const product =
+      products.find((item) => (item.barcode ?? "").toLowerCase() === code) ??
+      products.find((item) => (item.sku ?? "").toLowerCase() === code);
+    if (!product) {
+      setReceipt(null);
+      setMessage("");
+      setError(`No active product has the barcode or SKU "${raw.trim()}".`);
+      return;
+    }
+    setProductSearch("");
+    addProduct(product.id);
+  }
+
+  function addProduct(productId: string = selectedProductId) {
     setError("");
     setMessage("");
     setReceipt(null);
 
-    const product = products.find((item) => item.id === selectedProductId);
+    const product = products.find((item) => item.id === productId);
     if (!product) {
       setError("Select a product first.");
       return;
@@ -315,8 +333,14 @@ export default function PointOfSaleWorkspace() {
                 Product
                 <input
                   type="search"
-                  placeholder="Search product name or SKU..."
+                  placeholder="Search name or SKU, or scan a barcode and press Enter..."
                   value={productSearch}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      scanCode(productSearch);
+                    }
+                  }}
                   onChange={(event) => {
                     const query = event.target.value.toLowerCase().trim();
                     setProductSearch(event.target.value);
@@ -341,7 +365,7 @@ export default function PointOfSaleWorkspace() {
                     ))}
                 </select>
               </label>
-              <button type="button" className="pos-primary-button" onClick={addProduct} disabled={saving || !selectedProductId}>
+              <button type="button" className="pos-primary-button" onClick={() => addProduct()} disabled={saving || !selectedProductId}>
                 Add to cart
               </button>
             </div>
