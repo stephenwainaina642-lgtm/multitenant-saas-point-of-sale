@@ -3,7 +3,7 @@ import { authenticate } from "../auth/auth.middleware.js";
 import { requireBusinessAccess, type BusinessRequest } from "../auth/business.middleware.js";
 import { requirePermission } from "../auth/permissions.js";
 import { AppError } from "../lib/errors.js";
-import { createCategory, deleteCategory, listCategories, updateCategory } from "./category.service.js";
+import { applyStarter, starterPreview, createCategory, deleteCategory, listCategories, updateCategory } from "./category.service.js";
 
 const router = Router();
 const uid = (req: BusinessRequest) => (req.user ? String(req.user.userId) : undefined);
@@ -20,6 +20,12 @@ const auth = [authenticate, requireBusinessAccess];
 
 router.get("/", ...auth, requirePermission("products.view"), async (req: BusinessRequest, res) => {
   try { res.json({ success: true, data: await listCategories(bid(req)) }); } catch (e) { fail(res, e); }
+});
+router.get("/starter", ...auth, requirePermission("products.view"), async (req: BusinessRequest, res) => {
+  try { res.json({ success: true, data: await starterPreview(bid(req)) }); } catch (e) { fail(res, e); }
+});
+router.post("/starter", ...auth, requirePermission("products.manage"), async (req: BusinessRequest, res) => {
+  try { res.status(201).json({ success: true, message: "Starter categories added", data: await applyStarter(bid(req), uid(req)) }); } catch (e) { fail(res, e); }
 });
 router.post("/", ...auth, requirePermission("products.manage"), async (req: BusinessRequest, res) => {
   try { res.status(201).json({ success: true, message: "Category created", data: await createCategory(bid(req), req.body ?? {}, uid(req)) }); } catch (e) { fail(res, e); }

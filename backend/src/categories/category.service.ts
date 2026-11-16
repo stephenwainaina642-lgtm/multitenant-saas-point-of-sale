@@ -1,5 +1,6 @@
 import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
+import { presetFor } from "../lib/business-presets.js";
 
 type Input = { name?: unknown; description?: unknown };
 
@@ -107,4 +108,42 @@ export async function resolveCategoryId(businessId: string, value: unknown): Pro
   const row = await prisma.category.findFirst({ where: { id: BigInt(idText), businessId: BigInt(businessId), isActive: true } });
   if (!row) throw new AppError(400, "Category not found in this business");
   return row.id;
+}
+
+async function businessTypeOf(businessId: string): Promise<string> {
+  const b = await prisma.business.findUnique({ where: { id: BigInt(businessId) }, select: { businessType: true } });
+  return b?.businessType ?? "other";
+}
+
+/** What the starter preset for this business would add. Read-only. */
+export async function starterPreview(businessId: string) {
+  const businessType = await businessTypeOf(businessId);
+  const preset = presetFor(businessType);
+  const existing = await prisma.category.findMany({ where: { businessId: BigInt(businessId) }, select: { name: true } });
+  const have = new Set(existing.map((c) => c.name.toLowerCase()));
+  return {
+    businessType,
+    label: preset.label,
+    units: preset.units,
+    categories: preset.categories.map((name) => ({ name, exists: have.has(name.toLowerCase()) })),
+  };
+}
+
+/** Adds only the starter categories that are missing. Never edits or removes anything. */
+export async function applyStarter(businessId: string, actor?: string) {
+  const bid = BigInt(businessId);
+  const businessType = await businessTypeOf(businessId);
+  const preset = presetFor(businessType);
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.category.findMany({ where: { businessId: bid }, select: { name: true } });
+    const have = new Set(existing.map((c) => c.name.toLowerCase()));
+    const missing = preset.categories.filter((n) => !have.has(n.toLowerCase()));
+    if (missing.length > 0) {
+      await tx.category.createMany({ data: missing.map((name) => ({ businessId: bid, name })) });
+      await tx.auditLog.create({
+        data: { businessId: bid, userId: actor ? BigInt(actor) : null, action: "category.starter", entity: "category", details: { businessType, added: missing } },
+      });
+    }
+    return { businessType, added: missing, skipped: preset.categories.length - missing.length };
+  });
 }

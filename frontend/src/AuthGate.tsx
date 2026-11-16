@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { BUSINESS_TYPE_OPTIONS } from "./businessTypes";
 import { apiRequest } from "./api/client";
 import "./AuthGate.css";
 import { storePermissions } from "./permissions";
@@ -170,12 +171,9 @@ export default function AuthGate({ onAuthenticated }: Props) {
 
               <label className="auth-label" htmlFor="business-type">Business type</label>
               <select id="business-type" className="auth-input" value={businessType} onChange={(event) => setBusinessType(event.target.value)}>
-                <option value="retail">General retail</option>
-                <option value="hardware">Hardware & building materials</option>
-                <option value="timber">Timber & wood</option>
-                <option value="furniture">Furniture</option>
-                <option value="wholesale">Wholesale</option>
-                <option value="other">Other</option>
+                {BUSINESS_TYPE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
               </select>
             </>
           )}

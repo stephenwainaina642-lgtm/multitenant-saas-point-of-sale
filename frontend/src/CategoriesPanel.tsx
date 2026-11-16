@@ -4,9 +4,11 @@ import { can } from "./permissions";
 
 export type Category = { id: string; name: string; description: string | null; productCount: number };
 
-type Props = { categories: Category[]; onChanged: () => void };
+export type Starter = { businessType: string; label: string; units: string[]; categories: { name: string; exists: boolean }[] };
 
-export default function CategoriesPanel({ categories, onChanged }: Props) {
+type Props = { categories: Category[]; starter: Starter | null; onChanged: () => void };
+
+export default function CategoriesPanel({ categories, starter, onChanged }: Props) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -52,6 +54,11 @@ export default function CategoriesPanel({ categories, onChanged }: Props) {
     void run(() => apiRequest(`/categories/${category.id}`, { method: "DELETE", token, businessId }));
   };
 
+  const missing = starter?.categories.filter((c) => !c.exists) ?? [];
+  const addStarter = () => {
+    void run(() => apiRequest("/categories/starter", { method: "POST", token, businessId, body: {} }));
+  };
+
   return (
     <section className="panel" style={{ display: "grid", gap: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -81,6 +88,17 @@ export default function CategoriesPanel({ categories, onChanged }: Props) {
               />
               <button className="button-primary" type="submit" disabled={busy}>Add category</button>
             </form>
+          )}
+          {manage && starter && missing.length > 0 && (
+            <div style={{ background: "#f3f9f5", border: "1px solid #d5e9dc", borderRadius: 8, padding: 12 }}>
+              <strong>Suggested for {starter.label}</strong>
+              <p style={{ margin: "4px 0 8px", color: "#4b6156", fontSize: 13 }}>
+                {missing.map((c) => c.name).join(", ")}. Only these missing categories are added; your existing categories and products are not changed.
+              </p>
+              <button className="button-secondary" type="button" disabled={busy} onClick={addStarter}>
+                Add {missing.length} starter {missing.length === 1 ? "category" : "categories"}
+              </button>
+            </div>
           )}
           {categories.length === 0 ? (
             <p style={{ color: "#64746b", margin: 0 }}>No categories yet.</p>

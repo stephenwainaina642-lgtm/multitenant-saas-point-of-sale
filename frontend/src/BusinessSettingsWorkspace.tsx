@@ -1,4 +1,5 @@
 ﻿import { useEffect, useState } from "react";
+import { BUSINESS_TYPE_OPTIONS } from "./businessTypes";
 import { apiRequest } from "./api/client";
 import "./BusinessSettingsWorkspace.css";
 
@@ -30,15 +31,6 @@ const emptyProfile: BusinessProfile = {
   timezone: "Africa/Nairobi",
 };
 
-const businessTypes = [
-  "retail",
-  "wholesale",
-  "hardware",
-  "timber",
-  "furniture",
-  "building_materials",
-  "other",
-];
 
 export default function BusinessSettingsWorkspace() {
   const [profile, setProfile] = useState<BusinessProfile>(emptyProfile);
@@ -225,16 +217,14 @@ export default function BusinessSettingsWorkspace() {
                 disabled={!isOwner}
                 required
               >
-                {!businessTypes.includes(profile.businessType) && (
+                {!BUSINESS_TYPE_OPTIONS.some((option) => option.value === profile.businessType) && (
                   <option value={profile.businessType}>
                     {profile.businessType}
                   </option>
                 )}
-                {businessTypes.map((type) => (
-                  <option key={type} value={type}>
-                    {type.replaceAll("_", " ").replace(/\b\w/g, (letter) =>
-                      letter.toUpperCase()
-                    )}
+                {BUSINESS_TYPE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
                   </option>
                 ))}
               </select>

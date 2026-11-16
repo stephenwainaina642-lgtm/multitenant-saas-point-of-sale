@@ -1,6 +1,6 @@
 import { can } from "./permissions";
 import ImportPanel from "./ImportPanel";
-import CategoriesPanel, { type Category } from "./CategoriesPanel";
+import CategoriesPanel, { type Category, type Starter } from "./CategoriesPanel";
 import { useCallback, useEffect, useState } from "react";
 import { apiRequest } from "./api/client";
 
@@ -30,6 +30,7 @@ const money = (value: number | string) =>
 export default function ProductsWorkspace() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [starter, setStarter] = useState<Starter | null>(null);
   const [categoryId, setCategoryId] = useState("");
   const [editCategoryId, setEditCategoryId] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -90,6 +91,8 @@ export default function ProductsWorkspace() {
     try {
       const response = await apiRequest<Category[]>("/categories", { token, businessId });
       setCategories(response.data ?? []);
+      const suggestions = await apiRequest<Starter>("/categories/starter", { token, businessId });
+      setStarter(suggestions.data ?? null);
     } catch {
       /* the product list still works without categories */
     }
@@ -371,7 +374,12 @@ export default function ProductsWorkspace() {
 
   return (
     <section className="products-workspace" style={{ display: "grid", gap: 20 }}>
-      <CategoriesPanel categories={categories} onChanged={categoriesChanged} />
+      <datalist id="unit-suggestions">
+        {(starter?.units ?? ["piece", "kg", "metre", "litre"]).map((unit) => (
+          <option key={unit} value={unit} />
+        ))}
+      </datalist>
+      <CategoriesPanel categories={categories} starter={starter} onChanged={categoriesChanged} />
       {can("products.manage") && <ImportPanel kind="products" onImported={() => void loadProducts()} />}
       <article className="panel" style={{ padding: 24 }}>
         <div className="panel-heading">
@@ -534,7 +542,7 @@ export default function ProductsWorkspace() {
               </label>
               <label style={labelStyle}>
                 Unit of measure *
-                <input style={{ ...fieldStyle, marginTop: 6 }} value={editUnitOfMeasure} onChange={(event) => setEditUnitOfMeasure(event.target.value)} placeholder="piece, kg, metre, litre..." maxLength={50} required />
+                <input style={{ ...fieldStyle, marginTop: 6 }} value={editUnitOfMeasure} onChange={(event) => setEditUnitOfMeasure(event.target.value)} placeholder="piece, kg, metre, litre..." maxLength={50} list="unit-suggestions" required />
               </label>
               {categorySelect(editCategoryId, setEditCategoryId)}
               <label style={labelStyle}>
@@ -605,7 +613,7 @@ export default function ProductsWorkspace() {
             </label>
             <label style={labelStyle}>
               Unit of measure *
-              <input style={{ ...fieldStyle, marginTop: 6 }} value={unitOfMeasure} onChange={(event) => setUnitOfMeasure(event.target.value)} placeholder="piece, kg, metre, litre..." maxLength={50} required />
+              <input style={{ ...fieldStyle, marginTop: 6 }} value={unitOfMeasure} onChange={(event) => setUnitOfMeasure(event.target.value)} placeholder="piece, kg, metre, litre..." maxLength={50} list="unit-suggestions" required />
             </label>
               {categorySelect(categoryId, setCategoryId)}
               <label style={labelStyle}>

@@ -5,11 +5,7 @@ import { signToken } from "../lib/token.js";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const BUSINESS_TYPES = [
-  "retail", "electronics", "beauty", "hardware", "computers",
-  "furniture", "wholesale", "pharmacy", "stationery", "agriculture",
-  "spare_parts", "salon", "general", "other",
-];
+import { BUSINESS_TYPES } from "../lib/business-presets.js";
 
 type RegisterInput = {
   name: string;
