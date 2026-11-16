@@ -2,6 +2,7 @@ import type { Response } from "express";
 import type { BusinessRequest } from "../auth/business.middleware.js";
 import { AppError } from "../lib/errors.js";
 import { centsToString, milliToString, parseMoney, parseQuantity } from "../lib/money.js";
+import { resolveCategoryId } from "../categories/category.service.js";
 import {
   getBusinessProducts,
   createBusinessProduct,
@@ -138,6 +139,7 @@ export async function createProductController(
       minimumStock,
       unitOfMeasure,
       taxClass,
+      categoryId,
     } = req.body;
 
     const parsedName = typeof name === "string" ? name.trim() : "";
@@ -242,6 +244,7 @@ export async function createProductController(
         minimumStock: parsedMinimumStock,
         unitOfMeasure: parsedUnitOfMeasure,
         ...(taxClass !== undefined && { taxClass }),
+        ...(categoryId !== undefined && { categoryId: await resolveCategoryId(req.businessId.toString(), categoryId) }),
         ...(parsedSku !== undefined && parsedSku !== "" && { sku: parsedSku }),
         ...(parsedBarcode !== undefined && parsedBarcode !== "" && {
           barcode: parsedBarcode,
@@ -293,6 +296,7 @@ export async function updateProductController(
       minimumStock,
       unitOfMeasure,
       taxClass,
+      categoryId,
     } = req.body;
 
     const productData: {
@@ -305,6 +309,7 @@ export async function updateProductController(
       minimumStock?: number;
       unitOfMeasure?: string;
       taxClass?: string;
+      categoryId?: bigint | null;
     } = {};
 
     if (name !== undefined) {
@@ -397,6 +402,10 @@ export async function updateProductController(
         });
       }
       productData.taxClass = taxClass;
+    }
+
+    if (categoryId !== undefined) {
+      productData.categoryId = await resolveCategoryId(req.businessId.toString(), categoryId);
     }
 
     if (unitOfMeasure !== undefined) {

@@ -1,5 +1,6 @@
 import { can } from "./permissions";
 import ImportPanel from "./ImportPanel";
+import CategoriesPanel, { type Category } from "./CategoriesPanel";
 import { useCallback, useEffect, useState } from "react";
 import { apiRequest } from "./api/client";
 
@@ -15,6 +16,8 @@ type Product = {
   minimumStock: number | string;
   unitOfMeasure: string;
   taxClass?: string;
+  categoryId?: string | null;
+  categoryName?: string | null;
   isActive: boolean;
 };
 
@@ -26,6 +29,10 @@ const money = (value: number | string) =>
 
 export default function ProductsWorkspace() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryId, setCategoryId] = useState("");
+  const [editCategoryId, setEditCategoryId] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -78,9 +85,25 @@ export default function ProductsWorkspace() {
     }
   }, [token, businessId]);
 
+  const loadCategories = useCallback(async () => {
+    if (!token || !businessId) return;
+    try {
+      const response = await apiRequest<Category[]>("/categories", { token, businessId });
+      setCategories(response.data ?? []);
+    } catch {
+      /* the product list still works without categories */
+    }
+  }, [token, businessId]);
+
   useEffect(() => {
     void loadProducts();
-  }, [loadProducts]);
+    void loadCategories();
+  }, [loadProducts, loadCategories]);
+
+  const categoriesChanged = () => {
+    void loadCategories();
+    void loadProducts();
+  };
 
   async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -143,6 +166,7 @@ export default function ProductsWorkspace() {
           minimumStock: minimum,
           unitOfMeasure: unitOfMeasure.trim(),
           taxClass,
+          ...(categoryId && { categoryId }),
           sku: sku.trim(),
           barcode: barcode.trim(),
           description: description.trim(),
@@ -162,6 +186,8 @@ export default function ProductsWorkspace() {
       setStockQuantity("0");
       setMinimumStock("0");
       setUnitOfMeasure("piece");
+      setCategoryId("");
+      void loadCategories();
       setMessage("Product saved successfully.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save product.");
@@ -216,6 +242,7 @@ export default function ProductsWorkspace() {
     setEditMinimumStock(String(product.minimumStock ?? 0));
     setEditUnitOfMeasure(product.unitOfMeasure || "piece");
     setEditTaxClass(product.taxClass || "standard");
+    setEditCategoryId(product.categoryId ?? "");
     setError("");
     setMessage("");
   }
@@ -281,6 +308,7 @@ export default function ProductsWorkspace() {
             minimumStock: minimum,
             unitOfMeasure: editUnitOfMeasure.trim(),
             taxClass: editTaxClass,
+            categoryId: editCategoryId || null,
           },
         }
       );
@@ -294,6 +322,7 @@ export default function ProductsWorkspace() {
       }
 
       setEditingProduct(null);
+      void loadCategories();
       setMessage("Product updated successfully.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not update product.");
@@ -301,10 +330,25 @@ export default function ProductsWorkspace() {
       setSaving(false);
     }
   }
-  const filteredProducts = products.filter((product) =>
-    `${product.name} ${product.sku ?? ""} ${product.barcode ?? ""}`
-      .toLowerCase()
-      .includes(search.toLowerCase())
+  const filteredProducts = products.filter(
+    (product) =>
+      `${product.name} ${product.sku ?? ""} ${product.barcode ?? ""}`
+        .toLowerCase()
+        .includes(search.toLowerCase()) &&
+      (categoryFilter === "" ||
+        (categoryFilter === "none" ? !product.categoryId : product.categoryId === categoryFilter))
+  );
+
+  const categorySelect = (value: string, onChange: (next: string) => void) => (
+    <label style={labelStyle}>
+      Category
+      <select style={{ ...fieldStyle, marginTop: 6 }} value={value} onChange={(event) => onChange(event.target.value)}>
+        <option value="">No category</option>
+        {categories.map((category) => (
+          <option key={category.id} value={category.id}>{category.name}</option>
+        ))}
+      </select>
+    </label>
   );
 
   const fieldStyle: React.CSSProperties = {
@@ -327,6 +371,7 @@ export default function ProductsWorkspace() {
 
   return (
     <section className="products-workspace" style={{ display: "grid", gap: 20 }}>
+      <CategoriesPanel categories={categories} onChanged={categoriesChanged} />
       {can("products.manage") && <ImportPanel kind="products" onImported={() => void loadProducts()} />}
       <article className="panel" style={{ padding: 24 }}>
         <div className="panel-heading">
@@ -352,6 +397,15 @@ export default function ProductsWorkspace() {
           placeholder="Search by name, SKU, or barcode"
         />
 
+        <label style={{ ...labelStyle, marginTop: 10 }} htmlFor="category-filter">Filter by category</label>
+        <select id="category-filter" style={fieldStyle} value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+          <option value="">All categories</option>
+          <option value="none">No category</option>
+          {categories.map((category) => (
+            <option key={category.id} value={category.id}>{category.name}</option>
+          ))}
+        </select>
+
         {error && (
           <p role="alert" style={{ color: "#a1352a", background: "#fff5f3", padding: 12, borderRadius: 8 }}>
             {error}
@@ -368,6 +422,7 @@ export default function ProductsWorkspace() {
             <thead>
               <tr>
                 <th>PRODUCT</th>
+                <th>CATEGORY</th>
                 <th>SKU</th>
                 <th>COST PRICE</th>
                 <th>SELLING PRICE</th>
@@ -384,6 +439,7 @@ export default function ProductsWorkspace() {
                       <div style={{ color: "#77847d", fontSize: 12 }}>{product.description}</div>
                     )}
                   </td>
+                  <td>{product.categoryName || "-"}</td>
                   <td>{product.sku || "-"}</td>
                   <td>{money(product.costPrice)}</td>
                   <td>{money(product.sellingPrice)}</td>
@@ -422,7 +478,7 @@ export default function ProductsWorkspace() {
               ))}
               {!loading && filteredProducts.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="empty-row">
+                  <td colSpan={7} className="empty-row">
                     {products.length === 0
                       ? "No products found for this business yet."
                       : "No products match your search."}
@@ -430,7 +486,7 @@ export default function ProductsWorkspace() {
                 </tr>
               )}
               {loading && (
-                <tr><td colSpan={6}>Loading products from PostgreSQL...</td></tr>
+                <tr><td colSpan={7}>Loading products from PostgreSQL...</td></tr>
               )}
             </tbody>
           </table>
@@ -480,6 +536,7 @@ export default function ProductsWorkspace() {
                 Unit of measure *
                 <input style={{ ...fieldStyle, marginTop: 6 }} value={editUnitOfMeasure} onChange={(event) => setEditUnitOfMeasure(event.target.value)} placeholder="piece, kg, metre, litre..." maxLength={50} required />
               </label>
+              {categorySelect(editCategoryId, setEditCategoryId)}
               <label style={labelStyle}>
                 VAT class
                 <select style={{ ...fieldStyle, marginTop: 6 }} value={editTaxClass} onChange={(event) => setEditTaxClass(event.target.value)}>
@@ -550,6 +607,7 @@ export default function ProductsWorkspace() {
               Unit of measure *
               <input style={{ ...fieldStyle, marginTop: 6 }} value={unitOfMeasure} onChange={(event) => setUnitOfMeasure(event.target.value)} placeholder="piece, kg, metre, litre..." maxLength={50} required />
             </label>
+              {categorySelect(categoryId, setCategoryId)}
               <label style={labelStyle}>
                 VAT class
                 <select style={{ ...fieldStyle, marginTop: 6 }} value={taxClass} onChange={(event) => setTaxClass(event.target.value)}>

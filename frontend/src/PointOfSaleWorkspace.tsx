@@ -9,6 +9,8 @@ type Product = {
   sellingPrice: number | string;
   stockQuantity: number | string;
   unitOfMeasure: string;
+  categoryId?: string | null;
+  categoryName?: string | null;
   isActive: boolean;
 };
 
@@ -37,6 +39,7 @@ export default function PointOfSaleWorkspace() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedProductId, setSelectedProductId] = useState("");
   const [productSearch, setProductSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
  const [discount, setDiscount] = useState("0");
   const [tax, setTax] = useState("0");
   const [amountPaid, setAmountPaid] = useState("0");
@@ -328,6 +331,14 @@ export default function PointOfSaleWorkspace() {
     }
   }
 
+  const posCategories = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const product of products) {
+      if (product.categoryId && product.categoryName) seen.set(product.categoryId, product.categoryName);
+    }
+    return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [products]);
+
   return (
     <section className="pos-workspace">
       <div className="pos-workspace-heading">
@@ -365,6 +376,25 @@ export default function PointOfSaleWorkspace() {
             <p className="inventory-muted">No active products found. Add a product in Products first.</p>
           ) : (
             <div className="pos-add-product">
+              {posCategories.length > 0 && (
+                <label className="inventory-field">
+                  Category
+                  <select
+                    value={categoryFilter}
+                    onChange={(event) => {
+                      const next = event.target.value;
+                      setCategoryFilter(next);
+                      const first = products.find((product) => next === "" || product.categoryId === next);
+                      setSelectedProductId(first?.id ?? "");
+                    }}
+                  >
+                    <option value="">All categories</option>
+                    {posCategories.map(([id, label]) => (
+                      <option key={id} value={id}>{label}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <label className="inventory-field">
                 Product
                 <input
@@ -390,6 +420,7 @@ export default function PointOfSaleWorkspace() {
                 <select value={selectedProductId} onChange={(event) => setSelectedProductId(event.target.value)}>
                   {products
                     .filter((product) => {
+                      if (categoryFilter && product.categoryId !== categoryFilter) return false;
                       const query = productSearch.toLowerCase().trim();
                       return product.name.toLowerCase().includes(query) ||
                         (product.sku ?? "").toLowerCase().includes(query);

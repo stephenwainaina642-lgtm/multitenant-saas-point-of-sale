@@ -6,6 +6,7 @@ export async function getBusinessProducts(businessId: string) {
       businessId: BigInt(businessId),
       isActive: true,
     },
+    include: { category: { select: { name: true } } },
     orderBy: {
       createdAt: "desc",
     },
@@ -23,6 +24,8 @@ export async function getBusinessProducts(businessId: string) {
     minimumStock: product.minimumStock,
     unitOfMeasure: product.unitOfMeasure,
     taxClass: product.taxClass,
+    categoryId: product.categoryId ? product.categoryId.toString() : null,
+    categoryName: product.category?.name ?? null,
     isActive: product.isActive,
   }));
 }
@@ -40,6 +43,7 @@ export async function createBusinessProduct(
     minimumStock?: number;
     unitOfMeasure?: string;
     taxClass?: string;
+    categoryId?: bigint | null;
   }
 ) {
   const openingStock = data.stockQuantity ?? 0;
@@ -58,6 +62,7 @@ export async function createBusinessProduct(
         minimumStock: data.minimumStock ?? 0,
         unitOfMeasure: data.unitOfMeasure || "piece",
         taxClass: data.taxClass || "standard",
+        categoryId: data.categoryId ?? null,
         isActive: true,
       },
     });
@@ -87,6 +92,7 @@ export async function createBusinessProduct(
       minimumStock: product.minimumStock,
       unitOfMeasure: product.unitOfMeasure,
       taxClass: product.taxClass,
+      categoryId: product.categoryId ? product.categoryId.toString() : null,
       isActive: product.isActive,
     };
   });
@@ -105,6 +111,7 @@ export async function updateBusinessProduct(
     minimumStock?: number;
     unitOfMeasure?: string;
     taxClass?: string;
+    categoryId?: bigint | null;
   }
 ) {
   const product = await prisma.product.findFirst({
@@ -138,6 +145,7 @@ export async function updateBusinessProduct(
     minimumStock: updatedProduct.minimumStock,
     unitOfMeasure: updatedProduct.unitOfMeasure,
     taxClass: updatedProduct.taxClass,
+    categoryId: updatedProduct.categoryId ? updatedProduct.categoryId.toString() : null,
     isActive: updatedProduct.isActive,
   };
 }
