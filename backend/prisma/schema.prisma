@@ -53,6 +53,7 @@ model User {
   phone        String?  @db.VarChar(50)
   passwordHash String   @map("password_hash")
   isActive     Boolean  @default(true) @map("is_active")
+  sessionsValidAfter DateTime? @map("sessions_valid_after") @db.Timestamptz(6)
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 

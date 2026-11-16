@@ -19,11 +19,13 @@ export default function ChangePasswordPanel() {
     if (next !== confirm) return setError("The new passwords do not match.");
     setBusy(true);
     try {
-      await apiRequest("/auth/change-password", {
+      const response = await apiRequest<{ token: string }>("/auth/change-password", {
         method: "POST",
         token: sessionStorage.getItem("pos_token") || "",
         body: { currentPassword: current, newPassword: next },
       });
+      // Old tokens (including this one) are now rejected; keep this device signed in with the fresh one.
+      if (response.data?.token) sessionStorage.setItem("pos_token", response.data.token);
       setCurrent("");
       setNext("");
       setConfirm("");
@@ -42,7 +44,7 @@ export default function ChangePasswordPanel() {
       <div className="panel-heading">
         <div>
           <h2>My password</h2>
-          <p>Change the password you use to sign in. This does not affect anyone else.</p>
+          <p>Change the password you use to sign in. This signs you out on other devices and does not affect anyone else.</p>
         </div>
       </div>
       <form onSubmit={submit} style={{ display: "grid", gap: 14 }}>

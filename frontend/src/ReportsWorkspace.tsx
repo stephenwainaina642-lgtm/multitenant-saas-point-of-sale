@@ -76,6 +76,13 @@ type ReportsData = {
     costOfGoodsSold: number;
     grossProfit: number;
   }[];
+  salesByCategory: {
+    categoryId: string | null;
+    categoryName: string;
+    netSales: number;
+    costOfGoodsSold: number;
+    grossProfit: number;
+  }[];
   paymentMethods: {
     method: string;
     amount: number;
@@ -375,6 +382,15 @@ export default function ReportsWorkspace() {
         item.grossProfit,
       ]) ?? []),
       [],
+      ["SALES BY CATEGORY"],
+      ["Category", "Net sales", "Cost", "Gross profit"],
+      ...(analytics?.salesByCategory?.map((item) => [
+        item.categoryName,
+        item.netSales,
+        item.costOfGoodsSold,
+        item.grossProfit,
+      ]) ?? []),
+      [],
       ["PAYMENT METHODS"],
       ["Method", "Amount", "Transactions"],
       ...(analytics?.paymentMethods.map((item) => [
@@ -659,6 +675,40 @@ export default function ReportsWorkspace() {
                 <tr><td colSpan={6} className="empty-row">No product sales in this period.</td></tr>
               )}
               {loading && <tr><td colSpan={6}>Loading product performance...</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article className="panel" style={{ padding: 24 }}>
+        <SectionHeading
+          title="Sales by category"
+          description="Net sales (before VAT) grouped by each product's current category"
+        />
+
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>CATEGORY</th>
+                <th>NET SALES</th>
+                <th>COST</th>
+                <th>GROSS PROFIT</th>
+              </tr>
+            </thead>
+            <tbody>
+              {analytics?.salesByCategory?.map((item) => (
+                <tr key={item.categoryId ?? "none"}>
+                  <td><strong>{item.categoryName}</strong></td>
+                  <td>{money(item.netSales)}</td>
+                  <td>{money(item.costOfGoodsSold)}</td>
+                  <td><strong>{money(item.grossProfit)}</strong></td>
+                </tr>
+              ))}
+              {!loading && !analytics?.salesByCategory?.length && (
+                <tr><td colSpan={4} className="empty-row">No sales in this period.</td></tr>
+              )}
+              {loading && <tr><td colSpan={4}>Loading categories...</td></tr>}
             </tbody>
           </table>
         </div>

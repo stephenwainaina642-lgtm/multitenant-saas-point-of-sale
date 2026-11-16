@@ -10,7 +10,7 @@ const MAX_MILLI = 999_999_999_999n;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export type RowError = { row: number; field: string; message: string };
-export type ImportResult = { dryRun: boolean; total: number; valid: number; created: number; errors: RowError[] };
+export type ImportResult = { dryRun: boolean; total: number; valid: number; created: number; errors: RowError[]; newCategories?: string[] };
 
 type Raw = Record<string, unknown>;
 
@@ -70,7 +70,7 @@ function qty(c: Collector, row: Raw, key: string, label: string): string | null 
 
 type ProductRow = {
   name: string; sku: string | null; barcode: string | null; description: string | null;
-  costPrice: string; sellingPrice: string; stockQuantity: string; minimumStock: string; unitOfMeasure: string; taxClass: string;
+  costPrice: string; sellingPrice: string; stockQuantity: string; minimumStock: string; unitOfMeasure: string; taxClass: string; category: string | null;
 };
 
 export async function importProducts(businessId: bigint, userId: bigint, input: unknown, dryRun: boolean): Promise<ImportResult> {
@@ -103,6 +103,7 @@ export async function importProducts(businessId: bigint, userId: bigint, input: 
     const barcode = text(c, row, "barcode", "Barcode", 100);
     const description = text(c, row, "description", "Description", 2000);
     const unit = text(c, row, "unitOfMeasure", "Unit of measure", 50) ?? "piece";
+    const category = text(c, row, "category", "Category", 150);
     const rawClass = (cell(row, "taxClass") ?? "standard").toLowerCase().replace(/[\s-]+/g, "_");
     const taxClass = ["standard", "zero_rated", "exempt"].includes(rawClass) ? rawClass : "standard";
     if (!["standard", "zero_rated", "exempt"].includes(rawClass)) c.fail("Tax class", "must be standard, zero_rated or exempt");
@@ -120,17 +121,28 @@ export async function importProducts(businessId: bigint, userId: bigint, input: 
     }
 
     if (c.count) errors.push(...c.errors);
-    else good.push({ name: name!, sku, barcode, description, costPrice, sellingPrice: sellingPrice!, stockQuantity, minimumStock, unitOfMeasure: unit, taxClass });
+    else good.push({ name: name!, sku, barcode, description, costPrice, sellingPrice: sellingPrice!, stockQuantity, minimumStock, unitOfMeasure: unit, taxClass, category });
   });
 
-  const result: ImportResult = { dryRun, total: raw.length, valid: good.length, created: 0, errors };
+  // Categories named in the file: existing ones are reused (any capitalisation), the rest are created on import.
+  const known = await prisma.category.findMany({ where: { businessId }, select: { id: true, name: true } });
+  const byName = new Map(known.map((k) => [k.name.toLowerCase(), k.id]));
+  const newNames = new Map<string, string>();
+  for (const p of good) {
+    if (p.category && !byName.has(p.category.toLowerCase()) && !newNames.has(p.category.toLowerCase())) newNames.set(p.category.toLowerCase(), p.category);
+  }
+
+  const result: ImportResult = { dryRun, total: raw.length, valid: good.length, created: 0, errors, newCategories: [...newNames.values()] };
   // All or nothing: a file with any problem creates nothing, so it can simply be fixed and re-sent.
   if (dryRun || errors.length) return result;
 
   await prisma.$transaction(async (tx) => {
-    for (const p of good) {
+    for (const [key, name] of newNames) {
+      byName.set(key, (await tx.category.create({ data: { businessId, name } })).id);
+    }
+    for (const { category, ...p } of good) {
       const product = await tx.product.create({
-        data: { businessId, ...p, isActive: true },
+        data: { businessId, ...p, categoryId: category ? byName.get(category.toLowerCase()) ?? null : null, isActive: true },
       });
       if (Number(p.stockQuantity) > 0) {
         await tx.inventoryMovement.create({
@@ -142,7 +154,7 @@ export async function importProducts(businessId: bigint, userId: bigint, input: 
       }
     }
     await tx.auditLog.create({
-      data: { businessId, userId, action: "product.import", entity: "product", details: { rows: good.length } },
+      data: { businessId, userId, action: "product.import", entity: "product", details: { rows: good.length, newCategories: [...newNames.values()] } },
     });
   }, { timeout: 60_000 });
   result.created = good.length;

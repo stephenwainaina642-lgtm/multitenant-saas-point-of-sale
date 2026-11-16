@@ -27,7 +27,7 @@ Never commit `.env`.
 3. Install & build: `cd backend && npm ci && npx prisma generate --config prisma7.config.ts && npm run build`
 4. **Apply migrations (additive only)**: `npx prisma migrate deploy --config prisma7.config.ts`
    Never run `migrate reset`, `migrate dev --force`, `db push --force-reset` against a real database.
-   Migrations since Stage 2b: add_role_permissions, add_integrity_constraints, add_sale_refunds, add_supplier_payments,
+   Migrations since Stage 2b: add_user_sessions_valid_after, add_role_permissions, add_integrity_constraints, add_sale_refunds, add_supplier_payments,
    add_quotation_conversion, add_business_tax_pin, add_vat_settings (plus earlier ones). The CHECK constraints in
    add_integrity_constraints can fail if legacy rows violate them – that is a signal to review data, see
    `docs/stage-2b-migrations.md`.
@@ -58,6 +58,6 @@ schema. Do **not** try to reverse migrations by hand; if data is damaged, restor
   restored copy and review the output.
 - Suppliers' balances and purchase payments made before supplier payments existed are not back-filled (audit B1/B2).
 - `npm audit` still reports advisories in the Prisma CLI toolchain (dev-time; not on the request path); fixing needs a Prisma upgrade.
-- Changing a password does not revoke existing tokens (they expire per JWT_EXPIRES_IN).
+- Changing a password signs out other devices (tokens issued in the same second as the change are not cut off). There is no "forgot password" email flow yet.
 - Logs go to stdout as JSON; there is no log shipping, alerting or error tracker configured – add one (e.g. uptime check on `/api/health/ready`).
 - eTIMS, inclusive-VAT pricing and VAT returns are not implemented. Do not market the app as KRA-compliant.

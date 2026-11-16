@@ -55,6 +55,16 @@ export async function apiRequest<T>(
 
   const result = (await response.json()) as ApiResponse<T>;
 
+  // A rejected token (expired, or signed out by a password change) means this device must sign in again.
+  if (response.status === 401 && options.token) {
+    try {
+      sessionStorage.clear();
+    } catch {
+      /* storage unavailable */
+    }
+    window.location.reload();
+  }
+
   if (!response.ok || !result.success) {
     throw new ApiError(result.message || `Request failed (${response.status})`, response.status, result.data);
   }

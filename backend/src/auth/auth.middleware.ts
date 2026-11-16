@@ -62,7 +62,7 @@ export async function authenticate(
 
     const user = await prisma.user.findUnique({
       where: { id: BigInt(userId) },
-      select: { isActive: true },
+      select: { isActive: true, sessionsValidAfter: true },
     });
 
     if (!user || !user.isActive) {
@@ -70,6 +70,17 @@ export async function authenticate(
         success: false,
         message: "User account is inactive or does not exist",
       });
+    }
+
+    // A password change cuts off every token issued before it (JWT iat is in whole seconds).
+    if (user.sessionsValidAfter) {
+      const issuedAt = typeof decoded.iat === "number" ? decoded.iat : 0;
+      if (issuedAt < Math.floor(user.sessionsValidAfter.getTime() / 1000)) {
+        return res.status(401).json({
+          success: false,
+          message: "Your session has ended. Please sign in again.",
+        });
+      }
     }
 
     req.user = {

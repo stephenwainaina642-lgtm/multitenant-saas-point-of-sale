@@ -72,5 +72,10 @@ export async function changePassword(userId: bigint, currentPassword: string, ne
   const ok = user ? await bcrypt.compare(currentPassword, user.passwordHash) : false;
   if (!user || !user.isActive || !ok) throw new AppError(400, "Current password is incorrect");
   if (currentPassword === newPassword) throw new AppError(400, "New password must be different from the current one");
-  await prisma.user.update({ where: { id: userId }, data: { passwordHash: await bcrypt.hash(newPassword, 12) } });
+  // Every token issued before now stops working; the caller gets a fresh one so this device stays signed in.
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash: await bcrypt.hash(newPassword, 12), sessionsValidAfter: new Date() },
+  });
+  return signToken(userId.toString());
 }

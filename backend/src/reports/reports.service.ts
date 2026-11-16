@@ -41,6 +41,7 @@ export async function getBusinessReports(
                 id: true,
                 name: true,
                 sku: true,
+                category: { select: { id: true, name: true } },
               },
             },
           },
@@ -201,6 +202,33 @@ export async function getBusinessReports(
       grossProfit: out(product.grossSales - product.costOfGoodsSold),
     }));
 
+  // Same net figures as the product table, grouped by the product's current category.
+  const categoryMap = new Map<string, { categoryId: string | null; categoryName: string; netSales: bigint; costOfGoodsSold: bigint }>();
+  for (const sale of sales) {
+    for (const item of sale.items) {
+      const categoryId = item.product.category?.id.toString() ?? null;
+      const key = categoryId ?? "none";
+      const current = categoryMap.get(key) || {
+        categoryId,
+        categoryName: item.product.category?.name ?? "Uncategorized",
+        netSales: 0n,
+        costOfGoodsSold: 0n,
+      };
+      current.netSales += cents(item.total) - cents(item.tax);
+      current.costOfGoodsSold += itemCost(item);
+      categoryMap.set(key, current);
+    }
+  }
+  const salesByCategory = Array.from(categoryMap.values())
+    .sort((a, b) => (b.netSales > a.netSales ? 1 : b.netSales < a.netSales ? -1 : 0))
+    .map((c) => ({
+      categoryId: c.categoryId,
+      categoryName: c.categoryName,
+      netSales: out(c.netSales),
+      costOfGoodsSold: out(c.costOfGoodsSold),
+      grossProfit: out(c.netSales - c.costOfGoodsSold),
+    }));
+
   const paymentMap = new Map<
     string,
     { method: string; amount: bigint; transactions: number }
@@ -337,6 +365,7 @@ export async function getBusinessReports(
 
     trends,
     bestSellingProducts,
+    salesByCategory,
     paymentMethods,
     purchaseBreakdown,
     expenseBreakdown,

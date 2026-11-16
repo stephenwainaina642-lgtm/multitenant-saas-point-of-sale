@@ -3,7 +3,7 @@ import { ApiError, apiRequest } from "./api/client";
 
 type Kind = "products" | "customers";
 type RowError = { row: number; field: string; message: string };
-type Result = { dryRun: boolean; total: number; valid: number; created: number; errors: RowError[] };
+type Result = { dryRun: boolean; total: number; valid: number; created: number; errors: RowError[]; newCategories?: string[] };
 
 const COLUMNS: Record<Kind, { key: string; label: string; aliases: string[] }[]> = {
   products: [
@@ -15,6 +15,7 @@ const COLUMNS: Record<Kind, { key: string; label: string; aliases: string[] }[]>
     { key: "stockQuantity", label: "Opening stock", aliases: ["stockquantity", "stock", "quantity", "openingstock", "qty"] },
     { key: "minimumStock", label: "Minimum stock", aliases: ["minimumstock", "minstock", "reorderlevel"] },
     { key: "unitOfMeasure", label: "Unit", aliases: ["unitofmeasure", "unit", "uom"] },
+    { key: "category", label: "Category", aliases: ["category", "categoryname", "group", "department"] },
     { key: "taxClass", label: "Tax class", aliases: ["taxclass", "vatclass", "vat", "taxcategory"] },
     { key: "description", label: "Description", aliases: ["description", "notes"] },
   ],
@@ -182,6 +183,9 @@ export default function ImportPanel({ kind, onImported }: Props) {
           {ok && (
             <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
               <span>{result!.valid} {kind} ready to import from {fileName}.</span>
+              {result!.newCategories && result!.newCategories.length > 0 && (
+                <span>New categories will be created: {result!.newCategories.join(", ")}.</span>
+              )}
               <button type="button" className="button-primary" disabled={busy} onClick={() => void confirm()}>Import {result!.valid} {kind}</button>
             </div>
           )}

@@ -36,8 +36,8 @@ export async function changePasswordController(req: AuthenticatedRequest, res: R
     if (typeof currentPassword !== "string" || typeof newPassword !== "string" || !currentPassword || !newPassword) {
       return res.status(400).json({ success: false, message: "Current and new password are required" });
     }
-    await changePassword(BigInt(req.user!.userId), currentPassword, newPassword);
-    return res.status(200).json({ success: true, message: "Password changed" });
+    const token = await changePassword(BigInt(req.user!.userId), currentPassword, newPassword);
+    return res.status(200).json({ success: true, message: "Password changed. Other devices have been signed out.", data: { token } });
   } catch (error) {
     return next(error);
   }

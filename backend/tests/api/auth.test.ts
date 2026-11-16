@@ -88,5 +88,25 @@ describe("authentication and business context", () => {
       expect((await login(a.email, "Brand-New-Pass-9")).status).toBe(200);
       expect((await login(b.email, PASSWORD)).status).toBe(200);
     });
+
+    it("signs out other sessions, keeps the changing device signed in, and leaves other users alone", async () => {
+      const a = await registerTenant("Pw Session A");
+      const other = await registerTenant("Pw Session B");
+      const oldToken = (await login(a.email, PASSWORD)).body.data.token as string; // a second device
+      expect((await get("/businesses/current", { ...a, token: oldToken })).status).toBe(200);
+      await new Promise((r) => setTimeout(r, 1100)); // JWT issue time has one-second resolution
+
+      const res = await post("/auth/change-password", a, { currentPassword: PASSWORD, newPassword: "Brand-New-Pass-9" });
+      expect(res.status).toBe(200);
+      const fresh = res.body.data.token as string;
+      expect(fresh).toBeTruthy();
+
+      expect((await get("/businesses/current", { ...a, token: oldToken })).status).toBe(401);
+      expect((await get("/businesses/current", a)).status).toBe(401); // the token used for the change is cut off too
+      expect((await get("/businesses/current", { ...a, token: fresh })).status).toBe(200);
+      expect((await get("/businesses/current", other)).status).toBe(200);
+      const later = (await login(a.email, "Brand-New-Pass-9")).body.data.token as string;
+      expect((await get("/businesses/current", { ...a, token: later })).status).toBe(200);
+    });
   });
 });
