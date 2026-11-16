@@ -1,7 +1,7 @@
 import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
 import { centsToString, decimalToCents } from "../lib/money.js";
-import { buildSaleLines, computeSaleTotals, type RawSaleItem } from "../sales/sale-calc.js";
+import { priceSale, type RawSaleItem } from "../sales/sale-calc.js";
 import { createBusinessSale } from "../sales/sale.service.js";
 
 const MAX_NUMBER_ATTEMPTS = 25;
@@ -148,8 +148,7 @@ export async function createBusinessQuotation(businessId: string, data: Quotatio
 
   const created = await prisma.$transaction(async (tx) => {
     const customerId = await resolveCustomer(tx, bizId, data.customerId);
-    const lines = await buildSaleLines(tx, bizId, items);
-    const totals = computeSaleTotals(lines, data.discount, data.tax);
+    const { lines, totals } = await priceSale(tx, bizId, items, data.discount, data.tax);
 
     let quotationNumber = manualNumber;
     if (quotationNumber) {
@@ -209,8 +208,7 @@ export async function updateBusinessQuotation(businessId: string, idText: string
       throw new AppError(409, "This quotation can no longer be edited");
     }
     const customerId = data.customerId === undefined ? before.customerId : await resolveCustomer(tx, bizId, data.customerId);
-    const lines = await buildSaleLines(tx, bizId, items);
-    const totals = computeSaleTotals(lines, data.discount, data.tax);
+    const { lines, totals } = await priceSale(tx, bizId, items, data.discount, data.tax);
 
     await tx.quotationItem.deleteMany({ where: { quotationId: before.id } });
     await tx.quotation.update({

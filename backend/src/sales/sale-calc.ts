@@ -26,6 +26,7 @@ export type SaleLine = {
   discount: bigint;
   tax: bigint;
   total: bigint;
+  taxClass: string;
 };
 
 type LineOptions = {
@@ -111,6 +112,7 @@ export async function buildSaleLines(
       discount,
       tax,
       total: lineTotal,
+      taxClass: product.taxClass,
     });
   }
 
@@ -164,4 +166,74 @@ export function aggregateByProduct(
   }
 
   return [...map.entries()].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+}
+
+// ---------------------------------------------------------------------------------------------
+// VAT (exclusive pricing: VAT is added on top of the selling price)
+// ---------------------------------------------------------------------------------------------
+
+export type Vat = { registered: boolean; rateBps: bigint };
+
+export async function loadVat(tx: Tx, businessId: bigint): Promise<Vat> {
+  const b = await tx.business.findUnique({
+    where: { id: businessId },
+    select: { vatRegistered: true, vatRate: true },
+  });
+  return { registered: b?.vatRegistered ?? false, rateBps: decimalToCents(b?.vatRate ?? 0) };
+}
+
+/**
+ * Spread `amount` over `weights` so the parts add up to exactly `amount`
+ * (largest remainder, ties to the earlier line).
+ */
+export function allocate(amount: bigint, weights: bigint[]): bigint[] {
+  const total = weights.reduce((a, w) => a + w, 0n);
+  if (amount === 0n || total === 0n) return weights.map(() => 0n);
+  const parts = weights.map((w) => (amount * w) / total);
+  let left = amount - parts.reduce((a, p) => a + p, 0n);
+  const order = weights
+    .map((w, i) => ({ i, rem: (amount * w) % total }))
+    .sort((a, b) => (a.rem === b.rem ? a.i - b.i : a.rem > b.rem ? -1 : 1));
+  for (let k = 0; left > 0n && k < order.length; k++, left--) parts[order[k]!.i] = parts[order[k]!.i]! + 1n;
+  return parts;
+}
+
+/**
+ * When the business is VAT registered the server works out each line's VAT itself:
+ * standard-rated lines pay `rate` on (line amount - line discount - its share of the
+ * sale-level discount), rounded half up per line; zero-rated and exempt lines pay none.
+ * Anything the client sent as tax is ignored.
+ */
+export function applyVat(lines: SaleLine[], saleDiscount: bigint, vat: Vat): void {
+  if (!vat.registered) return;
+  const bases = lines.map((l) => lineAmount(l.quantity, l.unitPrice) - l.discount);
+  if (bases.some((b) => b < 0n)) throw new AppError(400, "Item total cannot be negative");
+  const baseTotal = bases.reduce((a, b) => a + b, 0n);
+  if (saleDiscount > baseTotal) throw new AppError(400, "Sale discount cannot exceed the sale amount");
+  const shares = allocate(saleDiscount, bases);
+  lines.forEach((l, i) => {
+    const net = bases[i]! - shares[i]!;
+    l.tax = l.taxClass === "standard" ? (net * vat.rateBps + 5000n) / 10000n : 0n;
+    l.total = lineAmount(l.quantity, l.unitPrice) - l.discount + l.tax;
+  });
+}
+
+/** Lines and totals for a new or edited sale, or a quotation, with VAT when the business has it on. */
+export async function priceSale(
+  tx: Tx,
+  businessId: bigint,
+  items: RawSaleItem[],
+  saleDiscountInput: unknown,
+  saleTaxInput: unknown,
+  options: LineOptions = {}
+) {
+  const lines = await buildSaleLines(tx, businessId, items, options);
+  const vat = await loadVat(tx, businessId);
+  if (vat.registered) {
+    const saleDiscount = parseMoney(saleDiscountInput ?? 0, "Sale discount");
+    if (saleDiscount < 0n) throw new AppError(400, "Sale discount cannot be negative");
+    applyVat(lines, saleDiscount, vat);
+  }
+  const totals = computeSaleTotals(lines, saleDiscountInput, vat.registered ? 0 : saleTaxInput);
+  return { lines, totals, vat };
 }

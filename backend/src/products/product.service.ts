@@ -22,6 +22,7 @@ export async function getBusinessProducts(businessId: string) {
     stockQuantity: product.stockQuantity,
     minimumStock: product.minimumStock,
     unitOfMeasure: product.unitOfMeasure,
+    taxClass: product.taxClass,
     isActive: product.isActive,
   }));
 }
@@ -38,6 +39,7 @@ export async function createBusinessProduct(
     stockQuantity?: number;
     minimumStock?: number;
     unitOfMeasure?: string;
+    taxClass?: string;
   }
 ) {
   const openingStock = data.stockQuantity ?? 0;
@@ -55,6 +57,7 @@ export async function createBusinessProduct(
         stockQuantity: openingStock,
         minimumStock: data.minimumStock ?? 0,
         unitOfMeasure: data.unitOfMeasure || "piece",
+        taxClass: data.taxClass || "standard",
         isActive: true,
       },
     });
@@ -83,6 +86,7 @@ export async function createBusinessProduct(
       stockQuantity: product.stockQuantity,
       minimumStock: product.minimumStock,
       unitOfMeasure: product.unitOfMeasure,
+      taxClass: product.taxClass,
       isActive: product.isActive,
     };
   });
@@ -100,6 +104,7 @@ export async function updateBusinessProduct(
     sellingPrice?: number;
     minimumStock?: number;
     unitOfMeasure?: string;
+    taxClass?: string;
   }
 ) {
   const product = await prisma.product.findFirst({
@@ -132,6 +137,7 @@ export async function updateBusinessProduct(
     stockQuantity: updatedProduct.stockQuantity,
     minimumStock: updatedProduct.minimumStock,
     unitOfMeasure: updatedProduct.unitOfMeasure,
+    taxClass: updatedProduct.taxClass,
     isActive: updatedProduct.isActive,
   };
 }

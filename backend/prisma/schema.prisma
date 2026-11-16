@@ -16,6 +16,8 @@ model Business {
   phone        String?  @db.VarChar(50)
   address      String?
   taxPin       String?  @map("tax_pin") @db.VarChar(20)
+  vatRegistered Boolean  @default(false) @map("vat_registered")
+  vatRate      Decimal  @default(16.00) @map("vat_rate") @db.Decimal(5, 2)
   currency     String   @default("KES") @db.VarChar(10)
   timezone     String   @default("Africa/Nairobi") @db.VarChar(100)
   isActive     Boolean  @default(true) @map("is_active")
@@ -124,6 +126,7 @@ model Product {
   sellingPrice   Decimal  @default(0) @map("selling_price") @db.Decimal(12, 2)
   wholesalePrice Decimal? @map("wholesale_price") @db.Decimal(12, 2)
   unitOfMeasure  String   @default("piece") @map("unit_of_measure") @db.VarChar(50)
+  taxClass       String   @default("standard") @map("tax_class") @db.VarChar(20)
   stockQuantity  Decimal  @default(0) @map("stock_quantity") @db.Decimal(12, 3)
   minimumStock   Decimal  @default(0) @map("minimum_stock") @db.Decimal(12, 3)
   isActive       Boolean  @default(true) @map("is_active")

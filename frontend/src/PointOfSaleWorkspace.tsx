@@ -45,6 +45,10 @@ export default function PointOfSaleWorkspace() {
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // VAT is worked out by the server, so the cashier sees exactly what will be recorded.
+  const [vat, setVat] = useState<{ registered: boolean; rate: string } | null>(null);
+  const [vatPreview, setVatPreview] = useState<{ tax: number; total: number } | null>(null);
+  const [previewing, setPreviewing] = useState(false);
   const saleKeyRef = useRef<{ fingerprint: string; key: string } | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -93,8 +97,40 @@ export default function PointOfSaleWorkspace() {
   );
 
   const discountValue = Number(discount);
-  const taxValue = Number(tax);
-  const total = subtotal - discountValue + taxValue;
+  const vatOn = vat?.registered === true;
+  const taxValue = vatOn ? (vatPreview?.tax ?? 0) : Number(tax);
+  const total = vatOn ? (vatPreview?.total ?? subtotal - discountValue) : subtotal - discountValue + taxValue;
+
+  useEffect(() => {
+    const token = sessionStorage.getItem("pos_token");
+    const businessId = sessionStorage.getItem("pos_business_id");
+    if (!token || !businessId) return;
+    apiRequest<{ vatRegistered: boolean; vatRate: string }>("/businesses/current", { token, businessId })
+      .then((r) => { if (r.data) setVat({ registered: r.data.vatRegistered, rate: r.data.vatRate }); })
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (!vatOn) return;
+    if (cart.length === 0) { setVatPreview(null); return; }
+    const token = sessionStorage.getItem("pos_token") || "";
+    const businessId = sessionStorage.getItem("pos_business_id") || "";
+    let active = true;
+    setPreviewing(true);
+    const timer = setTimeout(() => {
+      apiRequest<{ tax: string; total: string }>("/sales/preview", {
+        method: "POST", token, businessId,
+        body: {
+          discount: Number.isFinite(discountValue) && discountValue >= 0 ? discountValue : 0,
+          items: cart.map((item) => ({ productId: item.product.id, quantity: item.quantity, unitPrice: Number(item.product.sellingPrice) })),
+        },
+      })
+        .then((r) => { if (active && r.data) setVatPreview({ tax: Number(r.data.tax), total: Number(r.data.total) }); })
+        .catch((err) => { if (active) { setVatPreview(null); setError(err instanceof Error ? err.message : "Could not work out VAT."); } })
+        .finally(() => { if (active) setPreviewing(false); });
+    }, 250);
+    return () => { active = false; clearTimeout(timer); };
+  }, [vatOn, cart, discountValue]);
 
   useEffect(() => {
     if (!amountPaidManuallyEdited) {
@@ -248,7 +284,7 @@ export default function PointOfSaleWorkspace() {
     try {
       const payload = {
         discount: discountValue,
-        tax: taxValue,
+        tax: vatOn ? 0 : taxValue,
         amountPaid: paid,
         paymentMethod,
         notes: notes.trim(),
@@ -413,10 +449,14 @@ export default function PointOfSaleWorkspace() {
             <input type="number" min="0" step="0.01" value={discount} onChange={(event) => setDiscount(event.target.value)} />
           </label>
 
-          <label className="inventory-field">
-            Tax (KSh)
-            <input type="number" min="0" step="0.01" value={tax} onChange={(event) => setTax(event.target.value)} />
-          </label>
+          {vatOn ? (
+            <div className="pos-total-row"><span>VAT ({Number(vat?.rate)}%)</span><strong>{money(taxValue)}</strong></div>
+          ) : (
+            <label className="inventory-field">
+              Tax (KSh)
+              <input type="number" min="0" step="0.01" value={tax} onChange={(event) => setTax(event.target.value)} />
+            </label>
+          )}
 
           <div className="pos-total-row pos-grand-total"><span>Total</span><strong>{money(total)}</strong></div>
 
@@ -440,7 +480,7 @@ export default function PointOfSaleWorkspace() {
             <textarea value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={1000} placeholder="Sale notes..." />
           </label>
 
-          <button className="pos-primary-button pos-complete-button" type="submit" disabled={saving || loading || cart.length === 0}>
+          <button className="pos-primary-button pos-complete-button" type="submit" disabled={saving || loading || previewing || cart.length === 0}>
             {saving ? "Processing sale..." : "Complete sale"}
           </button>
           <p className="inventory-muted pos-payment-note">

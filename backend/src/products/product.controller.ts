@@ -62,6 +62,7 @@ function sendProductError(
   });
 }
 
+const TAX_CLASSES: unknown[] = ["standard", "zero_rated", "exempt"];
 const MAX_CENTS = 999_999_999_999n; // numeric(12,2)
 const MAX_MILLI = 999_999_999_999n; // numeric(12,3)
 
@@ -136,6 +137,7 @@ export async function createProductController(
       stockQuantity,
       minimumStock,
       unitOfMeasure,
+      taxClass,
     } = req.body;
 
     const parsedName = typeof name === "string" ? name.trim() : "";
@@ -195,6 +197,13 @@ export async function createProductController(
       });
     }
 
+    if (taxClass !== undefined && !TAX_CLASSES.includes(taxClass)) {
+      return res.status(400).json({
+        success: false,
+        message: "Tax class must be standard, zero_rated or exempt",
+      });
+    }
+
     const parsedUnitOfMeasure =
       unitOfMeasure === undefined ? "piece" : String(unitOfMeasure).trim();
 
@@ -232,6 +241,7 @@ export async function createProductController(
         stockQuantity: parsedStockQuantity,
         minimumStock: parsedMinimumStock,
         unitOfMeasure: parsedUnitOfMeasure,
+        ...(taxClass !== undefined && { taxClass }),
         ...(parsedSku !== undefined && parsedSku !== "" && { sku: parsedSku }),
         ...(parsedBarcode !== undefined && parsedBarcode !== "" && {
           barcode: parsedBarcode,
@@ -282,6 +292,7 @@ export async function updateProductController(
       sellingPrice,
       minimumStock,
       unitOfMeasure,
+      taxClass,
     } = req.body;
 
     const productData: {
@@ -293,6 +304,7 @@ export async function updateProductController(
       sellingPrice?: number;
       minimumStock?: number;
       unitOfMeasure?: string;
+      taxClass?: string;
     } = {};
 
     if (name !== undefined) {
@@ -375,6 +387,16 @@ export async function updateProductController(
       }
 
       productData.minimumStock = parsedMinimumStock;
+    }
+
+    if (taxClass !== undefined) {
+      if (!TAX_CLASSES.includes(taxClass)) {
+        return res.status(400).json({
+          success: false,
+          message: "Tax class must be standard, zero_rated or exempt",
+        });
+      }
+      productData.taxClass = taxClass;
     }
 
     if (unitOfMeasure !== undefined) {

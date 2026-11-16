@@ -10,6 +10,8 @@ type BusinessProfile = {
   phone: string | null;
   address: string | null;
   taxPin: string | null;
+  vatRegistered: boolean;
+  vatRate: string;
   currency: string;
   timezone: string;
 };
@@ -22,6 +24,8 @@ const emptyProfile: BusinessProfile = {
   phone: "",
   address: "",
   taxPin: "",
+  vatRegistered: false,
+  vatRate: "16.00",
   currency: "KES",
   timezone: "Africa/Nairobi",
 };
@@ -93,7 +97,7 @@ export default function BusinessSettingsWorkspace() {
 
   function updateField(
     field: keyof BusinessProfile,
-    value: string
+    value: string | boolean
   ) {
     setProfile((current) => ({
       ...current,
@@ -132,6 +136,8 @@ export default function BusinessSettingsWorkspace() {
             phone: profile.phone?.trim() || null,
             address: profile.address?.trim() || null,
             taxPin: profile.taxPin?.trim() || null,
+            vatRegistered: profile.vatRegistered,
+            vatRate: String(profile.vatRate).trim(),
             currency: profile.currency.trim().toUpperCase(),
             timezone: profile.timezone.trim(),
           },
@@ -280,6 +286,45 @@ export default function BusinessSettingsWorkspace() {
               />
             </label>
           </div>
+        </section>
+
+        <section className="settings-section">
+          <div className="settings-section-heading">
+            <div>
+              <h3>VAT</h3>
+              <p>Turn this on only if the business is registered for VAT. Prices are entered without VAT and VAT is added at the till.</p>
+            </div>
+          </div>
+
+          <div className="settings-fields">
+            <label className="settings-field">
+              <span>VAT registered</span>
+              <select
+                value={profile.vatRegistered ? "yes" : "no"}
+                onChange={(event) => updateField("vatRegistered", event.target.value === "yes")}
+                disabled={!isOwner}
+              >
+                <option value="no">No: enter tax by hand if needed</option>
+                <option value="yes">Yes: calculate VAT automatically</option>
+              </select>
+            </label>
+
+            <label className="settings-field">
+              <span>VAT rate (%)</span>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                value={profile.vatRate}
+                onChange={(event) => updateField("vatRate", event.target.value)}
+                disabled={!isOwner || !profile.vatRegistered}
+              />
+            </label>
+          </div>
+          {profile.vatRegistered && !profile.taxPin && (
+            <p className="settings-hint">Enter the KRA PIN above before saving: VAT needs it.</p>
+          )}
         </section>
 
         <section className="settings-section">

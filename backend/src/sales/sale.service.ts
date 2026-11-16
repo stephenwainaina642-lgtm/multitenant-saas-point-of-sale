@@ -1,8 +1,8 @@
 import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
 import {
-  buildSaleLines,
-  computeSaleTotals,
+  priceSale,
+  type RawSaleItem,
   aggregateByProduct,
 } from "./sale-calc.js";
 import {
@@ -340,12 +340,10 @@ export async function createBusinessSale(
         }
       }
 
-      const lines = await buildSaleLines(tx, bizId, data.items);
-      const { subtotal, discount, tax, total } = computeSaleTotals(
+      const {
         lines,
-        data.discount,
-        data.tax
-      );
+        totals: { subtotal, discount, tax, total },
+      } = await priceSale(tx, bizId, data.items, data.discount, data.tax);
       const amountPaid = parseMoney(data.amountPaid ?? 0, "Amount paid");
 
       if (amountPaid < 0n) {
@@ -498,4 +496,33 @@ export async function createBusinessSale(
     }
     throw error;
   }
+}
+
+/**
+ * What a sale would come to, without recording anything. The POS shows these numbers so
+ * that what the cashier sees (VAT included) is exactly what the server will record.
+ */
+export async function previewBusinessSale(
+  businessId: bigint,
+  data: { items: RawSaleItem[]; discount?: unknown; tax?: unknown }
+) {
+  return prisma.$transaction(async (tx) => {
+    const { lines, totals, vat } = await priceSale(tx, businessId, data.items, data.discount, data.tax);
+    return {
+      vatRegistered: vat.registered,
+      vatRate: vat.registered ? centsToString(vat.rateBps) : null,
+      subtotal: centsToString(totals.subtotal),
+      discount: centsToString(totals.discount),
+      tax: centsToString(totals.tax),
+      total: centsToString(totals.total),
+      items: lines.map((l) => ({
+        productId: l.productId.toString(),
+        productName: l.productName,
+        taxClass: l.taxClass,
+        discount: centsToString(l.discount),
+        tax: centsToString(l.tax),
+        total: centsToString(l.total),
+      })),
+    };
+  });
 }

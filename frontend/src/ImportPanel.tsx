@@ -15,6 +15,7 @@ const COLUMNS: Record<Kind, { key: string; label: string; aliases: string[] }[]>
     { key: "stockQuantity", label: "Opening stock", aliases: ["stockquantity", "stock", "quantity", "openingstock", "qty"] },
     { key: "minimumStock", label: "Minimum stock", aliases: ["minimumstock", "minstock", "reorderlevel"] },
     { key: "unitOfMeasure", label: "Unit", aliases: ["unitofmeasure", "unit", "uom"] },
+    { key: "taxClass", label: "Tax class", aliases: ["taxclass", "vatclass", "vat", "taxcategory"] },
     { key: "description", label: "Description", aliases: ["description", "notes"] },
   ],
   customers: [

@@ -75,6 +75,7 @@ export type ProductSeed = {
   stockQuantity?: number;
   minimumStock?: number;
   unitOfMeasure?: string;
+  taxClass?: string;
 };
 
 export async function createProduct(t: Session, p: ProductSeed) {

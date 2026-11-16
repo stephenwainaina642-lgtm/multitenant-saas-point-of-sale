@@ -14,6 +14,7 @@ type Product = {
   stockQuantity: number | string;
   minimumStock: number | string;
   unitOfMeasure: string;
+  taxClass?: string;
   isActive: boolean;
 };
 
@@ -39,6 +40,8 @@ export default function ProductsWorkspace() {
   const [stockQuantity, setStockQuantity] = useState("0");
   const [minimumStock, setMinimumStock] = useState("0");
   const [unitOfMeasure, setUnitOfMeasure] = useState("piece");
+  const [taxClass, setTaxClass] = useState("standard");
+  const [editTaxClass, setEditTaxClass] = useState("standard");
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editName, setEditName] = useState("");
   const [editSku, setEditSku] = useState("");
@@ -139,6 +142,7 @@ export default function ProductsWorkspace() {
           stockQuantity: stock,
           minimumStock: minimum,
           unitOfMeasure: unitOfMeasure.trim(),
+          taxClass,
           sku: sku.trim(),
           barcode: barcode.trim(),
           description: description.trim(),
@@ -211,6 +215,7 @@ export default function ProductsWorkspace() {
     setEditSellingPrice(String(product.sellingPrice));
     setEditMinimumStock(String(product.minimumStock ?? 0));
     setEditUnitOfMeasure(product.unitOfMeasure || "piece");
+    setEditTaxClass(product.taxClass || "standard");
     setError("");
     setMessage("");
   }
@@ -275,6 +280,7 @@ export default function ProductsWorkspace() {
             sellingPrice: selling,
             minimumStock: minimum,
             unitOfMeasure: editUnitOfMeasure.trim(),
+            taxClass: editTaxClass,
           },
         }
       );
@@ -475,6 +481,14 @@ export default function ProductsWorkspace() {
                 <input style={{ ...fieldStyle, marginTop: 6 }} value={editUnitOfMeasure} onChange={(event) => setEditUnitOfMeasure(event.target.value)} placeholder="piece, kg, metre, litre..." maxLength={50} required />
               </label>
               <label style={labelStyle}>
+                VAT class
+                <select style={{ ...fieldStyle, marginTop: 6 }} value={editTaxClass} onChange={(event) => setEditTaxClass(event.target.value)}>
+                  <option value="standard">Standard rated</option>
+                  <option value="zero_rated">Zero rated</option>
+                  <option value="exempt">Exempt</option>
+                </select>
+              </label>
+              <label style={labelStyle}>
                 Minimum stock *
                 <input style={{ ...fieldStyle, marginTop: 6 }} type="number" min="0" step="any" value={editMinimumStock} onChange={(event) => setEditMinimumStock(event.target.value)} required />
               </label>
@@ -536,6 +550,14 @@ export default function ProductsWorkspace() {
               Unit of measure *
               <input style={{ ...fieldStyle, marginTop: 6 }} value={unitOfMeasure} onChange={(event) => setUnitOfMeasure(event.target.value)} placeholder="piece, kg, metre, litre..." maxLength={50} required />
             </label>
+              <label style={labelStyle}>
+                VAT class
+                <select style={{ ...fieldStyle, marginTop: 6 }} value={taxClass} onChange={(event) => setTaxClass(event.target.value)}>
+                  <option value="standard">Standard rated</option>
+                  <option value="zero_rated">Zero rated</option>
+                  <option value="exempt">Exempt</option>
+                </select>
+              </label>
             <label style={labelStyle}>
               Minimum stock *
               <input style={{ ...fieldStyle, marginTop: 6 }} type="number" min="0" step="any" value={minimumStock} onChange={(event) => setMinimumStock(event.target.value)} required />

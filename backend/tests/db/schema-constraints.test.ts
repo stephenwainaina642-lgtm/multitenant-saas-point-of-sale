@@ -41,7 +41,8 @@ describe("migrations and schema", () => {
     const cols = await query<{ table_name: string; column_name: string; numeric_precision: number; numeric_scale: number }>(
       `select table_name, column_name, numeric_precision, numeric_scale
          from information_schema.columns
-        where table_schema='public' and data_type='numeric'`
+        where table_schema='public' and data_type='numeric'
+          and column_name <> 'vat_rate'   -- a percentage: numeric(5,2), checked below`
     );
     expect(cols.length).toBeGreaterThan(30);
     for (const c of cols) {
@@ -49,6 +50,14 @@ describe("migrations and schema", () => {
       expect(c.numeric_precision, `${c.table_name}.${c.column_name}`).toBe(12);
       expect(c.numeric_scale, `${c.table_name}.${c.column_name}`).toBe(isQty ? 3 : 2);
     }
+  });
+
+  it("the VAT rate is a percentage numeric(5,2)", async () => {
+    const [c] = await query<{ numeric_precision: number; numeric_scale: number }>(
+      `select numeric_precision, numeric_scale from information_schema.columns
+        where table_name = 'businesses' and column_name = 'vat_rate'`
+    );
+    expect([c!.numeric_precision, c!.numeric_scale]).toEqual([5, 2]);
   });
 
   it("every foreign key is enforced", async () => {
@@ -191,7 +200,7 @@ describe("more integrity rules", () => {
     const rows = await query<{ conname: string; convalidated: boolean }>(
       `select conname, convalidated from pg_constraint
         where contype = 'c' and connamespace = 'public'::regnamespace
-          and conname not in ('refunds_amount_positive','supplier_payments_amount_positive','businesses_tax_pin_format')`
+          and conname not in ('refunds_amount_positive','supplier_payments_amount_positive','businesses_tax_pin_format','businesses_vat_rate_range','products_tax_class_valid')`
     );
     expect(rows.length).toBe(12);
     for (const r of rows) expect(r.convalidated, r.conname).toBe(false);

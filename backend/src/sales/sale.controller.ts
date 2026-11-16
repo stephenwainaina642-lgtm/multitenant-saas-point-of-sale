@@ -7,6 +7,7 @@ import {
   getBusinessSales,
   getBusinessSaleById,
   createBusinessSale,
+  previewBusinessSale,
 } from "./sale.service.js";
 
 export async function getSalesController(
@@ -319,5 +320,17 @@ export async function voidSaleController(req: BusinessRequest, res: Response, ne
     return res.json({ success: true, message: "Sale voided", data: result });
   } catch (error) {
     return next(error);
+  }
+}
+
+export async function previewSaleController(req: BusinessRequest, res: Response, next: NextFunction) {
+  try {
+    if (!req.businessId) throw new AppError(400, "Business context is required");
+    const { items, discount, tax } = req.body ?? {};
+    if (!Array.isArray(items) || items.length === 0) throw new AppError(400, "At least one sale item is required");
+    const data = await previewBusinessSale(req.businessId, { items, discount, tax });
+    res.status(200).json({ success: true, message: "Sale preview", data });
+  } catch (error) {
+    next(error);
   }
 }

@@ -44,6 +44,8 @@ export async function getBusinessProfile(businessId: bigint) {
       phone: true,
       address: true,
       taxPin: true,
+      vatRegistered: true,
+      vatRate: true,
       currency: true,
       timezone: true,
     },
@@ -56,6 +58,7 @@ export async function getBusinessProfile(businessId: bigint) {
   return {
     ...business,
     id: business.id.toString(),
+    vatRate: business.vatRate.toFixed(2),
   };
 }
 
@@ -66,6 +69,8 @@ export type BusinessProfileUpdate = {
   phone?: string | null;
   address?: string | null;
   taxPin?: string | null;
+  vatRegistered?: boolean;
+  vatRate?: string;
   currency?: string;
   timezone?: string;
 };
@@ -87,6 +92,8 @@ export async function updateBusinessProfile(
       phone: true,
       address: true,
       taxPin: true,
+      vatRegistered: true,
+      vatRate: true,
       currency: true,
       timezone: true,
     },
@@ -95,5 +102,6 @@ export async function updateBusinessProfile(
   return {
     ...business,
     id: business.id.toString(),
+    vatRate: business.vatRate.toFixed(2),
   };
 }

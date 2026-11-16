@@ -109,6 +109,8 @@ if (!req.isBusinessOwner) {
       "phone",
       "address",
       "taxPin",
+      "vatRegistered",
+      "vatRate",
       "currency",
       "timezone",
     ];
@@ -192,6 +194,36 @@ if (!req.isBusinessOwner) {
         return res.status(400).json({
           success: false,
           message: `${field} exceeds the maximum length of ${limits[field]} characters`,
+        });
+      }
+    }
+
+    if (req.body.vatRegistered !== undefined) {
+      if (typeof req.body.vatRegistered !== "boolean") {
+        return res.status(400).json({ success: false, message: "vatRegistered must be true or false" });
+      }
+      data.vatRegistered = req.body.vatRegistered;
+    }
+
+    if (req.body.vatRate !== undefined) {
+      const raw = String(req.body.vatRate).trim();
+      if (!/^\d{1,3}(\.\d{1,2})?$/.test(raw) || Number(raw) > 100) {
+        return res.status(400).json({
+          success: false,
+          message: "VAT rate must be a percentage between 0 and 100 with at most 2 decimals",
+        });
+      }
+      data.vatRate = Number(raw).toFixed(2);
+    }
+
+    if (data.vatRegistered !== undefined || data.taxPin !== undefined) {
+      const stored = await getBusinessProfile(req.businessId);
+      const registered = data.vatRegistered ?? stored?.vatRegistered ?? false;
+      const pin = data.taxPin !== undefined ? data.taxPin : stored?.taxPin;
+      if (registered && !pin) {
+        return res.status(400).json({
+          success: false,
+          message: "A VAT-registered business needs its KRA PIN",
         });
       }
     }

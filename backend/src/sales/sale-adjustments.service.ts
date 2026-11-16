@@ -8,8 +8,7 @@ import {
 } from "../lib/money.js";
 import {
   aggregateByProduct,
-  buildSaleLines,
-  computeSaleTotals,
+  priceSale,
   type RawSaleItem,
   type Tx,
 } from "./sale-calc.js";
@@ -178,12 +177,10 @@ export async function editBusinessSale(
       existing.set(item.productId, prices);
     }
 
-    const lines = await buildSaleLines(tx, bizId, data.items, { existing });
-    const { subtotal, discount, tax, total } = computeSaleTotals(
+    const {
       lines,
-      data.discount,
-      data.tax
-    );
+      totals: { subtotal, discount, tax, total },
+    } = await priceSale(tx, bizId, data.items, data.discount, data.tax, { existing });
 
     const paid = decimalToCents(sale.amountPaid);
 

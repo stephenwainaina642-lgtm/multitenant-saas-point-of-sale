@@ -70,7 +70,7 @@ function qty(c: Collector, row: Raw, key: string, label: string): string | null 
 
 type ProductRow = {
   name: string; sku: string | null; barcode: string | null; description: string | null;
-  costPrice: string; sellingPrice: string; stockQuantity: string; minimumStock: string; unitOfMeasure: string;
+  costPrice: string; sellingPrice: string; stockQuantity: string; minimumStock: string; unitOfMeasure: string; taxClass: string;
 };
 
 export async function importProducts(businessId: bigint, userId: bigint, input: unknown, dryRun: boolean): Promise<ImportResult> {
@@ -103,6 +103,9 @@ export async function importProducts(businessId: bigint, userId: bigint, input: 
     const barcode = text(c, row, "barcode", "Barcode", 100);
     const description = text(c, row, "description", "Description", 2000);
     const unit = text(c, row, "unitOfMeasure", "Unit of measure", 50) ?? "piece";
+    const rawClass = (cell(row, "taxClass") ?? "standard").toLowerCase().replace(/[\s-]+/g, "_");
+    const taxClass = ["standard", "zero_rated", "exempt"].includes(rawClass) ? rawClass : "standard";
+    if (!["standard", "zero_rated", "exempt"].includes(rawClass)) c.fail("Tax class", "must be standard, zero_rated or exempt");
     const costPrice = money(c, row, "costPrice", "Cost price", false) ?? "0.00";
     const sellingPrice = money(c, row, "sellingPrice", "Selling price", true);
     const stockQuantity = qty(c, row, "stockQuantity", "Opening stock") ?? "0.000";
@@ -117,7 +120,7 @@ export async function importProducts(businessId: bigint, userId: bigint, input: 
     }
 
     if (c.count) errors.push(...c.errors);
-    else good.push({ name: name!, sku, barcode, description, costPrice, sellingPrice: sellingPrice!, stockQuantity, minimumStock, unitOfMeasure: unit });
+    else good.push({ name: name!, sku, barcode, description, costPrice, sellingPrice: sellingPrice!, stockQuantity, minimumStock, unitOfMeasure: unit, taxClass });
   });
 
   const result: ImportResult = { dryRun, total: raw.length, valid: good.length, created: 0, errors };

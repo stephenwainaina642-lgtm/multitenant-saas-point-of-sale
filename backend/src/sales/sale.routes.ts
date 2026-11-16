@@ -8,6 +8,7 @@ import {
   createSaleController,
   editSaleController,
   voidSaleController,
+  previewSaleController,
 } from "./sale.controller.js";
 
 const router = Router();
@@ -18,6 +19,14 @@ router.get(
   requireBusinessAccess,
   requirePermission("sales.view_all", "sales.view_own"),
   getSalesController
+);
+
+router.post(
+  "/preview",
+  authenticate,
+  requireBusinessAccess,
+  requirePermission("sales.create"),
+  previewSaleController
 );
 
 router.get(
