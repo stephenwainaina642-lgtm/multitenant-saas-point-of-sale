@@ -9,6 +9,7 @@ type BusinessProfile = {
   email: string | null;
   phone: string | null;
   address: string | null;
+  taxPin: string | null;
   currency: string;
   timezone: string;
 };
@@ -20,6 +21,7 @@ const emptyProfile: BusinessProfile = {
   email: "",
   phone: "",
   address: "",
+  taxPin: "",
   currency: "KES",
   timezone: "Africa/Nairobi",
 };
@@ -129,6 +131,7 @@ export default function BusinessSettingsWorkspace() {
             email: profile.email?.trim() || null,
             phone: profile.phone?.trim() || null,
             address: profile.address?.trim() || null,
+            taxPin: profile.taxPin?.trim() || null,
             currency: profile.currency.trim().toUpperCase(),
             timezone: profile.timezone.trim(),
           },
@@ -252,6 +255,17 @@ export default function BusinessSettingsWorkspace() {
                 disabled={!isOwner}
                 maxLength={40}
                 placeholder="+254..."
+              />
+            </label>
+
+            <label className="settings-field">
+              <span>KRA PIN</span>
+              <input
+                value={profile.taxPin ?? ""}
+                onChange={(event) => updateField("taxPin", event.target.value.toUpperCase())}
+                disabled={!isOwner}
+                maxLength={11}
+                placeholder="A001234567Z"
               />
             </label>
 

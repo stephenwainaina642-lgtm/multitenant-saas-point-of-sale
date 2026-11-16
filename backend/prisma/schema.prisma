@@ -15,6 +15,7 @@ model Business {
   email        String?  @db.VarChar(255)
   phone        String?  @db.VarChar(50)
   address      String?
+  taxPin       String?  @map("tax_pin") @db.VarChar(20)
   currency     String   @default("KES") @db.VarChar(10)
   timezone     String   @default("Africa/Nairobi") @db.VarChar(100)
   isActive     Boolean  @default(true) @map("is_active")

@@ -1,4 +1,5 @@
 ﻿import type { Response } from "express";
+import { isValidTimeZone } from "../lib/timezone.js";
 import type { BusinessRequest } from "../auth/business.middleware.js";
 import {
   getUserBusinesses,
@@ -107,6 +108,7 @@ if (!req.isBusinessOwner) {
       "email",
       "phone",
       "address",
+      "taxPin",
       "currency",
       "timezone",
     ];
@@ -151,6 +153,7 @@ if (!req.isBusinessOwner) {
       "email",
       "phone",
       "address",
+      "taxPin",
     ] as const;
 
     for (const field of optionalFields) {
@@ -191,6 +194,23 @@ if (!req.isBusinessOwner) {
           message: `${field} exceeds the maximum length of ${limits[field]} characters`,
         });
       }
+    }
+
+    if (data.taxPin) {
+      data.taxPin = data.taxPin.toUpperCase().replace(/\s+/g, "");
+      if (!/^[A-Z][0-9]{9}[A-Z]$/.test(data.taxPin)) {
+        return res.status(400).json({
+          success: false,
+          message: "KRA PIN must be a letter, nine digits and a letter, e.g. A001234567Z",
+        });
+      }
+    }
+
+    if (data.timezone && !isValidTimeZone(data.timezone)) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide a valid time zone, e.g. Africa/Nairobi",
+      });
     }
 
     if (

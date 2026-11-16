@@ -43,6 +43,7 @@ export async function getBusinessProfile(businessId: bigint) {
       email: true,
       phone: true,
       address: true,
+      taxPin: true,
       currency: true,
       timezone: true,
     },
@@ -64,6 +65,7 @@ export type BusinessProfileUpdate = {
   email?: string | null;
   phone?: string | null;
   address?: string | null;
+  taxPin?: string | null;
   currency?: string;
   timezone?: string;
 };
@@ -84,6 +86,7 @@ export async function updateBusinessProfile(
       email: true,
       phone: true,
       address: true,
+      taxPin: true,
       currency: true,
       timezone: true,
     },

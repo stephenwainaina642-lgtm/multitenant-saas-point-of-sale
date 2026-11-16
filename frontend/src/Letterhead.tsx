@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiRequest } from "./api/client";
 
-type Profile = { name: string; phone: string | null; email: string | null; address: string | null };
+type Profile = { name: string; phone: string | null; email: string | null; address: string | null; taxPin: string | null };
 
 /** Business name and contact details for the top of receipts and invoices (from Settings). */
 export default function Letterhead() {
@@ -27,6 +27,11 @@ export default function Letterhead() {
       {details.length > 0 && (
         <p className="sale-receipt-contact" style={{ margin: "-4px 0 10px", fontSize: 12, color: "#59665d" }}>
           {details.join(" · ")}
+        </p>
+      )}
+      {profile?.taxPin && (
+        <p className="sale-receipt-contact" style={{ margin: "-4px 0 10px", fontSize: 12, color: "#59665d" }}>
+          KRA PIN: {profile.taxPin}
         </p>
       )}
     </>
