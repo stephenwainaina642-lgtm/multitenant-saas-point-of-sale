@@ -2,7 +2,8 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import dotenv from "dotenv";
-import { testDatabaseConnection } from "./db.js";
+import prisma from "./lib/prisma.js";
+import { requestLog } from "./middleware/request-log.js";
 import { loadConfig } from "./lib/config.js";
 import { loginLimiter, registerLimiter } from "./middleware/security.js";
 import { errorHandler, notFoundHandler } from "./middleware/errors.js";
@@ -38,6 +39,7 @@ if (config.trustProxy) {
 }
 
 app.disable("x-powered-by");
+if (config.isProduction) app.use(requestLog);
 app.use(helmet());
 app.use(
   cors({
@@ -76,23 +78,65 @@ app.use("/api/invoices", invoiceRoutes);
 app.use("/api/roles", roleRoutes);
 app.use("/api/employees", employeeRoutes);
 
+// Liveness: the process is up. Readiness: it can also reach its database.
 app.get("/api/health", (_req, res) => {
-  res.json({
-    success: true,
-    message: "POS backend is running",
-  });
+  res.json({ success: true, message: "POS backend is running" });
+});
+
+app.get("/api/health/ready", async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ success: true, message: "Ready" });
+  } catch {
+    res.status(503).json({ success: false, message: "Database is not reachable" });
+  }
 });
 
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-app.listen(PORT, async () => {
-  console.log(`POS backend running on http://localhost:${PORT}`);
-
+async function start() {
+  // Refuse to serve traffic without a working database: a supervisor restarts us until it is back.
   try {
-    await testDatabaseConnection();
+    await prisma.$queryRaw`SELECT 1`;
   } catch (error) {
-    console.error("PostgreSQL connection failed:", error);
+    console.error("Cannot reach PostgreSQL through DATABASE_URL:", (error as Error).message);
+    process.exit(1);
   }
+
+  const server = app.listen(PORT, () => {
+    console.log(`POS backend running on port ${PORT} (${config.nodeEnv})`);
+  });
+
+  let stopping = false;
+  const stop = (signal: string) => {
+    if (stopping) return;
+    stopping = true;
+    console.log(`${signal} received: finishing in-flight requests, then exiting`);
+    // Give running requests (and their database transactions) time to finish.
+    const force = setTimeout(() => {
+      console.error("Shutdown took too long, exiting");
+      process.exit(1);
+    }, 15_000);
+    force.unref();
+    server.close(async () => {
+      try {
+        await prisma.$disconnect();
+      } finally {
+        process.exit(0);
+      }
+    });
+  };
+  process.on("SIGTERM", () => stop("SIGTERM"));
+  process.on("SIGINT", () => stop("SIGINT"));
+}
+
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled promise rejection:", reason);
+});
+process.on("uncaughtException", (error) => {
+  console.error("Uncaught exception, exiting:", error);
+  process.exit(1);
 });
 
+void start();
