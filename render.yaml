@@ -1,0 +1,25 @@
+# Render blueprint for the API. Secrets (sync: false) are entered in the Render dashboard, never committed.
+# Database migrations are NOT run automatically on purpose: apply them yourself after a backup (docs/hosting.md).
+services:
+  - type: web
+    name: nexapos-api
+    runtime: node
+    rootDir: backend
+    buildCommand: npm ci --include=dev && npx prisma generate --config prisma7.config.ts && npm run build
+    startCommand: npm run start:prod
+    healthCheckPath: /api/health/ready
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TRUST_PROXY
+        value: "1"
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: APP_URL
+        sync: false
