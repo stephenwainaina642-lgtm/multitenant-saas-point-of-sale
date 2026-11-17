@@ -79,4 +79,10 @@ SELECT p.id, p.business_id, p.name, p.stock_quantity AS stored,
  GROUP BY p.id
 HAVING p.stock_quantity <> COALESCE(SUM(CASE WHEN m.type = 'IN' THEN m.quantity WHEN m.type = 'OUT' THEN -m.quantity ELSE 0 END), 0);
 
+\echo '== B5. RUN BEFORE migration add_mpesa_reference_unique: the same M-Pesa code on more than one payment of a business since 2026-11-17 (the new unique index would refuse to build)'
+SELECT business_id, upper(reference) AS code, COUNT(*) AS payments
+  FROM payments
+ WHERE method = 'mpesa' AND reference IS NOT NULL AND created_at >= TIMESTAMPTZ '2026-11-17 00:00:00+00'
+ GROUP BY business_id, upper(reference) HAVING COUNT(*) > 1;
+
 \echo '== done: any rows above need a look; section A rows are defects, section B rows are known history to review'

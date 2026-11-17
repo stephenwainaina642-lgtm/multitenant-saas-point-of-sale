@@ -3,7 +3,7 @@ import { query, resetData } from "../support/db.js";
 import { get, post } from "../support/http.js";
 import { loadTestConfig } from "../support/env.js";
 import { startServer, waitForHealth } from "../support/server.js";
-import { addEmployee, createProduct, registerTenant, seedPhoneShop } from "../support/seed.js";
+import { addEmployee, createProduct, registerTenant, seedPhoneShop, mpesaCode } from "../support/seed.js";
 import { dayKey, nextDay, startOfDay } from "../../src/lib/timezone.js";
 
 const TZ = "Africa/Nairobi";
@@ -17,7 +17,7 @@ describe("dashboard", () => {
     const s = await seedPhoneShop();
     const sale = (body: object) => post("/sales", s.t, body);
     await sale({ amountPaid: 2300, paymentMethod: "cash", items: [{ productId: s.charger.id, quantity: 2, unitPrice: 1200, discount: 100 }] });
-    await sale({ customerId: s.customer.id, amountPaid: 10000, paymentMethod: "mpesa", items: [{ productId: s.galaxy.id, quantity: 1, unitPrice: 21500, tax: 200 }] });
+    await sale({ customerId: s.customer.id, amountPaid: 10000, paymentMethod: "mpesa", paymentReference: mpesaCode(), items: [{ productId: s.galaxy.id, quantity: 1, unitPrice: 21500, tax: 200 }] });
     const c = await sale({ amountPaid: 112000, paymentMethod: "bank", items: [{ productId: s.iphone.id, quantity: 1, unitPrice: 112000 }] });
     await post(`/sales/${c.body.data.id}/void`, s.t, { reason: "Returned", refundMethod: "bank" });
     // 10 chargers bought for 6500, 2000 paid -> 4500 owed

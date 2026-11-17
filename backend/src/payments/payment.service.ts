@@ -1,4 +1,5 @@
 import prisma from "../lib/prisma.js";
+import { checkedPaymentReference, isMpesaClash, MPESA_CLASH_MESSAGE } from "../lib/mpesa.js";
 import { AppError } from "../lib/errors.js";
 import { centsToString, decimalToCents, parseMoney } from "../lib/money.js";
 
@@ -182,7 +183,7 @@ export async function createBusinessPayment(
           saleId: sale.id,
           amount: centsToString(amount),
           method: data.method.trim().toLowerCase(),
-          reference: data.reference?.trim() || null,
+          reference: await checkedPaymentReference(tx, bizId, data.method.trim().toLowerCase(), data.reference),
           notes: data.notes?.trim() || null,
           idempotencyKey: key,
         },
@@ -224,6 +225,7 @@ export async function createBusinessPayment(
         return formatPayment(existing, existing.sale, true);
       }
     }
+    if (isMpesaClash(error)) throw new AppError(409, MPESA_CLASH_MESSAGE);
     throw error;
   }
 }

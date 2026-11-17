@@ -272,7 +272,7 @@ export async function setQuotationStatus(businessId: string, idText: string, sta
 /** Turns an accepted quotation into a real sale (stock, balance and receipt number follow the normal rules). */
 export async function convertQuotationToSale(
   businessId: string, idText: string,
-  data: { amountPaid?: unknown; paymentMethod?: unknown },
+  data: { amountPaid?: unknown; paymentMethod?: unknown; paymentReference?: unknown },
   actor: { userId: string }
 ) {
   const bizId = BigInt(businessId);
@@ -295,6 +295,7 @@ export async function convertQuotationToSale(
         tax: Number(centsToString(saleTax < 0n ? 0n : saleTax)),
         ...(data.amountPaid !== undefined && { amountPaid: Number(data.amountPaid) }),
         ...(typeof data.paymentMethod === "string" && { paymentMethod: data.paymentMethod }),
+        ...(typeof data.paymentReference === "string" && { paymentReference: data.paymentReference }),
         notes: `From quotation ${q.quotationNumber}`,
         items: q.items.map((i) => ({
           productId: i.productId.toString(), quantity: Number(i.quantity), unitPrice: Number(i.unitPrice),

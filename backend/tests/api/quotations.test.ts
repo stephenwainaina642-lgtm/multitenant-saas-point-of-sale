@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { query, resetData } from "../support/db.js";
 import { get, post, put } from "../support/http.js";
-import { addEmployee, ledgerViolations, registerTenant, seedPhoneShop, stockOf, type Tenant } from "../support/seed.js";
+import { addEmployee, ledgerViolations, registerTenant, seedPhoneShop, stockOf, type Tenant, mpesaCode } from "../support/seed.js";
 
 const N = (v: unknown) => Number(v);
 
@@ -93,7 +93,7 @@ describe("quotations", () => {
     expect((await post(`/quotations/${q.id}/convert`, s.t, {})).status).toBe(409); // not accepted yet
     await accept(q.id);
     const stock = await stockOf(s.charger.id);
-    const r = await post(`/quotations/${q.id}/convert`, s.t, { amountPaid: 1000, paymentMethod: "mpesa" });
+    const r = await post(`/quotations/${q.id}/convert`, s.t, { amountPaid: 1000, paymentMethod: "mpesa", paymentReference: mpesaCode() });
     expect(r.status, JSON.stringify(r.body)).toBe(201);
     expect(N(r.body.data.sale.total)).toBe(2310);
     expect(N(r.body.data.sale.balanceDue)).toBe(1310);

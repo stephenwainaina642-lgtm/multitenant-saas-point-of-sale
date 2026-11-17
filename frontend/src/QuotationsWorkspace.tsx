@@ -7,7 +7,7 @@ type Quotation = {
   id: string; quotationNumber: string; customerName: string | null;
   customer: { name: string; phone: string | null; address: string | null } | null;
   quotationDate: string; expiryDate: string | null; subtotal: string | number; discount: string | number; tax: string | number;
-  total: string | number; status: string; notes: string | null; convertedReceiptNumber: string | null; items: Item[];
+  total: string | number; pricesIncludeVat?: boolean; status: string; notes: string | null; convertedReceiptNumber: string | null; items: Item[];
 };
 type Product = { id: string; name: string; sellingPrice: string | number; stockQuantity?: string | number };
 type Customer = { id: string; name: string };
@@ -57,6 +57,22 @@ export default function QuotationsWorkspace() {
     return p ? t + Number(p.sellingPrice) * Number(l.quantity || 0) - Number(l.discount || 0) : t;
   }, 0);
 
+  // The server prices the quotation exactly as it will be saved (VAT, inclusive or exclusive); the simple sum is the fallback.
+  const [priced, setPriced] = useState<{ total: number; tax: number; inclusive: boolean } | null>(null);
+  useEffect(() => {
+    const items = lines
+      .filter((l) => l.productId && Number(l.quantity) > 0 && productById.get(l.productId))
+      .map((l) => ({ productId: l.productId, quantity: Number(l.quantity), unitPrice: Number(productById.get(l.productId)!.sellingPrice), discount: Number(l.discount || 0) }));
+    if (items.length === 0) { setPriced(null); return; }
+    let active = true;
+    const timer = setTimeout(() => {
+      apiRequest<{ total: string; tax: string; pricesIncludeVat: boolean }>("/sales/preview", { method: "POST", token, businessId, body: { items } })
+        .then((r) => { if (active && r.data) setPriced({ total: Number(r.data.total), tax: Number(r.data.tax), inclusive: r.data.pricesIncludeVat }); })
+        .catch(() => { if (active) setPriced(null); });
+    }, 300);
+    return () => { active = false; clearTimeout(timer); };
+  }, [lines, productById, token, businessId]);
+
   function setLine(i: number, patch: Partial<Line>) { setLines(lines.map((l, idx) => (idx === i ? { ...l, ...patch } : l))); }
 
   async function create(e: React.FormEvent) {
@@ -91,11 +107,17 @@ export default function QuotationsWorkspace() {
     const paid = window.prompt(`Convert ${q.quotationNumber} (${money(q.total)}) to a sale.\nAmount paid now (0 for credit; credit needs a customer):`, "0");
     if (paid === null) return;
     let method: string | null = null;
-    if (Number(paid) > 0) { method = window.prompt("Payment method (cash, mpesa, bank, card)", "cash"); if (method === null) return; }
+    let reference: string | null = null;
+    if (Number(paid) > 0) {
+      method = window.prompt("Payment method (cash, mpesa, bank, card)", "cash"); if (method === null) return;
+      if (method.trim().toLowerCase() === "mpesa") {
+        reference = window.prompt("M-Pesa transaction code (10 letters/digits, e.g. QGH7XK2LMN)", ""); if (reference === null) return;
+      }
+    }
     setError(""); setMessage("");
     try {
       const res = await apiRequest<{ sale: { receiptNumber: string } }>(`/quotations/${q.id}/convert`, {
-        method: "POST", token, businessId, body: { amountPaid: Number(paid), ...(method && { paymentMethod: method.trim() }) },
+        method: "POST", token, businessId, body: { amountPaid: Number(paid), ...(method && { paymentMethod: method.trim() }), ...(reference && { paymentReference: reference.trim() }) },
       });
       setMessage(`${q.quotationNumber} converted to sale ${res.data?.sale.receiptNumber ?? ""}.`);
       await load();
@@ -139,7 +161,7 @@ export default function QuotationsWorkspace() {
             ))}
             <div className="customer-actions">
               <button type="button" className="button-secondary" onClick={() => setLines([...lines, { ...emptyLine }])}>Add line</button>
-              <strong>Estimated total {money(estimate)}</strong>
+              <strong>Estimated total {money(priced?.total ?? estimate)}</strong>
               <button type="submit" className="button-primary" disabled={saving || !lines.some((l) => l.productId)}>{saving ? "Creating…" : "Create quotation"}</button>
             </div>
           </form>
@@ -184,7 +206,7 @@ export default function QuotationsWorkspace() {
               <thead><tr><th>ITEM</th><th>QTY</th><th>PRICE</th><th>DISCOUNT</th><th>TOTAL</th></tr></thead>
               <tbody>{selected.items.map((it) => <tr key={it.id}><td>{it.productName}</td><td>{Number(it.quantity)}</td><td>{money(it.unitPrice)}</td><td>{money(it.discount)}</td><td>{money(it.total)}</td></tr>)}</tbody>
             </table>
-            <p>Subtotal {money(selected.subtotal)} · Discount {money(selected.discount)} · Tax {money(selected.tax)}</p>
+            <p>Subtotal {money(selected.subtotal)} · Discount {money(selected.discount)} · {selected.pricesIncludeVat ? "VAT (included in total)" : "Tax"} {money(selected.tax)}</p>
             <p><strong>Total {money(selected.total)}</strong></p>
             <p>Prices are the shop's prices on the quotation date and may change.</p>
             {selected.notes && <p>{selected.notes}</p>}

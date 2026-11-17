@@ -1,6 +1,7 @@
 import { can } from "./permissions";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
+import RecordPaymentForm from "./RecordPaymentForm";
 import Letterhead from "./Letterhead";
 
 type Sale = {
@@ -533,7 +534,7 @@ export default function SalesWorkspace() {
               <div className="sale-receipt-totals">
                 <div><span>Subtotal</span><strong>{money(selectedSale.subtotal)}</strong></div>
                 <div><span>Discount</span><strong>{money(selectedSale.discount)}</strong></div>
-                <div><span>Tax</span><strong>{money(selectedSale.tax)}</strong></div>
+                <div><span>{selectedSale.pricesIncludeVat ? "VAT (included in total)" : "Tax"}</span><strong>{money(selectedSale.tax)}</strong></div>
                 <div className="sale-receipt-grand-total"><span>Total</span><strong>{money(selectedSale.total)}</strong></div>
                 <div><span>Amount paid</span><strong>{money(selectedSale.amountPaid)}</strong></div>
                 <div className="sale-receipt-balance"><span>Balance due</span><strong>{money(selectedSale.balanceDue)}</strong></div>
@@ -568,6 +569,14 @@ export default function SalesWorkspace() {
                   <p className="sale-no-payments">
                     No payment transactions are recorded for this sale.
                   </p>
+                )}
+                {selectedSale.status === "completed" && Number(selectedSale.balanceDue) > 0 && can("payments.create") && (
+                  <RecordPaymentForm
+                    key={`${selectedSale.id}-${selectedSale.amountPaid}`}
+                    saleId={selectedSale.id}
+                    balanceDue={Number(selectedSale.balanceDue)}
+                    onRecorded={() => { void openSale(selectedSale); void loadSales(); }}
+                  />
                 )}
               </div>
 

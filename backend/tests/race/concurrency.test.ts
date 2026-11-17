@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { query, resetData } from "../support/db.js";
 import { post, put } from "../support/http.js";
-import { createProduct, ledgerViolations, registerTenant, seedPhoneShop, stockOf } from "../support/seed.js";
+import { createProduct, mpesaCode, ledgerViolations, registerTenant, seedPhoneShop, stockOf } from "../support/seed.js";
 
 /**
  * Concurrency characterization. Results depend on timing; failures here before
@@ -46,7 +46,7 @@ describe("concurrency", () => {
     const sale = await post("/sales", s.t, { customerId: s.customer.id, items: [{ productId: s.galaxy.id, quantity: 1, unitPrice: 21500 }] });
     const id = sale.body.data.id;
     const results = await Promise.all(
-      Array.from({ length: 8 }, () => post("/payments", s.t, { saleId: id, amount: 21500, method: "mpesa" }))
+      Array.from({ length: 8 }, () => post("/payments", s.t, { saleId: id, amount: 21500, method: "mpesa", reference: mpesaCode() }))
     );
     const ok = results.filter((r) => r.status === 201).length;
     const [row] = await query(`select amount_paid, total from sales where id = $1`, [id]);
@@ -95,7 +95,7 @@ describe("concurrency: sale adjustments", () => {
     const made = await post("/sales", s.t, { customerId: s.customer.id, amountPaid: 500, paymentMethod: "cash", items: [{ productId: s.charger.id, quantity: 2, unitPrice: 1200 }] });
     const id = made.body.data.id;
     const results = await Promise.all([
-      post("/payments", s.t, { saleId: id, amount: 1000, method: "mpesa" }),
+      post("/payments", s.t, { saleId: id, amount: 1000, method: "mpesa", reference: mpesaCode() }),
       put(`/sales/${id}`, s.t, { items: [{ productId: s.charger.id, quantity: 1, unitPrice: 1200 }] }),
       post("/payments", s.t, { saleId: id, amount: 200, method: "cash" }),
     ]);

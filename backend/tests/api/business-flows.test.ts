@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { query, resetData } from "../support/db.js";
 import { get, post, put } from "../support/http.js";
-import { addEmployee, ledgerViolations, seedHardwareStore, seedPhoneShop, seedWholesaler, stockOf } from "../support/seed.js";
+import { addEmployee, ledgerViolations, seedHardwareStore, seedPhoneShop, seedWholesaler, stockOf, mpesaCode } from "../support/seed.js";
 
 const RANGE = "startDate=2026-01-01&endDate=2026-12-31";
 const line = (productId: string, quantity: number, unitPrice: number, extra: object = {}) => ({ productId, quantity, unitPrice, ...extra });
@@ -26,7 +26,7 @@ describe("a phone shop trading day with an owner, cashier, manager and accountan
     const sale1 = await post("/sales", cashier, { amountPaid: 6000, paymentMethod: "cash", items: [line(s.charger.id, 5, 1200)] });
     expect(sale1.status).toBe(201);
     // Cashier: 2 Galaxy on credit to the customer = 43,000, 20,000 up front.
-    const sale2 = (await post("/sales", cashier, { customerId: s.customer.id, amountPaid: 20000, paymentMethod: "mpesa", items: [line(s.galaxy.id, 2, 21500)] })).body.data;
+    const sale2 = (await post("/sales", cashier, { customerId: s.customer.id, amountPaid: 20000, paymentMethod: "mpesa", paymentReference: mpesaCode(), items: [line(s.galaxy.id, 2, 21500)] })).body.data;
     // Customer settles 13,000 later -> 10,000 still owed on this sale.
     expect((await post("/payments", cashier, { saleId: sale2.id, amount: 13000, method: "cash" })).status).toBe(201);
 
@@ -94,7 +94,7 @@ describe("a hardware store selling by the metre and litre", () => {
     const s = await seedHardwareStore();   // cement 200 bags, pipe 150.5 m @420, paint 80 l @760
     // 12.345 m pipe = 5,184.90; 17 cement at 780 less 60 discount = 13,200; 3.5 l paint = 2,660 -> 21,044.90, 5,000.15 paid.
     const big = await post("/sales", s.t, {
-      customerId: s.customer.id, amountPaid: 5000.15, paymentMethod: "mpesa",
+      customerId: s.customer.id, amountPaid: 5000.15, paymentMethod: "mpesa", paymentReference: mpesaCode(),
       items: [line(s.pipe.id, 12.345, 420), line(s.cement.id, 17, 780, { discount: 60 }), line(s.paint.id, 3.5, 760)],
     });
     expect(big.status, JSON.stringify(big.body)).toBe(201);

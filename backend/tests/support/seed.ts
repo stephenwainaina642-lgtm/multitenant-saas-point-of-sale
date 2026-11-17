@@ -227,3 +227,10 @@ export async function ledgerViolations(): Promise<string[]> {
 }
 
 export { get };
+
+let mpesaCounter = 0;
+/** A valid, never-repeated M-Pesa transaction code (10 capital letters/digits). */
+export function mpesaCode(): string {
+  mpesaCounter += 1;
+  return `QT${Date.now().toString(36).toUpperCase().slice(-5).padStart(5, "0")}${mpesaCounter.toString(36).toUpperCase().padStart(3, "0")}`.slice(0, 10);
+}

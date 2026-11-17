@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { resetData } from "../support/db.js";
 import { get, post, put } from "../support/http.js";
-import { addEmployee, registerTenant, seedPhoneShop, type Tenant } from "../support/seed.js";
+import { addEmployee, registerTenant, seedPhoneShop, type Tenant, mpesaCode } from "../support/seed.js";
 
 const N = (v: unknown) => Number(v);
 
@@ -44,7 +44,7 @@ describe("invoices", () => {
     const inv = (await invoice(sl.id)).body.data;
     expect(inv.status).toBe("partial");
 
-    await post("/payments", s.t, { saleId: sl.id, amount: 400, method: "mpesa" });
+    await post("/payments", s.t, { saleId: sl.id, amount: 400, method: "mpesa", reference: mpesaCode() });
     let d = (await get(`/invoices/${inv.id}`, s.t)).body.data;
     expect(N(d.amountPaid)).toBe(1400);
     expect(N(d.balanceDue)).toBe(1000);

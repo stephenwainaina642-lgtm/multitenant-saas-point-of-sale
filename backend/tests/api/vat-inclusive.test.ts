@@ -137,6 +137,17 @@ describe("VAT-inclusive pricing", () => {
     expect(n(conv.body.data.sale.tax)).toBe(n(quoted.tax));
   });
 
+  it("invoices and the created sale report the mode, so documents can say the VAT is included", async () => {
+    const s = await shop();
+    const sale = await post("/sales", s.t, { amountPaid: 1000, paymentMethod: "cash", items: [line(s.p1000.id, 1, 1000)] });
+    expect(sale.body.data.pricesIncludeVat).toBe(true);
+    const inv = await post("/invoices", s.t, { saleId: sale.body.data.id });
+    expect(inv.status, JSON.stringify(inv.body)).toBe(201);
+    const shown = (await get(`/invoices/${inv.body.data.id}`, s.t)).body.data;
+    expect(shown.pricesIncludeVat).toBe(true);
+    expect([n(shown.tax), n(shown.total)]).toEqual([137.93, 1000]);
+  });
+
   it("reports net sales without the VAT that is inside inclusive prices", async () => {
     const s = await shop();
     await post("/sales", s.t, { amountPaid: 1000, paymentMethod: "cash", items: [line(s.p1000.id, 1, 1000)] });

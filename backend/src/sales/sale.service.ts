@@ -1,5 +1,6 @@
 import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
+import { checkedPaymentReference, isMpesaClash, MPESA_CLASH_MESSAGE } from "../lib/mpesa.js";
 import {
   priceSale,
   enteredSaleDiscount,
@@ -30,6 +31,7 @@ type SaleData = {
   tax?: number;
   amountPaid?: number;
   paymentMethod?: string;
+  paymentReference?: string;
   notes?: string;
   items: SaleItemData[];
 };
@@ -243,6 +245,7 @@ type SaleRecord = {
   discount: unknown;
   tax: unknown;
   total: unknown;
+  pricesIncludeVat: boolean;
   amountPaid: unknown;
   balanceDue: unknown;
   paymentStatus: string;
@@ -275,6 +278,7 @@ function formatCreatedSale(
     discount: sale.discount,
     tax: sale.tax,
     total: sale.total,
+    pricesIncludeVat: sale.pricesIncludeVat,
     amountPaid: sale.amountPaid,
     balanceDue: sale.balanceDue,
     paymentStatus: sale.paymentStatus,
@@ -463,12 +467,14 @@ export async function createBusinessSale(
       });
 
       if (amountPaid > 0n) {
+        const method = data.paymentMethod!.trim().toLowerCase();
         await tx.payment.create({
           data: {
             businessId: bizId,
             saleId: sale.id,
             amount: centsToString(amountPaid),
-            method: data.paymentMethod!.trim().toLowerCase(),
+            method,
+            reference: await checkedPaymentReference(tx, bizId, method, data.paymentReference),
             notes: "Initial payment for sale",
           },
         });
@@ -505,6 +511,7 @@ export async function createBusinessSale(
         return formatCreatedSale(existing, existing.customer?.name ?? null, true);
       }
     }
+    if (isMpesaClash(error)) throw new AppError(409, MPESA_CLASH_MESSAGE);
     throw error;
   }
 }

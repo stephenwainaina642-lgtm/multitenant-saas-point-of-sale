@@ -47,6 +47,7 @@ function present(invoice: any, sale: any) {
     invoiceDate: invoice.invoiceDate,
     dueDate: invoice.dueDate,
     subtotal: sale.subtotal, discount: sale.discount, tax: sale.tax, total: sale.total,
+    pricesIncludeVat: sale.pricesIncludeVat,
     amountPaid: sale.amountPaid, balanceDue: sale.status === "voided" ? "0" : sale.balanceDue,
     status,
     saleStatus: sale.status,

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { mpesaCodeError, normalizeMpesaCode } from "./mpesa";
 import { apiRequest } from "./api/client";
 
 type Product = {
@@ -45,6 +46,7 @@ export default function PointOfSaleWorkspace() {
   const [amountPaid, setAmountPaid] = useState("0");
   const [amountPaidManuallyEdited, setAmountPaidManuallyEdited] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [mpesaCode, setMpesaCode] = useState("");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -272,6 +274,14 @@ export default function PointOfSaleWorkspace() {
       return;
     }
 
+    if (paid > 0 && paymentMethod === "mpesa") {
+      const problem = mpesaCodeError(mpesaCode);
+      if (problem) {
+        setError(problem);
+        return;
+      }
+    }
+
     for (const item of cart) {
       if (
         !Number.isFinite(item.quantity) ||
@@ -290,6 +300,7 @@ export default function PointOfSaleWorkspace() {
         tax: vatOn ? 0 : taxValue,
         amountPaid: paid,
         paymentMethod,
+        ...(paid > 0 && paymentMethod === "mpesa" && { paymentReference: normalizeMpesaCode(mpesaCode) }),
         notes: notes.trim(),
         items: cart.map((item) => ({
           productId: item.product.id,
@@ -322,6 +333,7 @@ export default function PointOfSaleWorkspace() {
       setDiscount("0");
       setTax("0");
       setNotes("");
+      setMpesaCode("");
       setAmountPaidManuallyEdited(false);
       await loadProducts();
     } catch (err) {
@@ -505,6 +517,19 @@ export default function PointOfSaleWorkspace() {
               <option value="bank_transfer">Bank transfer</option>
             </select>
           </label>
+
+          {paymentMethod === "mpesa" && Number(amountPaid) > 0 && (
+            <label className="inventory-field">
+              M-Pesa transaction code
+              <input
+                value={mpesaCode}
+                onChange={(event) => setMpesaCode(event.target.value.toUpperCase())}
+                maxLength={14}
+                placeholder="e.g. QGH7XK2LMN"
+                autoComplete="off"
+              />
+            </label>
+          )}
 
           <label className="inventory-field">
             Notes (optional)

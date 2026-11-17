@@ -3,8 +3,7 @@ import { query, resetData } from "../support/db.js";
 import { api, get, post } from "../support/http.js";
 import {
   createProduct, ledgerViolations, registerTenant,
-  seedHardwareStore, seedPerfumeBusiness, seedPhoneShop, seedWholesaler, stockOf,
-} from "../support/seed.js";
+  seedHardwareStore, seedPerfumeBusiness, seedPhoneShop, seedWholesaler, stockOf, mpesaCode } from "../support/seed.js";
 
 describe("sales, stock and payments", () => {
   beforeAll(resetData);
@@ -35,14 +34,14 @@ describe("sales, stock and payments", () => {
 
     it("partial payment then settlement keeps amount_paid == sum(payments)", async () => {
       const res = await post("/sales", s.t, {
-        customerId: s.customer.id, amountPaid: 5000, paymentMethod: "mpesa",
+        customerId: s.customer.id, amountPaid: 5000, paymentMethod: "mpesa", paymentReference: mpesaCode(),
         items: [{ productId: s.galaxy.id, quantity: 1, unitPrice: 21500 }],
       });
       expect(res.status).toBe(201);
       const id = res.body.data.id;
       expect(res.body.data.paymentStatus).toBe("partial");
 
-      const p1 = await post("/payments", s.t, { saleId: id, amount: 10000, method: "mpesa", reference: "QWE123ABC" });
+      const p1 = await post("/payments", s.t, { saleId: id, amount: 10000, method: "mpesa", reference: mpesaCode() });
       expect(p1.status).toBe(201);
       expect(p1.body.data.sale.paymentStatus).toBe("partial");
       expect(Number(p1.body.data.sale.balanceDue)).toBe(6500);
@@ -221,9 +220,9 @@ describe("sales, stock and payments", () => {
       expect(sale.status).toBe(201);
       const bal = async () => Number((await query(`select balance from customers where id = $1`, [s.customer.id]))[0]!.balance);
       expect(await bal()).toBe(4800);
-      await post("/payments", s.t, { saleId: sale.body.data.id, amount: 1800, method: "mpesa" });
+      await post("/payments", s.t, { saleId: sale.body.data.id, amount: 1800, method: "mpesa", reference: mpesaCode() });
       expect(await bal()).toBe(3000);
-      await post("/payments", s.t, { saleId: sale.body.data.id, amount: 3000, method: "mpesa" });
+      await post("/payments", s.t, { saleId: sale.body.data.id, amount: 3000, method: "mpesa", reference: mpesaCode() });
       expect(await bal()).toBe(0);
       expect(await ledgerViolations()).toEqual([]);
     });
@@ -274,7 +273,7 @@ describe("sales, stock and payments", () => {
     it("a repeated payment submission with the same Idempotency-Key records one payment", async () => {
       const s = await seedPhoneShop();
       const sale = await post("/sales", s.t, { customerId: s.customer.id, items: [{ productId: s.galaxy.id, quantity: 1, unitPrice: 21500 }] });
-      const body = { saleId: sale.body.data.id, amount: 5000, method: "mpesa", reference: "ABC1" };
+      const body = { saleId: sale.body.data.id, amount: 5000, method: "mpesa", reference: mpesaCode() };
       const h = { "idempotency-key": "pay-0001" };
       const r1 = await api("POST", "/payments", { session: s.t, body, headers: h });
       const r2 = await api("POST", "/payments", { session: s.t, body, headers: h });

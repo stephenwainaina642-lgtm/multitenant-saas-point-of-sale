@@ -8,7 +8,7 @@ type Invoice = {
   id: string; invoiceNumber: string; saleId: string; receiptNumber: string; customerName: string | null;
   customer: { name: string; phone: string | null; email: string | null; address: string | null } | null;
   invoiceDate: string; dueDate: string | null; subtotal: string | number; discount: string | number; tax: string | number;
-  total: string | number; amountPaid: string | number; balanceDue: string | number; status: string; notes: string | null; items: InvoiceItem[];
+  total: string | number; pricesIncludeVat?: boolean; amountPaid: string | number; balanceDue: string | number; status: string; notes: string | null; items: InvoiceItem[];
 };
 type SaleRow = { id: string; receiptNumber: string; customerName: string | null; total: string | number; status: string; saleDate: string };
 
@@ -134,7 +134,7 @@ export default function InvoicesWorkspace() {
                 ))}
               </tbody>
             </table>
-            <p>Subtotal {money(selected.subtotal)} · Discount {money(selected.discount)} · Tax {money(selected.tax)}</p>
+            <p>Subtotal {money(selected.subtotal)} · Discount {money(selected.discount)} · {selected.pricesIncludeVat ? "VAT (included in total)" : "Tax"} {money(selected.tax)}</p>
             <p><strong>Total {money(selected.total)}</strong> · Paid {money(selected.amountPaid)} · <strong>Balance due {money(selected.balanceDue)}</strong> · Status: {selected.status}</p>
             {selected.notes && <p>{selected.notes}</p>}
           </div>

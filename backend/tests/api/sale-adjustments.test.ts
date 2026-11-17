@@ -2,8 +2,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { query, resetData } from "../support/db.js";
 import { get, post, put } from "../support/http.js";
 import {
-  addEmployee, createProduct, ledgerViolations, seedPhoneShop, stockOf, type Tenant,
-} from "../support/seed.js";
+  addEmployee, createProduct, ledgerViolations, seedPhoneShop, stockOf, type Tenant, mpesaCode } from "../support/seed.js";
 
 const N = (v: unknown) => Number(v);
 
@@ -77,7 +76,7 @@ describe("sale edit, void and refund", () => {
 
     it("preserves payment history exactly", async () => {
       const { id } = await creditSale(2, 1000);
-      await post("/payments", s.t, { saleId: id, amount: 400, method: "mpesa", reference: "R1" });
+      await post("/payments", s.t, { saleId: id, amount: 400, method: "mpesa", reference: mpesaCode() });
       const before = await query(`select id, amount, method, reference from payments where sale_id = $1 order by id`, [id]);
       await put(`/sales/${id}`, s.t, { items: [item(s.charger.id, 2, 1200, { discount: 100 })], notes: "edited" });
       const after = await query(`select id, amount, method, reference from payments where sale_id = $1 order by id`, [id]);
@@ -160,7 +159,7 @@ describe("sale edit, void and refund", () => {
     it("a payment still works after an edit and the ledger stays consistent", async () => {
       const { id } = await creditSale(2, 1000);
       await put(`/sales/${id}`, s.t, { items: [item(s.charger.id, 3, 1200)] });
-      const pay = await post("/payments", s.t, { saleId: id, amount: 2600, method: "mpesa" });
+      const pay = await post("/payments", s.t, { saleId: id, amount: 2600, method: "mpesa", reference: mpesaCode() });
       expect(pay.status).toBe(201);
       expect(pay.body.data.sale.paymentStatus).toBe("paid");
       expect(await ledgerViolations()).toEqual([]);
@@ -201,7 +200,7 @@ describe("sale edit, void and refund", () => {
     });
 
     it("voiding a paid sale requires a reason and a refund method, and records the refund separately", async () => {
-      const made = await post("/sales", s.t, { amountPaid: 21500, paymentMethod: "mpesa", items: [item(s.galaxy.id, 1, 21500)] });
+      const made = await post("/sales", s.t, { amountPaid: 21500, paymentMethod: "mpesa", paymentReference: mpesaCode(), items: [item(s.galaxy.id, 1, 21500)] });
       const id = made.body.data.id;
       expect((await post(`/sales/${id}/void`, s.t, {})).status).toBe(400);
       const noMethod = await post(`/sales/${id}/void`, s.t, { reason: "Faulty" });

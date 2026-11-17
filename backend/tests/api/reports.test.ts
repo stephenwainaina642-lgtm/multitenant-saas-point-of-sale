@@ -3,7 +3,7 @@ import { query, resetData } from "../support/db.js";
 import { loadTestConfig } from "../support/env.js";
 import { get, post } from "../support/http.js";
 import { startServer, waitForHealth, type RunningServer } from "../support/server.js";
-import { addEmployee, createProduct, ledgerViolations, seedPhoneShop } from "../support/seed.js";
+import { addEmployee, createProduct, ledgerViolations, seedPhoneShop, mpesaCode } from "../support/seed.js";
 import { dayKey, nextDay, startOfDay } from "../../src/lib/timezone.js";
 
 const cfg = loadTestConfig();
@@ -19,7 +19,7 @@ describe("reports", () => {
     // A: 2 chargers @1200, KES 100 line discount -> 2300, paid in full
     expect((await sale({ amountPaid: 2300, paymentMethod: "cash", items: [{ productId: s.charger.id, quantity: 2, unitPrice: 1200, discount: 100 }] })).status).toBe(201);
     // B: galaxy 21500 + KES 200 tax -> 21700, 10000 paid by M-Pesa, rest on credit
-    expect((await sale({ customerId: s.customer.id, amountPaid: 10000, paymentMethod: "mpesa", items: [{ productId: s.galaxy.id, quantity: 1, unitPrice: 21500, tax: 200 }] })).status).toBe(201);
+    expect((await sale({ customerId: s.customer.id, amountPaid: 10000, paymentMethod: "mpesa", paymentReference: mpesaCode(), items: [{ productId: s.galaxy.id, quantity: 1, unitPrice: 21500, tax: 200 }] })).status).toBe(201);
     // C: iPhone, paid then voided and refunded in full
     const c = await sale({ amountPaid: 112000, paymentMethod: "bank", items: [{ productId: s.iphone.id, quantity: 1, unitPrice: 112000 }] });
     expect((await post(`/sales/${c.body.data.id}/void`, s.t, { reason: "Returned", refundMethod: "bank" })).status).toBe(200);
