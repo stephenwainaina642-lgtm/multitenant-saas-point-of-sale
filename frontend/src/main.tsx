@@ -4,6 +4,17 @@ import "./index.css";
 import App from "./App.tsx";
 import AuthGate from "./AuthGate";
 
+const DEMO = import.meta.env.VITE_DEMO_MODE === "true";
+
+/** Shown only on the separate demo deployment (VITE_DEMO_MODE=true), so nobody mistakes it for live data. */
+function DemoBanner() {
+  return (
+    <div role="note" style={{ position: "fixed", right: 12, bottom: 12, zIndex: 9999, background: "#fff7e0", color: "#6b4a00", border: "1px solid #e8c766", borderRadius: 8, padding: "6px 12px", fontSize: 13, boxShadow: "0 2px 8px rgba(0,0,0,.12)", pointerEvents: "none" }}>
+      DEMO — sample data only. M-Pesa and KRA eTIMS are not connected.
+    </div>
+  );
+}
+
 function Root() {
   const [authenticated, setAuthenticated] = useState(
     () =>
@@ -13,10 +24,11 @@ function Root() {
       )
   );
 
-  return authenticated ? (
-    <App />
-  ) : (
-    <AuthGate onAuthenticated={() => setAuthenticated(true)} />
+  return (
+    <>
+      {authenticated ? <App /> : <AuthGate onAuthenticated={() => setAuthenticated(true)} />}
+      {DEMO && <DemoBanner />}
+    </>
   );
 }
 
