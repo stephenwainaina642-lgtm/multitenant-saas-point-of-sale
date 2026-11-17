@@ -172,14 +172,20 @@ export function aggregateByProduct(
 // VAT (exclusive pricing: VAT is added on top of the selling price)
 // ---------------------------------------------------------------------------------------------
 
-export type Vat = { registered: boolean; rateBps: bigint };
+/** `inclusive`: entered prices already contain VAT (only ever true when `registered`). */
+export type Vat = { registered: boolean; rateBps: bigint; inclusive: boolean };
 
 export async function loadVat(tx: Tx, businessId: bigint): Promise<Vat> {
   const b = await tx.business.findUnique({
     where: { id: businessId },
-    select: { vatRegistered: true, vatRate: true },
+    select: { vatRegistered: true, vatRate: true, pricesIncludeVat: true },
   });
-  return { registered: b?.vatRegistered ?? false, rateBps: decimalToCents(b?.vatRate ?? 0) };
+  const registered = b?.vatRegistered ?? false;
+  return {
+    registered,
+    rateBps: decimalToCents(b?.vatRate ?? 0),
+    inclusive: registered && (b?.pricesIncludeVat ?? false),
+  };
 }
 
 /**
@@ -218,6 +224,66 @@ export function applyVat(lines: SaleLine[], saleDiscount: bigint, vat: Vat): voi
   });
 }
 
+/**
+ * The sale-level discount as it was entered, recovered from stored figures:
+ * VAT-inclusive documents: sum(line totals) - total (line totals are before the sale discount);
+ * VAT-exclusive documents: header discount minus the lines'' own discounts.
+ */
+export function enteredSaleDiscount(doc: {
+  pricesIncludeVat: boolean;
+  discount: unknown;
+  total: unknown;
+  items: { discount: unknown; total: unknown }[];
+}): bigint {
+  const items = doc.items;
+  const value = doc.pricesIncludeVat
+    ? items.reduce((t, i) => t + decimalToCents(i.total as never), 0n) - decimalToCents(doc.total as never)
+    : decimalToCents(doc.discount as never) - items.reduce((t, i) => t + decimalToCents(i.discount as never), 0n);
+  return value < 0n ? 0n : value;
+}
+
+/** The VAT-free part of a VAT-inclusive amount, rounded half up. The VAT is always `gross - net`. */
+export function netOfInclusive(gross: bigint, rateBps: bigint): bigint {
+  const divisor = 10000n + rateBps;
+  return (gross * 10000n + divisor / 2n) / divisor;
+}
+
+/**
+ * VAT-inclusive pricing. Entered prices and discounts contain VAT. Per standard-rated line:
+ * gross = qty x price - line discount - its share of the sale discount, net = gross without VAT
+ * (half up), tax = gross - net, so net + tax equals gross exactly and no unit price is ever
+ * derived. line.total stays "amount after the line's own discount" (tax inside it).
+ *
+ * Sale columns keep total = subtotal - discount + tax: subtotal is the VAT-free value before any
+ * discount, tax the sum of line VAT, total the sum of gross, and discount the VAT-free discount
+ * (the remainder), so the existing database rule holds with no change.
+ */
+export function applyInclusiveVat(lines: SaleLine[], saleDiscount: bigint, vat: Vat) {
+  const gross = lines.map((l) => lineAmount(l.quantity, l.unitPrice) - l.discount);
+  if (gross.some((g) => g < 0n)) throw new AppError(400, "Item total cannot be negative");
+  const grossTotal = gross.reduce((a, g) => a + g, 0n);
+  if (saleDiscount > grossTotal) throw new AppError(400, "Sale discount cannot exceed the sale amount");
+  const shares = allocate(saleDiscount, gross);
+
+  let subtotal = 0n;
+  let tax = 0n;
+  let total = 0n;
+  lines.forEach((l, i) => {
+    const standard = l.taxClass === "standard";
+    const after = gross[i]! - shares[i]!;
+    const net = standard ? netOfInclusive(after, vat.rateBps) : after;
+    l.tax = after - net;
+    l.total = gross[i]!;
+    const before = lineAmount(l.quantity, l.unitPrice);
+    subtotal += standard ? netOfInclusive(before, vat.rateBps) : before;
+    tax += l.tax;
+    total += after;
+  });
+  const discount = subtotal + tax - total;
+  if (discount < 0n) throw new AppError(400, "Discount could not be applied");
+  return { subtotal, discount, tax, total };
+}
+
 /** Lines and totals for a new or edited sale, or a quotation, with VAT when the business has it on. */
 export async function priceSale(
   tx: Tx,
@@ -225,13 +291,16 @@ export async function priceSale(
   items: RawSaleItem[],
   saleDiscountInput: unknown,
   saleTaxInput: unknown,
-  options: LineOptions = {}
+  options: LineOptions & { pricesIncludeVat?: boolean } = {}
 ) {
   const lines = await buildSaleLines(tx, businessId, items, options);
   const vat = await loadVat(tx, businessId);
+  // A stored document keeps the mode it was priced in (editing, converting a quotation).
+  if (vat.registered && options.pricesIncludeVat !== undefined) vat.inclusive = options.pricesIncludeVat;
   if (vat.registered) {
     const saleDiscount = parseMoney(saleDiscountInput ?? 0, "Sale discount");
     if (saleDiscount < 0n) throw new AppError(400, "Sale discount cannot be negative");
+    if (vat.inclusive) return { lines, totals: applyInclusiveVat(lines, saleDiscount, vat), vat };
     applyVat(lines, saleDiscount, vat);
   }
   const totals = computeSaleTotals(lines, saleDiscountInput, vat.registered ? 0 : saleTaxInput);

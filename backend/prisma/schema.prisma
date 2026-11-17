@@ -18,6 +18,7 @@ model Business {
   taxPin       String?  @map("tax_pin") @db.VarChar(20)
   vatRegistered Boolean  @default(false) @map("vat_registered")
   vatRate      Decimal  @default(16.00) @map("vat_rate") @db.Decimal(5, 2)
+  pricesIncludeVat Boolean @default(false) @map("prices_include_vat")
   currency     String   @default("KES") @db.VarChar(10)
   timezone     String   @default("Africa/Nairobi") @db.VarChar(100)
   isActive     Boolean  @default(true) @map("is_active")
@@ -273,6 +274,7 @@ model Sale {
   discount      Decimal  @default(0) @db.Decimal(12, 2)
   tax           Decimal  @default(0) @db.Decimal(12, 2)
   total         Decimal  @default(0) @db.Decimal(12, 2)
+  pricesIncludeVat Boolean @default(false) @map("prices_include_vat")
   amountPaid    Decimal  @default(0) @map("amount_paid") @db.Decimal(12, 2)
   balanceDue    Decimal  @default(0) @map("balance_due") @db.Decimal(12, 2)
   paymentStatus String   @default("paid") @map("payment_status") @db.VarChar(50)
@@ -395,6 +397,7 @@ model Quotation {
   discount        Decimal   @default(0) @db.Decimal(12, 2)
   tax             Decimal   @default(0) @db.Decimal(12, 2)
   total           Decimal   @default(0) @db.Decimal(12, 2)
+  pricesIncludeVat Boolean @default(false) @map("prices_include_vat")
   status          String    @default("draft") @db.VarChar(50)
   notes           String?
   convertedSaleId BigInt?   @unique @map("converted_sale_id")

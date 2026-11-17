@@ -49,7 +49,7 @@ export default function PointOfSaleWorkspace() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   // VAT is worked out by the server, so the cashier sees exactly what will be recorded.
-  const [vat, setVat] = useState<{ registered: boolean; rate: string } | null>(null);
+  const [vat, setVat] = useState<{ registered: boolean; rate: string; inclusive: boolean } | null>(null);
   const [vatPreview, setVatPreview] = useState<{ tax: number; total: number } | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const saleKeyRef = useRef<{ fingerprint: string; key: string } | null>(null);
@@ -108,8 +108,8 @@ export default function PointOfSaleWorkspace() {
     const token = sessionStorage.getItem("pos_token");
     const businessId = sessionStorage.getItem("pos_business_id");
     if (!token || !businessId) return;
-    apiRequest<{ vatRegistered: boolean; vatRate: string }>("/businesses/current", { token, businessId })
-      .then((r) => { if (r.data) setVat({ registered: r.data.vatRegistered, rate: r.data.vatRate }); })
+    apiRequest<{ vatRegistered: boolean; vatRate: string; pricesIncludeVat?: boolean }>("/businesses/current", { token, businessId })
+      .then((r) => { if (r.data) setVat({ registered: r.data.vatRegistered, rate: r.data.vatRate, inclusive: r.data.vatRegistered && r.data.pricesIncludeVat === true }); })
       .catch(() => undefined);
   }, []);
 
@@ -481,7 +481,7 @@ export default function PointOfSaleWorkspace() {
           </label>
 
           {vatOn ? (
-            <div className="pos-total-row"><span>VAT ({Number(vat?.rate)}%)</span><strong>{money(taxValue)}</strong></div>
+            <div className="pos-total-row"><span>{vat?.inclusive ? `VAT included (${Number(vat?.rate)}%)` : `VAT (${Number(vat?.rate)}%)`}</span><strong>{money(taxValue)}</strong></div>
           ) : (
             <label className="inventory-field">
               Tax (KSh)

@@ -1,4 +1,4 @@
-﻿import type { Response } from "express";
+import type { Response } from "express";
 import { isValidTimeZone } from "../lib/timezone.js";
 import type { BusinessRequest } from "../auth/business.middleware.js";
 import {
@@ -111,6 +111,7 @@ if (!req.isBusinessOwner) {
       "taxPin",
       "vatRegistered",
       "vatRate",
+      "pricesIncludeVat",
       "currency",
       "timezone",
     ];
@@ -214,6 +215,25 @@ if (!req.isBusinessOwner) {
         });
       }
       data.vatRate = Number(raw).toFixed(2);
+    }
+
+    if (req.body.pricesIncludeVat !== undefined) {
+      if (typeof req.body.pricesIncludeVat !== "boolean") {
+        return res.status(400).json({ success: false, message: "pricesIncludeVat must be true or false" });
+      }
+      data.pricesIncludeVat = req.body.pricesIncludeVat;
+    }
+
+    if (data.vatRegistered !== undefined || data.pricesIncludeVat !== undefined) {
+      const stored = await getBusinessProfile(req.businessId);
+      const registered = data.vatRegistered ?? stored?.vatRegistered ?? false;
+      if (!registered) {
+        // Not VAT registered: inclusive pricing makes no sense, so it is switched off together with VAT.
+        if (data.pricesIncludeVat === true) {
+          return res.status(400).json({ success: false, message: "VAT-inclusive pricing needs the business to be VAT registered" });
+        }
+        data.pricesIncludeVat = false;
+      }
     }
 
     if (data.vatRegistered !== undefined || data.taxPin !== undefined) {

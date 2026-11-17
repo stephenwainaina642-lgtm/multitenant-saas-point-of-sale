@@ -1,6 +1,10 @@
 # Design: VAT-inclusive pricing (needs your approval before any code)
 
-Status: PROPOSAL. Nothing in this document is implemented. It changes how money is calculated, so it needs a decision.
+Status: APPROVED as written and IMPLEMENTED (migration `20261121090000_add_prices_include_vat`, tests in `tests/api/vat-inclusive.test.ts`).
+
+Deviation from the text below: `line.total` keeps its existing meaning (amount after the line's own discount, before the sale-level discount), so
+"sum of line totals = sale total" holds only when there is no sale-level discount. The entered sale-level discount is recovered as
+`sum(line totals) - sale total` and returned as `saleDiscount` on sales and quotations.
 
 ## Today
 Prices are VAT-exclusive: `net = qty × price − discount`, `tax = 16% × net` (per line, half-up), `total = subtotal − discount + tax`.

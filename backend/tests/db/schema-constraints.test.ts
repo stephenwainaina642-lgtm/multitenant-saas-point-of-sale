@@ -200,7 +200,7 @@ describe("more integrity rules", () => {
     const rows = await query<{ conname: string; convalidated: boolean }>(
       `select conname, convalidated from pg_constraint
         where contype = 'c' and connamespace = 'public'::regnamespace
-          and conname not in ('refunds_amount_positive','supplier_payments_amount_positive','businesses_tax_pin_format','businesses_vat_rate_range','products_tax_class_valid')`
+          and conname not in ('refunds_amount_positive','supplier_payments_amount_positive','businesses_tax_pin_format','businesses_vat_rate_range','products_tax_class_valid','businesses_inclusive_needs_vat')`
     );
     expect(rows.length).toBe(12);
     for (const r of rows) expect(r.convalidated, r.conname).toBe(false);

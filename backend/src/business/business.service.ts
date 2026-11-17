@@ -1,4 +1,4 @@
-﻿import prisma from "../lib/prisma.js";
+import prisma from "../lib/prisma.js";
 
 export async function getUserBusinesses(userId: string) {
   const memberships = await prisma.businessUser.findMany({
@@ -46,6 +46,7 @@ export async function getBusinessProfile(businessId: bigint) {
       taxPin: true,
       vatRegistered: true,
       vatRate: true,
+      pricesIncludeVat: true,
       currency: true,
       timezone: true,
     },
@@ -71,6 +72,7 @@ export type BusinessProfileUpdate = {
   taxPin?: string | null;
   vatRegistered?: boolean;
   vatRate?: string;
+  pricesIncludeVat?: boolean;
   currency?: string;
   timezone?: string;
 };
@@ -94,6 +96,7 @@ export async function updateBusinessProfile(
       taxPin: true,
       vatRegistered: true,
       vatRate: true,
+      pricesIncludeVat: true,
       currency: true,
       timezone: true,
     },

@@ -180,7 +180,11 @@ export async function editBusinessSale(
     const {
       lines,
       totals: { subtotal, discount, tax, total },
-    } = await priceSale(tx, bizId, data.items, data.discount, data.tax, { existing });
+      vat,
+    } = await priceSale(tx, bizId, data.items, data.discount, data.tax, {
+      existing,
+      pricesIncludeVat: sale.pricesIncludeVat, // an edited sale keeps the mode it was sold in
+    });
 
     const paid = decimalToCents(sale.amountPaid);
 
@@ -274,6 +278,7 @@ export async function editBusinessSale(
         discount: centsToString(discount),
         tax: centsToString(tax),
         total: centsToString(total),
+        pricesIncludeVat: vat.inclusive,
         balanceDue: centsToString(balanceDue),
         paymentStatus,
         ...(data.notes !== undefined && { notes: data.notes?.trim() || null }),

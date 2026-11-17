@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { BUSINESS_TYPE_OPTIONS } from "./businessTypes";
 import { apiRequest } from "./api/client";
 import "./BusinessSettingsWorkspace.css";
@@ -13,6 +13,7 @@ type BusinessProfile = {
   taxPin: string | null;
   vatRegistered: boolean;
   vatRate: string;
+  pricesIncludeVat: boolean;
   currency: string;
   timezone: string;
 };
@@ -27,6 +28,7 @@ const emptyProfile: BusinessProfile = {
   taxPin: "",
   vatRegistered: false,
   vatRate: "16.00",
+  pricesIncludeVat: false,
   currency: "KES",
   timezone: "Africa/Nairobi",
 };
@@ -34,6 +36,7 @@ const emptyProfile: BusinessProfile = {
 
 export default function BusinessSettingsWorkspace() {
   const [profile, setProfile] = useState<BusinessProfile>(emptyProfile);
+  const savedInclusive = useRef(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -62,6 +65,7 @@ export default function BusinessSettingsWorkspace() {
         );
 
         if (active && response.data) {
+          savedInclusive.current = response.data.pricesIncludeVat === true;
           setProfile({
             ...emptyProfile,
             ...response.data,
@@ -110,6 +114,15 @@ export default function BusinessSettingsWorkspace() {
       return;
     }
 
+    if (profile.vatRegistered && profile.pricesIncludeVat !== savedInclusive.current) {
+      const ok = window.confirm(
+        profile.pricesIncludeVat
+          ? "Switch to VAT-inclusive prices?\n\nYour existing selling prices will NOT be changed. From now on they are treated as prices that already include VAT. Past sales, invoices and quotations keep the way they were priced."
+          : "Switch back to VAT-exclusive prices?\n\nYour existing selling prices will NOT be changed. From now on VAT is added on top of them. Past sales, invoices and quotations keep the way they were priced."
+      );
+      if (!ok) return;
+    }
+
     setSaving(true);
     setError("");
     setSuccess("");
@@ -130,6 +143,7 @@ export default function BusinessSettingsWorkspace() {
             taxPin: profile.taxPin?.trim() || null,
             vatRegistered: profile.vatRegistered,
             vatRate: String(profile.vatRate).trim(),
+            pricesIncludeVat: profile.vatRegistered && profile.pricesIncludeVat,
             currency: profile.currency.trim().toUpperCase(),
             timezone: profile.timezone.trim(),
           },
@@ -137,6 +151,7 @@ export default function BusinessSettingsWorkspace() {
       );
 
       if (response.data) {
+        savedInclusive.current = response.data.pricesIncludeVat === true;
         setProfile({
           ...emptyProfile,
           ...response.data,
@@ -310,6 +325,19 @@ export default function BusinessSettingsWorkspace() {
                 onChange={(event) => updateField("vatRate", event.target.value)}
                 disabled={!isOwner || !profile.vatRegistered}
               />
+            </label>
+          </div>
+          <div className="settings-fields">
+            <label className="settings-field">
+              <span>Prices you enter</span>
+              <select
+                value={profile.vatRegistered && profile.pricesIncludeVat ? "inclusive" : "exclusive"}
+                onChange={(event) => updateField("pricesIncludeVat", event.target.value === "inclusive")}
+                disabled={!isOwner || !profile.vatRegistered}
+              >
+                <option value="exclusive">Exclude VAT: VAT is added on top</option>
+                <option value="inclusive">Include VAT: shelf price is what the customer pays</option>
+              </select>
             </label>
           </div>
           {profile.vatRegistered && !profile.taxPin && (

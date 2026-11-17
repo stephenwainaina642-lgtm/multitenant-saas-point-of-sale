@@ -1,7 +1,7 @@
 import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
 import { centsToString, decimalToCents } from "../lib/money.js";
-import { priceSale, type RawSaleItem } from "../sales/sale-calc.js";
+import { enteredSaleDiscount, priceSale, type RawSaleItem } from "../sales/sale-calc.js";
 import { createBusinessSale } from "../sales/sale.service.js";
 
 const MAX_NUMBER_ATTEMPTS = 25;
@@ -41,6 +41,7 @@ function present(q: any) {
     quotationDate: q.quotationDate,
     expiryDate: q.expiryDate,
     subtotal: q.subtotal, discount: q.discount, tax: q.tax, total: q.total,
+    pricesIncludeVat: q.pricesIncludeVat, saleDiscount: centsToString(enteredSaleDiscount(q)),
     status: effectiveStatus(q),
     storedStatus: q.status,
     notes: q.notes,
@@ -148,7 +149,7 @@ export async function createBusinessQuotation(businessId: string, data: Quotatio
 
   const created = await prisma.$transaction(async (tx) => {
     const customerId = await resolveCustomer(tx, bizId, data.customerId);
-    const { lines, totals } = await priceSale(tx, bizId, items, data.discount, data.tax);
+    const { lines, totals, vat } = await priceSale(tx, bizId, items, data.discount, data.tax);
 
     let quotationNumber = manualNumber;
     if (quotationNumber) {
@@ -163,7 +164,7 @@ export async function createBusinessQuotation(businessId: string, data: Quotatio
         businessId: bizId, customerId, quotationNumber, quotationDate,
         ...(expiryDate && { expiryDate }),
         subtotal: centsToString(totals.subtotal), discount: centsToString(totals.discount),
-        tax: centsToString(totals.tax), total: centsToString(totals.total),
+        tax: centsToString(totals.tax), total: centsToString(totals.total), pricesIncludeVat: vat.inclusive,
         status: "draft", notes: notes ?? null,
         items: {
           create: lines.map((l) => ({
@@ -208,7 +209,7 @@ export async function updateBusinessQuotation(businessId: string, idText: string
       throw new AppError(409, "This quotation can no longer be edited");
     }
     const customerId = data.customerId === undefined ? before.customerId : await resolveCustomer(tx, bizId, data.customerId);
-    const { lines, totals } = await priceSale(tx, bizId, items, data.discount, data.tax);
+    const { lines, totals, vat } = await priceSale(tx, bizId, items, data.discount, data.tax);
 
     await tx.quotationItem.deleteMany({ where: { quotationId: before.id } });
     await tx.quotation.update({
@@ -217,7 +218,7 @@ export async function updateBusinessQuotation(businessId: string, idText: string
         customerId, quotationDate, expiryDate,
         ...(notes !== undefined && { notes }),
         subtotal: centsToString(totals.subtotal), discount: centsToString(totals.discount),
-        tax: centsToString(totals.tax), total: centsToString(totals.total), updatedAt: new Date(),
+        tax: centsToString(totals.tax), total: centsToString(totals.total), pricesIncludeVat: vat.inclusive, updatedAt: new Date(),
         items: {
           create: lines.map((l) => ({
             productId: l.productId, quantity: Number(l.quantity) / 1000, unitPrice: centsToString(l.unitPrice),
@@ -279,10 +280,10 @@ export async function convertQuotationToSale(
   if (q.convertedSaleId) throw new AppError(409, `This quotation was already converted to sale ${q.convertedSale?.receiptNumber}`);
   if (q.status !== "accepted") throw new AppError(409, "Only an accepted quotation can be converted to a sale");
 
-  const lineDiscounts = q.items.reduce((t, i) => t + decimalToCents(i.discount), 0n);
+  // Convert in the mode the quotation was priced in, so the sale total matches what the customer was quoted.
+  const saleDiscount = enteredSaleDiscount(q);
   const lineTax = q.items.reduce((t, i) => t + decimalToCents(i.tax), 0n);
-  const saleDiscount = decimalToCents(q.discount) - lineDiscounts;
-  const saleTax = decimalToCents(q.tax) - lineTax;
+  const saleTax = q.pricesIncludeVat ? 0n : decimalToCents(q.tax) - lineTax;
 
   let sale: any;
   try {
@@ -300,7 +301,7 @@ export async function convertQuotationToSale(
           discount: Number(i.discount), tax: Number(i.tax),
         })),
       },
-      { idempotencyKey: `quotation-${q.id}` }
+      { idempotencyKey: `quotation-${q.id}`, pricesIncludeVat: q.pricesIncludeVat }
     );
   } catch (e) {
     if (e instanceof AppError && /does not match the saved selling price/.test(e.message)) {

@@ -13,6 +13,8 @@ type Sale = {
   discount: number | string;
   tax: number | string;
   total: number | string;
+  saleDiscount?: string;
+  pricesIncludeVat?: boolean;
   amountPaid: number | string;
   balanceDue: number | string;
   paymentStatus: string;
@@ -171,7 +173,10 @@ export default function SalesWorkspace() {
         const allDiscounts = selectedSale.items.reduce((sum, i) => sum + Number(i.discount || 0), 0);
         const allTax = selectedSale.items.reduce((sum, i) => sum + Number(i.tax || 0), 0);
         // Sale-level discount/tax = whatever the header holds beyond the lines.
-        const saleDiscount = Math.max(0, Math.round((Number(selectedSale.discount) - allDiscounts) * 100) / 100);
+        // The server works out the entered sale-level discount (VAT-inclusive sales store a VAT-free header discount).
+        const saleDiscount = selectedSale.saleDiscount !== undefined
+          ? Number(selectedSale.saleDiscount)
+          : Math.max(0, Math.round((Number(selectedSale.discount) - allDiscounts) * 100) / 100);
         const saleTax = Math.max(0, Math.round((Number(selectedSale.tax) - allTax) * 100) / 100);
         await apiRequest(`/sales/${encodeURIComponent(selectedSale.id)}`, {
           method: "PUT", token, businessId,

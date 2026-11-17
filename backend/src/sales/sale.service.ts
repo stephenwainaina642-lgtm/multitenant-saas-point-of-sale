@@ -2,6 +2,7 @@ import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
 import {
   priceSale,
+  enteredSaleDiscount,
   type RawSaleItem,
   aggregateByProduct,
 } from "./sale-calc.js";
@@ -90,6 +91,8 @@ export async function getBusinessSales(
     discount: sale.discount,
     tax: sale.tax,
     total: sale.total,
+    pricesIncludeVat: sale.pricesIncludeVat,
+    saleDiscount: centsToString(enteredSaleDiscount(sale)),
     amountPaid: sale.amountPaid,
     balanceDue: sale.balanceDue,
     paymentStatus: sale.paymentStatus,
@@ -185,6 +188,8 @@ export async function getBusinessSaleById(
     discount: sale.discount,
     tax: sale.tax,
     total: sale.total,
+    pricesIncludeVat: sale.pricesIncludeVat,
+    saleDiscount: centsToString(enteredSaleDiscount(sale)),
     amountPaid: sale.amountPaid,
     balanceDue: sale.balanceDue,
     paymentStatus: sale.paymentStatus,
@@ -225,6 +230,8 @@ export async function getBusinessSaleById(
 }
 type CreateSaleOptions = {
   idempotencyKey?: string | undefined;
+  /** Price in this mode instead of the business's current one (quotation conversion keeps its own). */
+  pricesIncludeVat?: boolean | undefined;
 };
 
 type SaleRecord = {
@@ -343,7 +350,10 @@ export async function createBusinessSale(
       const {
         lines,
         totals: { subtotal, discount, tax, total },
-      } = await priceSale(tx, bizId, data.items, data.discount, data.tax);
+        vat,
+      } = await priceSale(tx, bizId, data.items, data.discount, data.tax, {
+        ...(options.pricesIncludeVat !== undefined && { pricesIncludeVat: options.pricesIncludeVat }),
+      });
       const amountPaid = parseMoney(data.amountPaid ?? 0, "Amount paid");
 
       if (amountPaid < 0n) {
@@ -430,6 +440,7 @@ export async function createBusinessSale(
           discount: centsToString(discount),
           tax: centsToString(tax),
           total: centsToString(total),
+          pricesIncludeVat: vat.inclusive,
           amountPaid: centsToString(amountPaid),
           balanceDue: centsToString(balanceDue),
           paymentStatus,
@@ -511,6 +522,7 @@ export async function previewBusinessSale(
     return {
       vatRegistered: vat.registered,
       vatRate: vat.registered ? centsToString(vat.rateBps) : null,
+      pricesIncludeVat: vat.inclusive,
       subtotal: centsToString(totals.subtotal),
       discount: centsToString(totals.discount),
       tax: centsToString(totals.tax),
