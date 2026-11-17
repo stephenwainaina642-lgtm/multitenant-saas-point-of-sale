@@ -12,6 +12,10 @@ export type AppConfig = {
   trustProxy: boolean;
   loginRateLimitMax: number;
   registerRateLimitMax: number;
+  /** Public address of the web app, used in password-reset links. */
+  appUrl: string | null;
+  /** Present only when outgoing e-mail is fully configured. */
+  smtp: { host: string; port: number; secure: boolean; user: string | null; pass: string | null; from: string } | null;
 };
 
 const DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"];
@@ -33,6 +37,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     .map((o) => o.trim())
     .filter(Boolean);
 
+  const smtpHost = (env.SMTP_HOST ?? "").trim();
+  const mailFrom = (env.MAIL_FROM ?? "").trim();
+  const appUrl = (env.APP_URL ?? "").trim().replace(/\/+$/, "");
+  if (smtpHost && (!mailFrom || !appUrl)) {
+    throw new Error("SMTP_HOST is set, so MAIL_FROM and APP_URL must be set too (password-reset e-mails need them).");
+  }
+  if (appUrl && !/^https?:\/\//.test(appUrl)) throw new Error("APP_URL must start with http:// or https://");
+
   return {
     port: Number(env.PORT) || 5000,
     nodeEnv,
@@ -44,5 +56,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     trustProxy: env.TRUST_PROXY === "1",
     loginRateLimitMax: Number(env.LOGIN_RATE_LIMIT_MAX) || 10,
     registerRateLimitMax: Number(env.REGISTER_RATE_LIMIT_MAX) || 10,
+    appUrl: appUrl || null,
+    smtp: smtpHost && mailFrom && appUrl
+      ? {
+          host: smtpHost,
+          port: Number(env.SMTP_PORT) || 587,
+          secure: env.SMTP_SECURE === "1",
+          user: env.SMTP_USER || null,
+          pass: env.SMTP_PASS || null,
+          from: mailFrom,
+        }
+      : null,
   };
 }

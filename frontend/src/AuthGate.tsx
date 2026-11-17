@@ -1,8 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BUSINESS_TYPE_OPTIONS } from "./businessTypes";
 import { apiRequest } from "./api/client";
 import "./AuthGate.css";
 import { storePermissions } from "./permissions";
+import { ForgotPasswordScreen, ResetPasswordScreen } from "./ForgotPassword";
+
+/** Reads (and removes) a reset token from the address bar, so it is not left in the history or shared by accident. */
+function takeResetToken(): string {
+  const m = /^#reset-password=([0-9a-f]{64})$/.exec(window.location.hash);
+  if (!m) return "";
+  window.history.replaceState(null, "", window.location.pathname + window.location.search);
+  return m[1];
+}
 
 type Business = {
   id: string;
@@ -40,6 +49,13 @@ export default function AuthGate({ onAuthenticated }: Props) {
   const [selectedBusinessId, setSelectedBusinessId] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [resetToken, setResetToken] = useState(takeResetToken);
+  const [forgotOpen, setForgotOpen] = useState(false);
+  useEffect(() => {
+    const onHash = () => { const t = takeResetToken(); if (t) { setResetToken(t); setForgotOpen(false); } };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
 
   async function finishBusinessSelection(
     accessToken: string,
@@ -129,6 +145,9 @@ export default function AuthGate({ onAuthenticated }: Props) {
     }
   }
 
+  if (resetToken) return <ResetPasswordScreen token={resetToken} onDone={() => { setResetToken(""); setForgotOpen(false); setMode("login"); }} />;
+  if (forgotOpen) return <ForgotPasswordScreen initialEmail={email} onBack={() => setForgotOpen(false)} />;
+
   if (businesses.length > 0 && token) {
     return (
       <main className="auth-page">
@@ -183,6 +202,8 @@ export default function AuthGate({ onAuthenticated }: Props) {
 
           <label className="auth-label" htmlFor="password">Password</label>
           <input id="password" className="auth-input" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder={mode === "register" ? "At least 8 characters" : "Enter your password"} autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={mode === "register" ? 8 : undefined} required />
+
+          {mode === "login" && <p className="auth-forgot"><button type="button" onClick={() => { setMessage(""); setForgotOpen(true); }}>Forgot password?</button></p>}
 
           {message && <p className="auth-message">{message}</p>}
 

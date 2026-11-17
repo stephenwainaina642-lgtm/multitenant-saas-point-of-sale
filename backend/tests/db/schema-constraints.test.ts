@@ -3,7 +3,7 @@ import { query, resetData, withRollback } from "../support/db.js";
 
 const EXPECTED_TABLES = [
   "audit_logs", "business_users", "businesses", "categories", "customers", "document_sequences", "expenses",
-  "inventory_movements", "invoice_items", "invoices", "payments", "products",
+  "inventory_movements", "invoice_items", "invoices", "password_reset_tokens", "payments", "products",
   "purchase_items", "purchases", "quotation_items", "quotations", "refunds", "roles",
   "sale_items", "sales", "supplier_payments", "suppliers", "users",
 ];

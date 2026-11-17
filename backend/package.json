@@ -26,6 +26,7 @@
     "express-rate-limit": "^8.7.4",
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
+    "nodemailer": "^6.10.1",
     "pg": "^8.23.0",
     "prisma": "^7.10.0"
   },
@@ -35,7 +36,10 @@
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.4.1",
+    "@types/nodemailer": "^6.4.24",
     "@types/pg": "^8.23.1",
+    "@types/smtp-server": "^3.5.13",
+    "smtp-server": "^3.21.6",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2",
     "vitest": "^3.2.7"

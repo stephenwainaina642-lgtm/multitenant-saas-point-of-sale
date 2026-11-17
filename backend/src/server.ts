@@ -59,6 +59,8 @@ app.use(express.json({ limit: "200kb" }));
 app.use("/api/auth/login", loginLimiter(config));
 app.use("/api/auth/register", registerLimiter(config));
 app.use("/api/auth/change-password", loginLimiter(config)); // stops guessing the current password
+app.use("/api/auth/forgot-password", loginLimiter(config)); // stops mail-bombing an address
+app.use("/api/auth/reset-password", loginLimiter(config)); // stops guessing reset tokens
 app.use("/api/auth", authRoutes);
 app.use("/api/businesses", businessRoutes);
 app.use("/api/business-context", businessContextRoutes);

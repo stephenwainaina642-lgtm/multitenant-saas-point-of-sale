@@ -1,5 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
+import VatReportPanel from "./VatReportPanel";
 
 type Sale = {
   id: string;
@@ -713,6 +714,8 @@ export default function ReportsWorkspace() {
           </table>
         </div>
       </article>
+
+      <VatReportPanel startDate={startDate} endDate={endDate} />
 
       <article className="panel" style={{ padding: 24 }}>
         <SectionHeading

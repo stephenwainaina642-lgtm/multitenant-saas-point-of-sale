@@ -89,3 +89,7 @@
   .auth-card { padding: 27px 22px; }
   .auth-card h1 { font-size: 24px; }
 }
+
+.auth-forgot { margin: 6px 0 0; text-align: right; }
+.auth-forgot button { background: none; border: 0; padding: 0; color: inherit; font: inherit; font-size: 0.85rem; text-decoration: underline; cursor: pointer; opacity: 0.8; }
+.auth-message.auth-ok { background: #edf7f1; border-color: #b9dcc7; color: #14573f; }
