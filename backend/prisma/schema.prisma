@@ -550,3 +550,36 @@ model PasswordResetToken {
   @@index([userId, createdAt])
   @@map("password_reset_tokens")
 }
+
+model PlatformAdmin {
+  id                 BigInt    @id @default(autoincrement())
+  name               String    @db.VarChar(255)
+  email              String    @db.VarChar(255)
+  passwordHash       String    @map("password_hash")
+  totpSecretEnc      String    @map("totp_secret_enc")
+  totpLastStep       BigInt    @default(0) @map("totp_last_step")
+  isActive           Boolean   @default(true) @map("is_active")
+  sessionsValidAfter DateTime? @map("sessions_valid_after") @db.Timestamptz(6)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  auditLogs PlatformAuditLog[]
+
+  @@map("platform_admins")
+}
+
+model PlatformAuditLog {
+  id         BigInt   @id @default(autoincrement())
+  adminId    BigInt   @map("admin_id")
+  action     String   @db.VarChar(100)
+  businessId BigInt?  @map("business_id")
+  userId     BigInt?  @map("user_id")
+  reason     String
+  details    Json?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  admin PlatformAdmin @relation(fields: [adminId], references: [id])
+
+  @@index([createdAt(sort: Desc)])
+  @@index([businessId])
+  @@map("platform_audit_logs")
+}

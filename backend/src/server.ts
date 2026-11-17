@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import prisma from "./lib/prisma.js";
 import { requestLog } from "./middleware/request-log.js";
 import { loadConfig } from "./lib/config.js";
+import platformRoutes from "./platform/platform.routes.js";
 import { loginLimiter, registerLimiter } from "./middleware/security.js";
 import { errorHandler, notFoundHandler } from "./middleware/errors.js";
 
@@ -61,6 +62,8 @@ app.use("/api/auth/register", registerLimiter(config));
 app.use("/api/auth/change-password", loginLimiter(config)); // stops guessing the current password
 app.use("/api/auth/forgot-password", loginLimiter(config)); // stops mail-bombing an address
 app.use("/api/auth/reset-password", loginLimiter(config)); // stops guessing reset tokens
+app.use("/api/platform/login", loginLimiter(config)); // password + authenticator code guessing
+app.use("/api/platform", platformRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/businesses", businessRoutes);
 app.use("/api/business-context", businessContextRoutes);

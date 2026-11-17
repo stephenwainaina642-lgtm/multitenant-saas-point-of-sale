@@ -19,6 +19,22 @@ function mail() {
   }
   return cached;
 }
+/** Used by the platform admin: e-mails a fresh one-time reset link to this user. Returns false when e-mail is not set up. */
+export async function sendResetLinkTo(user: { id: bigint; name: string; email: string }): Promise<boolean> {
+  const { config, send } = mail();
+  if (!send) return false;
+  const token = crypto.randomBytes(32).toString("hex");
+  await prisma.passwordResetToken.create({
+    data: { userId: user.id, tokenHash: sha256(token), expiresAt: new Date(Date.now() + TOKEN_MINUTES * 60 * 1000) },
+  });
+  await send({
+    to: user.email,
+    subject: "Reset your nexaPOS password",
+    text: `Hello ${user.name},\n\nSupport has started a password reset for your account. Open this link to choose a new password (valid for ${TOKEN_MINUTES} minutes, works once):\n\n${config.appUrl}/#reset-password=${token}\n\nIf you did not expect this, contact support.`,
+  });
+  return true;
+}
+
 const sha256 = (value: string) => crypto.createHash("sha256").update(value).digest("hex");
 
 export const capabilitiesController = (_req: Request, res: Response) =>

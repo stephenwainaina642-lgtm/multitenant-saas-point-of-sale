@@ -1,6 +1,7 @@
 import type { Response, NextFunction } from "express";
 import prisma from "../lib/prisma.js";
 import type { AuthenticatedRequest } from "./auth.middleware.js";
+import { denialMessage } from "../business/business-context.service.js";
 import { resolvePermissions } from "./permissions.js";
 
 export type BusinessRequest = AuthenticatedRequest & {
@@ -64,7 +65,7 @@ export async function requireBusinessAccess(
     if (!membership) {
       return res.status(403).json({
         success: false,
-        message: "You do not have access to this business",
+        message: await denialMessage(userId, businessId),
       });
     }
 

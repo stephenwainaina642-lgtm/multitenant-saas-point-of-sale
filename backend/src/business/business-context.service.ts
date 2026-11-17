@@ -1,6 +1,17 @@
 import prisma from "../lib/prisma.js";
 import { resolvePermissions } from "../auth/permissions.js";
 
+export const SUSPENDED_MESSAGE = "This business account is suspended. Please contact support.";
+
+/** Tells a suspended business apart from a business the user simply does not belong to. */
+export async function denialMessage(userId: bigint, businessId: bigint): Promise<string> {
+  const suspended = await prisma.businessUser.findFirst({
+    where: { userId, businessId, isActive: true, business: { isActive: false } },
+    select: { id: true },
+  });
+  return suspended ? SUSPENDED_MESSAGE : "You do not have access to this business";
+}
+
 export async function verifyBusinessAccess(
   userId: string,
   businessId: string
@@ -21,7 +32,7 @@ export async function verifyBusinessAccess(
   });
 
   if (!membership) {
-    throw new Error("You do not have access to this business");
+    throw new Error(await denialMessage(BigInt(userId), BigInt(businessId)));
   }
 
   return {
