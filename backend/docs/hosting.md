@@ -1,15 +1,21 @@
-# Hosting nexaPOS (Vercel frontend + Render API + managed Postgres)
+# Hosting nexaPOS (Vercel frontend + Render API + Supabase Postgres)
 
 Config files here are written but **not yet exercised on the real platforms** — first deploy is where problems will show.
+Not yet verified against Supabase specifically (pooler behaviour with the app's start-up time-zone setting is the thing to watch at first connect; if sales dates look shifted, tell me).
 The production build itself (`npm run build` + `node dist/server.js`) was run locally and passed `/api/health/ready`.
 
 ## Order of work
-1. **Database**: create a managed PostgreSQL (Render Postgres, Neon or Supabase). Copy its *external* connection string.
-   Pick a paid/backed-up tier before real customers: free tiers can expire or lack backups.
+1. **Database (Supabase)**: create a project (pick the region nearest your users; Nairobi has none, Europe/Middle East/South Africa are the usual choices) and save the database password.
+   Then, in the project, press **Connect** and copy the **Session pooler** string (port 5432, host like `aws-0-<region>.pooler.supabase.com`, user `postgres.<project-ref>`).
+   - Use the **session pooler** for both the API and migrations. Render only speaks IPv4 and Supabase's direct host is IPv6-only on the free plan, so the direct string will not connect from Render.
+   - Avoid the **transaction pooler** (port 6543): the app uses interactive transactions and sets the connection time zone at start-up, which transaction pooling can break.
+   - **Security — do this before anything else:** nexaPOS talks to Postgres directly and does not use Supabase's auto-generated Data API. Tables in the `public` schema are exposed through that API to anyone holding the public anon key unless protected. In Project Settings → Data API, turn the Data API **off** (or at minimum do not use the anon key anywhere). Do not rely on the default.
+   - Free projects pause after about a week of inactivity and have no real backups; use a paid plan (daily backups) before real customers.
 2. **Apply migrations from your own computer** (after reading deployment.md §3), pointing at the new empty database:
-   `cd backend && DATABASE_URL='<external url>' npx prisma migrate deploy --config prisma7.config.ts`
+   `cd backend && DATABASE_URL='<session pooler url>' npx prisma migrate deploy --config prisma7.config.ts`
+   If your password contains special characters (`@ : / ?`), URL-encode them in the string.
 3. **API on Render**: New → Blueprint → pick this repo/branch (uses `render.yaml`). Fill the secrets:
-   - `DATABASE_URL` = the connection string (add `?sslmode=require` if the provider needs it)
+   - `DATABASE_URL` = the session pooler string (add `?sslmode=require` if the connection is refused without it)
    - `JWT_SECRET` = a long random value (e.g. `openssl rand -base64 48`) — never reuse the dev one
    - `CORS_ORIGINS` = your Vercel address, e.g. `https://nexapos.vercel.app` (no trailing slash)
    - `APP_URL` = same Vercel address (used in reset e-mails)
