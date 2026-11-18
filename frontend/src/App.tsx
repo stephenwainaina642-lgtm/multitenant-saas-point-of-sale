@@ -1,3 +1,4 @@
+import BusinessSwitcher from "./BusinessSwitcher";
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 import ProductsWorkspace from "./ProductsWorkspace";
@@ -198,13 +199,7 @@ function App() {
         </div>
 
         <div className="workspace-label">WORKSPACE</div>
-        <div className="business-switch" style={{ cursor: "default" }}>
-          <span className="business-avatar">S</span>
-          <span className="business-info">
-            <strong>{sessionStorage.getItem("pos_business_name") || "Your Business"}</strong>
-            <small>Business workspace</small>
-          </span>
-        </div>
+        <BusinessSwitcher />
 
         <div className="nav-label">MAIN MENU</div>
         <nav className="navigation">

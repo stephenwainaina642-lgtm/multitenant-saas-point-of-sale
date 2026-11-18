@@ -1,4 +1,7 @@
 import type { Response } from "express";
+import { createBusinessForUser } from "./business.service.js";
+import type { NextFunction } from "express";
+import type { Request } from "express";
 import { isValidTimeZone } from "../lib/timezone.js";
 import type { BusinessRequest } from "../auth/business.middleware.js";
 import {
@@ -299,5 +302,16 @@ if (!req.isBusinessOwner) {
       success: false,
       message: "Failed to update business profile",
     });
+  }
+}
+
+
+export async function createBusinessController(req: Request & { user?: { userId: string } }, res: Response, next: NextFunction) {
+  try {
+    if (!req.user?.userId) return res.status(401).json({ success: false, message: "Authentication required" });
+    const created = await createBusinessForUser(req.user.userId, req.body?.name, req.body?.businessType);
+    return res.status(201).json({ success: true, message: "Business created", data: created });
+  } catch (error) {
+    return next(error);
   }
 }

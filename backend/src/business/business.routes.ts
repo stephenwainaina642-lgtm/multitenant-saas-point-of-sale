@@ -3,6 +3,7 @@ import { authenticate } from "../auth/auth.middleware.js";
 import { requireBusinessAccess } from "../auth/business.middleware.js";
 import { requirePermission } from "../auth/permissions.js";
 import {
+  createBusinessController,
   getBusinessesController,
   getCurrentBusinessController,
   updateCurrentBusinessController,
@@ -15,6 +16,8 @@ router.get(
   authenticate,
   getBusinessesController
 );
+
+router.post("/", authenticate, createBusinessController);
 
 router.get(
   "/current",
