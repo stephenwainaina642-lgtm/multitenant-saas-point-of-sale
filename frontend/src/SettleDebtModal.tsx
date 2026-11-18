@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { apiRequest } from "./api/client";
+import Letterhead from "./Letterhead";
 import { mpesaCodeError, normalizeMpesaCode } from "./mpesa";
 
 type Unpaid = {
@@ -29,6 +30,7 @@ export default function SettleDebtModal({ customerId, onClose, onDone }: { custo
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState<Settled | null>(null);
+  const [paidWith, setPaidWith] = useState<{ method: string; reference: string; at: Date } | null>(null);
   const keyRef = useRef(crypto.randomUUID());
 
   useEffect(() => {
@@ -58,7 +60,10 @@ export default function SettleDebtModal({ customerId, onClose, onDone }: { custo
         idempotencyKey: keyRef.current,
         body: { amount: value, method, ...(method === "mpesa" && { reference: normalizeMpesaCode(code) }) },
       });
-      if (r.data) setDone(r.data);
+      if (r.data) {
+        setPaidWith({ method, reference: method === "mpesa" ? normalizeMpesaCode(code) : "", at: new Date() });
+        setDone(r.data);
+      }
       onDone();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not record the payment.");
@@ -76,16 +81,31 @@ export default function SettleDebtModal({ customerId, onClose, onDone }: { custo
 
         {done ? (
           <>
-            <p><strong>{money(done.amount)}</strong> received. Remaining balance: <strong>{money(done.customer.balance)}</strong>.</p>
-            <table>
+            <div className="sale-receipt-print-area">
+              <Letterhead />
+              <h1 style={{ fontSize: 18, margin: "0 0 4px" }}>PAYMENT RECEIPT</h1>
+              <p style={{ margin: "0 0 10px", color: "#59665d", fontSize: 13 }}>
+                {(paidWith?.at ?? new Date()).toLocaleString("en-KE")} · Received from {data?.customer.name}
+              </p>
+              <p style={{ margin: "0 0 10px" }}>
+                <strong>{money(done.amount)}</strong> received by {paidWith?.method === "mpesa" ? "M-Pesa" : (paidWith?.method ?? "").replace("_", " ")}
+                {paidWith?.reference ? ` (code ${paidWith.reference})` : ""}.
+              </p>
+            <div className="receipt-items-scroll"><table className="receipt-items-table" style={{ minWidth: 0, width: "100%" }}>
               <thead><tr><th>Receipt</th><th>Paid now</th><th>Still owed</th></tr></thead>
               <tbody>
                 {done.allocations.map((a) => (
                   <tr key={a.saleId}><td>{a.receiptNumber}</td><td>{money(a.paid)}</td><td>{Number(a.balanceAfter) === 0 ? "Cleared" : money(a.balanceAfter)}</td></tr>
                 ))}
               </tbody>
-            </table>
-            <button className="button-primary" type="button" onClick={onClose} style={{ marginTop: 14 }}>Close</button>
+            </table></div>
+              <p style={{ marginTop: 10 }}>Balance still owed: <strong>{money(done.customer.balance)}</strong></p>
+              <p style={{ fontSize: 12, color: "#59665d" }}>Thank you.</p>
+            </div>
+            <div className="no-print" style={{ display: "flex", gap: 8, marginTop: 14 }}>
+              <button className="button-primary" type="button" onClick={() => window.print()}>Print receipt</button>
+              <button className="button-secondary" type="button" onClick={onClose}>Close</button>
+            </div>
           </>
         ) : data && data.sales.length === 0 ? (
           <><p>This customer owes nothing.</p><button className="button-secondary" type="button" onClick={onClose}>Close</button></>

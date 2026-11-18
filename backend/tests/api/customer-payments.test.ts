@@ -131,3 +131,31 @@ describe("how a sale was made", () => {
     await expect(query(`update sales set channel = 'bogus'`)).rejects.toThrow(/sales_channel_valid/);
   });
 });
+
+describe("debt on the reports", () => {
+  it("shows what is owed per customer, its age, new debt and what was collected", async () => {
+    const t = await registerTenant("Debt Report Shop");
+    const p = await createProduct(t, { name: "Item", costPrice: 40, sellingPrice: 100, stockQuantity: 100 });
+    const c = await createCustomer(t, "Mama Debt");
+    const sale = await post("/sales", t, { items: [line(p.id, 5)], customerId: c.id, paymentMethod: "cash", amountPaid: 100 });
+    expect(sale.status).toBe(201); // owes 400
+    await query(`update sales set sale_date = now() - interval '45 days' where id = ${sale.body.data.id}`);
+    await query(`update payments set payment_date = now() - interval '45 days' where sale_id = ${sale.body.data.id}`);
+    await post("/sales", t, { items: [line(p.id, 1)], customerId: c.id, paymentMethod: "cash", amountPaid: 0 }); // owes 100 today
+
+    const wide = "startDate=2020-01-01&endDate=2030-01-01";
+    let d = (await get(`/reports?${wide}`, t)).body.data.debts;
+    expect(d.totalOutstanding).toBe(500);
+    expect(d.customers).toHaveLength(1);
+    expect(d.customers[0]).toMatchObject({ customerName: "Mama Debt", owed: 500, unpaidSales: 2 });
+    expect(d.aging).toEqual({ days0to30: 100, days31to60: 400, days61plus: 0 });
+    expect(d.newDebtInPeriod).toBe(500);
+
+    const pay = await post(`/customers/${c.id}/payments`, t, { amount: 250, method: "cash" });
+    expect(pay.status).toBe(201);
+    d = (await get(`/reports?${wide}`, t)).body.data.debts;
+    expect(d.totalOutstanding).toBe(250);
+    expect(d.collectedInPeriod).toBe(250);
+  });
+});
+

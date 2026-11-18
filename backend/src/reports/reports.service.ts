@@ -308,6 +308,8 @@ export async function getBusinessReports(
     .sort((a, b) => (b.amount > a.amount ? 1 : b.amount < a.amount ? -1 : 0))
     .map((e) => ({ ...e, amount: out(e.amount) }));
 
+  const debts = await debtReport(businessFilter, range);
+
   return {
     period: {
       startDate: range.startDate,
@@ -379,8 +381,70 @@ export async function getBusinessReports(
     bestSellingProducts,
     salesByCategory,
     salesByChannel,
+    debts,
     paymentMethods,
     purchaseBreakdown,
     expenseBreakdown,
+  };
+}
+
+
+type DebtRow = { customer_id: bigint | null; name: string | null; owed: string; oldest: Date; sales: bigint };
+
+/**
+ * Customer debt. "Outstanding" is as of now (a debt does not depend on the report period);
+ * "newDebt" and "collected" are for the period. Days are counted in the business time zone.
+ */
+async function debtReport(businessId: bigint, range: ReportDateRange) {
+  const tz = range.timeZone;
+  const rows = await prisma.$queryRaw<DebtRow[]>`
+    select s.customer_id, c.name, sum(s.balance_due)::text as owed, min(s.sale_date) as oldest, count(*) as sales
+      from sales s left join customers c on c.id = s.customer_id
+     where s.business_id = ${businessId} and s.status = 'completed' and s.balance_due > 0
+     group by s.customer_id, c.name
+     order by sum(s.balance_due) desc`;
+  const aging = await prisma.$queryRaw<{ bucket: string; owed: string }[]>`
+    select case when age <= 30 then 'days0to30' when age <= 60 then 'days31to60' else 'days61plus' end as bucket,
+           sum(balance_due)::text as owed
+      from (select balance_due,
+                   ((now() at time zone ${tz})::date - (sale_date at time zone ${tz})::date) as age
+              from sales
+             where business_id = ${businessId} and status = 'completed' and balance_due > 0) x
+     group by 1`;
+  const collected = await prisma.$queryRaw<{ amount: string; payments: bigint }[]>`
+    select coalesce(sum(p.amount), 0)::text as amount, count(*) as payments
+      from payments p join sales s on s.id = p.sale_id
+     where p.business_id = ${businessId}
+       and p.payment_date >= ${range.startDate} and p.payment_date < ${range.endDateExclusive}
+       and (p.payment_date at time zone ${tz})::date > (s.sale_date at time zone ${tz})::date`;
+  const created = await prisma.$queryRaw<{ amount: string }[]>`
+    select coalesce(sum(s.total - coalesce((
+             select sum(p.amount) from payments p
+              where p.sale_id = s.id
+                and (p.payment_date at time zone ${tz})::date <= (s.sale_date at time zone ${tz})::date), 0)), 0)::text as amount
+      from sales s
+     where s.business_id = ${businessId} and s.status = 'completed'
+       and s.sale_date >= ${range.startDate} and s.sale_date < ${range.endDateExclusive}`;
+
+  let total = 0n;
+  const customers = rows.map((r) => {
+    const owed = decimalToCents(r.owed);
+    total += owed;
+    return {
+      customerId: r.customer_id?.toString() ?? null,
+      customerName: r.name ?? "Walk-in (no customer on record)",
+      unpaidSales: Number(r.sales),
+      owed: out(owed),
+      oldestSaleDate: r.oldest,
+    };
+  });
+  const bucket = (b: string) => out(decimalToCents(aging.find((a) => a.bucket === b)?.owed ?? "0"));
+  return {
+    totalOutstanding: out(total),
+    aging: { days0to30: bucket("days0to30"), days31to60: bucket("days31to60"), days61plus: bucket("days61plus") },
+    customers,
+    newDebtInPeriod: out(decimalToCents(created[0]?.amount ?? "0")),
+    collectedInPeriod: out(decimalToCents(collected[0]?.amount ?? "0")),
+    collectionPayments: Number(collected[0]?.payments ?? 0),
   };
 }

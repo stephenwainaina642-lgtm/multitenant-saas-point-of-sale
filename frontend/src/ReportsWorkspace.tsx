@@ -84,6 +84,14 @@ type ReportsData = {
     costOfGoodsSold: number;
     grossProfit: number;
   }[];
+  debts?: {
+    totalOutstanding: number;
+    aging: { days0to30: number; days31to60: number; days61plus: number };
+    customers: { customerId: string | null; customerName: string; unpaidSales: number; owed: number; oldestSaleDate: string }[];
+    newDebtInPeriod: number;
+    collectedInPeriod: number;
+    collectionPayments: number;
+  };
   salesByChannel?: { channel: string; salesCount: number; netSales: number }[];
   paymentMethods: {
     method: string;
@@ -384,6 +392,13 @@ export default function ReportsWorkspace() {
         item.grossProfit,
       ]) ?? []),
       [],
+      ["CUSTOMER DEBT (outstanding now)"],
+      ["Customer", "Unpaid sales", "Owed", "Oldest sale"],
+      ...(analytics?.debts?.customers.map((d) => [d.customerName, d.unpaidSales, d.owed, d.oldestSaleDate.slice(0, 10)]) ?? []),
+      ["Total outstanding", "", analytics?.debts?.totalOutstanding ?? 0, ""],
+      ["New debt in period", "", analytics?.debts?.newDebtInPeriod ?? 0, ""],
+      ["Debt collected in period", "", analytics?.debts?.collectedInPeriod ?? 0, ""],
+      [],
       ["SALES BY SALE TYPE"],
       ["Sale type", "Sales", "Net sales"],
       ...(analytics?.salesByChannel?.map((item) => [item.channel, item.salesCount, item.netSales]) ?? []),
@@ -681,6 +696,34 @@ export default function ReportsWorkspace() {
                 <tr><td colSpan={6} className="empty-row">No product sales in this period.</td></tr>
               )}
               {loading && <tr><td colSpan={6}>Loading product performance...</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article className="panel" style={{ padding: 24 }}>
+        <SectionHeading title="Customer debt" description="Who owes you now. New debt and collections are for the period selected above." />
+        <p style={{ margin: "0 0 12px" }}>
+          Outstanding now: <strong>{money(analytics?.debts?.totalOutstanding ?? 0)}</strong>
+          {" · "}New debt this period: <strong>{money(analytics?.debts?.newDebtInPeriod ?? 0)}</strong>
+          {" · "}Collected this period: <strong>{money(analytics?.debts?.collectedInPeriod ?? 0)}</strong>
+          {" · "}Age: 0-30 days {money(analytics?.debts?.aging.days0to30 ?? 0)}, 31-60 days {money(analytics?.debts?.aging.days31to60 ?? 0)}, over 60 days {money(analytics?.debts?.aging.days61plus ?? 0)}
+        </p>
+        <div className="table-scroll">
+          <table>
+            <thead><tr><th>CUSTOMER</th><th>UNPAID SALES</th><th>OWED</th><th>OLDEST SALE</th></tr></thead>
+            <tbody>
+              {analytics?.debts?.customers.map((d) => (
+                <tr key={d.customerId ?? "none"}>
+                  <td><strong>{d.customerName}</strong></td>
+                  <td>{d.unpaidSales}</td>
+                  <td>{money(d.owed)}</td>
+                  <td>{new Date(d.oldestSaleDate).toLocaleDateString("en-KE")}</td>
+                </tr>
+              ))}
+              {!loading && !analytics?.debts?.customers.length && (
+                <tr><td colSpan={4} className="empty-row">Nobody owes anything.</td></tr>
+              )}
             </tbody>
           </table>
         </div>
