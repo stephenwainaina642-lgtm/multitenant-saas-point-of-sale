@@ -1,3 +1,4 @@
+import PasswordInput from "./PasswordInput";
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { apiRequest } from "./api/client";
@@ -49,13 +50,13 @@ export default function ChangePasswordPanel() {
       </div>
       <form onSubmit={submit} style={{ display: "grid", gap: 14 }}>
         <label style={field}>Current password
-          <input type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} required />
+          <PasswordInput autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} required />
         </label>
         <label style={field}>New password
-          <input type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} required minLength={8} />
+          <PasswordInput autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} required minLength={8} />
         </label>
         <label style={field}>Confirm new password
-          <input type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
+          <PasswordInput autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
         </label>
         {error && <p role="alert" style={{ color: "#b42318", margin: 0 }}>{error}</p>}
         {done && <p role="status" style={{ color: "#067647", margin: 0 }}>Password changed. Use it the next time you sign in.</p>}

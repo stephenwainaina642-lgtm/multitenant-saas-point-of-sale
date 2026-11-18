@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { mpesaCodeError, normalizeMpesaCode } from "./mpesa";
 import { apiRequest } from "./api/client";
+import { can } from "./permissions";
 
 type Product = {
   id: string;
@@ -35,7 +36,15 @@ const money = (value: number) =>
     maximumFractionDigits: 2,
   }).format(value)}`;
 
+type PosCustomer = { id: string; name: string; phone: string | null; creditLimit?: string; balance?: string };
+
 export default function PointOfSaleWorkspace() {
+  const [customers, setCustomers] = useState<PosCustomer[]>([]);
+  const [customerId, setCustomerId] = useState("");
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [addingCustomer, setAddingCustomer] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({ name: "", phone: "" });
+  const [customerBusy, setCustomerBusy] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedProductId, setSelectedProductId] = useState("");
@@ -100,6 +109,38 @@ export default function PointOfSaleWorkspace() {
       ),
     [cart]
   );
+
+  const loadCustomers = useCallback(async () => {
+    if (!token || !businessId || !can("customers.view")) return;
+    try {
+      const response = await apiRequest<PosCustomer[]>("/customers", { token, businessId });
+      setCustomers(response.data ?? []);
+    } catch {
+      /* the till still works for walk-in customers */
+    }
+  }, [token, businessId]);
+  useEffect(() => { void loadCustomers(); }, [loadCustomers]);
+
+  async function addCustomer() {
+    const name = newCustomer.name.trim();
+    if (!name) { setError("Enter the customer's name."); return; }
+    setCustomerBusy(true);
+    setError("");
+    try {
+      const response = await apiRequest<PosCustomer>("/customers", {
+        method: "POST", token, businessId,
+        body: { name, ...(newCustomer.phone.trim() && { phone: newCustomer.phone.trim() }) },
+      });
+      await loadCustomers();
+      if (response.data) setCustomerId(response.data.id);
+      setNewCustomer({ name: "", phone: "" });
+      setAddingCustomer(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not add the customer.");
+    } finally {
+      setCustomerBusy(false);
+    }
+  }
 
   const discountValue = Number(discount);
   const vatOn = vat?.registered === true;
@@ -269,6 +310,11 @@ export default function PointOfSaleWorkspace() {
       return;
     }
 
+    if (paid < total && !customerId) {
+      setError("This sale is not fully paid. Choose the customer who owes the balance (or add them) before completing it.");
+      return;
+    }
+
     if (paid > 0 && !paymentMethod.trim()) {
       setError("Select a payment method.");
       return;
@@ -300,6 +346,7 @@ export default function PointOfSaleWorkspace() {
         tax: vatOn ? 0 : taxValue,
         amountPaid: paid,
         paymentMethod,
+        ...(customerId && { customerId }),
         ...(paid > 0 && paymentMethod === "mpesa" && { paymentReference: normalizeMpesaCode(mpesaCode) }),
         notes: notes.trim(),
         items: cart.map((item) => ({
@@ -334,8 +381,9 @@ export default function PointOfSaleWorkspace() {
       setTax("0");
       setNotes("");
       setMpesaCode("");
+      setCustomerId("");
       setAmountPaidManuallyEdited(false);
-      await loadProducts();
+      await Promise.all([loadProducts(), loadCustomers()]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not complete the sale.");
     } finally {
@@ -502,6 +550,49 @@ export default function PointOfSaleWorkspace() {
           )}
 
           <div className="pos-total-row pos-grand-total"><span>Total</span><strong>{money(total)}</strong></div>
+
+          <div className="inventory-field">
+            <span>Customer {Number(amountPaid) < total ? "(required: the balance will be owed)" : "(optional)"}</span>
+            {can("customers.view") ? (
+              <>
+                <input
+                  type="search"
+                  value={customerSearch}
+                  onChange={(event) => setCustomerSearch(event.target.value)}
+                  placeholder="Search customer by name or phone..."
+                  aria-label="Search customers"
+                />
+                <select value={customerId} onChange={(event) => setCustomerId(event.target.value)} aria-label="Customer">
+                  <option value="">Walk-in customer (no account)</option>
+                  {customers
+                    .filter((c) => c.id === customerId || `${c.name} ${c.phone ?? ""}`.toLowerCase().includes(customerSearch.trim().toLowerCase()))
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}{c.phone ? ` · ${c.phone}` : ""}{Number(c.balance) > 0 ? ` · owes ${money(Number(c.balance))}` : ""}
+                      </option>
+                    ))}
+                </select>
+                {can("customers.manage") && !addingCustomer && (
+                  <button type="button" className="pos-secondary-button" onClick={() => setAddingCustomer(true)}>+ New customer</button>
+                )}
+                {addingCustomer && (
+                  <div style={{ display: "grid", gap: 6 }}>
+                    <input value={newCustomer.name} onChange={(event) => setNewCustomer({ ...newCustomer, name: event.target.value })} placeholder="Customer name" maxLength={255} />
+                    <input value={newCustomer.phone} onChange={(event) => setNewCustomer({ ...newCustomer, phone: event.target.value })} placeholder="Phone (optional)" maxLength={50} />
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button type="button" className="pos-primary-button" disabled={customerBusy} onClick={addCustomer}>{customerBusy ? "Saving..." : "Save customer"}</button>
+                      <button type="button" className="pos-secondary-button" onClick={() => setAddingCustomer(false)}>Cancel</button>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <small className="inventory-muted">You do not have permission to choose customers.</small>
+            )}
+            {customerId && Number(amountPaid) < total && (
+              <small className="inventory-muted">{money(total - Number(amountPaid))} will be recorded as owed by this customer.</small>
+            )}
+          </div>
 
           <label className="inventory-field">
             Amount paid (KSh)

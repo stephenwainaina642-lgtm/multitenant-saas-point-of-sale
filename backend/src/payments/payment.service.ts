@@ -98,7 +98,8 @@ function formatPayment(
 export async function createBusinessPayment(
   businessId: string,
   data: PaymentData,
-  onlyOwnSalesOf?: string
+  onlyOwnSalesOf?: string,
+  receivedBy?: string
 ) {
   const amount = parseMoney(data.amount, "Payment amount");
 
@@ -186,6 +187,7 @@ export async function createBusinessPayment(
           reference: await checkedPaymentReference(tx, bizId, data.method.trim().toLowerCase(), data.reference),
           notes: data.notes?.trim() || null,
           idempotencyKey: key,
+          createdBy: receivedBy ? BigInt(receivedBy) : null,
         },
       });
 

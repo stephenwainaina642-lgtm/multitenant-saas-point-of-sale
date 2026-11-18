@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import prisma from "./lib/prisma.js";
 import { requestLog } from "./middleware/request-log.js";
 import { loadConfig } from "./lib/config.js";
+import shiftRoutes from "./shifts/shift.routes.js";
 import platformRoutes from "./platform/platform.routes.js";
 import { loginLimiter, registerLimiter } from "./middleware/security.js";
 import { errorHandler, notFoundHandler } from "./middleware/errors.js";
@@ -66,6 +67,7 @@ app.use("/api/platform/login", loginLimiter(config)); // password + authenticato
 app.use("/api/platform", platformRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/businesses", businessRoutes);
+app.use("/api/shifts", shiftRoutes);
 app.use("/api/business-context", businessContextRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/categories", categoryRoutes);

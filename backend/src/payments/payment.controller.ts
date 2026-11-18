@@ -82,7 +82,8 @@ export async function createPaymentController(
       },
       req.permissions?.has("sales.view_all")
         ? undefined
-        : req.user!.userId
+        : req.user!.userId,
+      req.user!.userId
     );
 
     return res.status(201).json({

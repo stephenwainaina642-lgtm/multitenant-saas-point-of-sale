@@ -1,3 +1,4 @@
+import PasswordInput from "./PasswordInput";
 import { useCallback, useEffect, useState } from "react";
 import { apiRequest } from "./api/client";
 
@@ -79,7 +80,7 @@ export default function PlatformAdmin() {
           <h1 style={{ margin: "6px 0 16px", fontSize: 22 }}>Platform sign-in</h1>
           <form onSubmit={signIn} style={{ display: "grid", gap: 10 }}>
             <input style={input} type="email" placeholder="Admin e-mail" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} autoComplete="username" required />
-            <input style={input} type="password" placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} autoComplete="current-password" required />
+            <PasswordInput style={input} placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} autoComplete="current-password" required />
             <input style={input} inputMode="numeric" pattern="\d{6}" maxLength={6} placeholder="6-digit authenticator code" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.replace(/\D/g, "") })} autoComplete="one-time-code" required />
             {error && <p style={{ margin: 0, color: "#b3412f", fontSize: 13 }}>{error}</p>}
             <button style={primary} disabled={busy}>{busy ? "Please wait..." : "Sign in"}</button>

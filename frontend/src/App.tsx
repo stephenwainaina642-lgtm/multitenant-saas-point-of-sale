@@ -1,3 +1,4 @@
+import ShiftsWorkspace from "./ShiftsWorkspace";
 import BusinessSwitcher from "./BusinessSwitcher";
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
@@ -32,6 +33,7 @@ const navigationPermissions: Record<string, string[]> = {
   Invoices: ["invoices.view"],
   Expenses: ["expenses.view"],
   Reports: ["reports.view"],
+  Shifts: ["shifts.use", "shifts.view_all"],
 };
 
 const navigation = [
@@ -47,6 +49,7 @@ const navigation = [
   { name: "Quotations", icon: "Q" },
   { name: "Invoices", icon: "I" },
   { name: "Expenses", icon: "E" },
+  { name: "Shifts", icon: "T" },
   { name: "Reports", icon: "R" },
   { name: "Settings", icon: "G" },
 ];
@@ -300,6 +303,8 @@ function App() {
             <InvoicesWorkspace />
           ) : activePage === "Expenses" ? (
             <ExpensesWorkspace />
+          ) : activePage === "Shifts" ? (
+            <ShiftsWorkspace />
           ) : activePage === "Reports" ? (
             <ReportsWorkspace />
           ) : activePage === "Settings" ? (

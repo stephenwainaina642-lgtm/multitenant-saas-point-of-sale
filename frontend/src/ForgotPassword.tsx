@@ -1,3 +1,4 @@
+import PasswordInput from "./PasswordInput";
 import { useEffect, useState } from "react";
 import { apiRequest } from "./api/client";
 
@@ -105,9 +106,9 @@ export function ResetPasswordScreen({ token, onDone }: { token: string; onDone: 
         ) : (
           <form onSubmit={submit}>
             <label className="auth-label" htmlFor="new-password">New password</label>
-            <input id="new-password" className="auth-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters" autoComplete="new-password" minLength={8} maxLength={72} required />
+            <PasswordInput id="new-password" className="auth-input" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters" autoComplete="new-password" minLength={8} maxLength={72} required />
             <label className="auth-label" htmlFor="confirm-password">Repeat new password</label>
-            <input id="confirm-password" className="auth-input" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" minLength={8} maxLength={72} required />
+            <PasswordInput id="confirm-password" className="auth-input" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" minLength={8} maxLength={72} required />
             {message && <p className="auth-message">{message}</p>}
             <button className="auth-submit" type="submit" disabled={busy}>{busy ? "Please wait..." : "Save new password"}</button>
             <p className="auth-switch"><button type="button" onClick={onDone}>Back to sign in</button></p>

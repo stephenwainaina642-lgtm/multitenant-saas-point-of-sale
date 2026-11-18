@@ -448,7 +448,7 @@ export default function CustomersWorkspace() {
           </div>
 
           <label style={labelStyle}>
-            Credit limit (KSh) — the most this customer may owe at once; 0 means no credit
+            Credit limit (KSh) — the most this customer may owe at once; 0 means no limit is set
             <input
               style={{ ...fieldStyle, marginTop: 6 }}
               inputMode="decimal"

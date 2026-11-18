@@ -476,6 +476,7 @@ export async function createBusinessSale(
             method,
             reference: await checkedPaymentReference(tx, bizId, method, data.paymentReference),
             notes: "Initial payment for sale",
+            createdBy: BigInt(salespersonId),
           },
         });
       }

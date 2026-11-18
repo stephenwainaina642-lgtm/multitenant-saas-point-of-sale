@@ -1,3 +1,4 @@
+import PasswordInput from "./PasswordInput";
 import { useEffect, useState } from "react";
 import { BUSINESS_TYPE_OPTIONS } from "./businessTypes";
 import { apiRequest } from "./api/client";
@@ -201,7 +202,7 @@ export default function AuthGate({ onAuthenticated }: Props) {
           <input id="email" className="auth-input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@business.com" autoComplete="email" required />
 
           <label className="auth-label" htmlFor="password">Password</label>
-          <input id="password" className="auth-input" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder={mode === "register" ? "At least 8 characters" : "Enter your password"} autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={mode === "register" ? 8 : undefined} required />
+          <PasswordInput id="password" className="auth-input" value={password} onChange={(event) => setPassword(event.target.value)} placeholder={mode === "register" ? "At least 8 characters" : "Enter your password"} autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={mode === "register" ? 8 : undefined} required />
 
           {mode === "login" && <p className="auth-forgot"><button type="button" onClick={() => { setMessage(""); setForgotOpen(true); }}>Forgot password?</button></p>}
 
