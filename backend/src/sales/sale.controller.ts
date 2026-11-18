@@ -115,6 +115,7 @@ export async function createSaleController(
       amountPaid,
       paymentMethod,
       paymentReference,
+      channel,
       notes,
       items,
     } = req.body;
@@ -154,6 +155,10 @@ export async function createSaleController(
 
         ...(paymentReference !== undefined && {
           paymentReference: String(paymentReference),
+        }),
+
+        ...(channel !== undefined && channel !== null && {
+          channel: String(channel),
         }),
 
         ...(notes !== undefined && {

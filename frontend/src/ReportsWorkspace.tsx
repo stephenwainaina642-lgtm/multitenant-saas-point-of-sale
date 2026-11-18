@@ -84,6 +84,7 @@ type ReportsData = {
     costOfGoodsSold: number;
     grossProfit: number;
   }[];
+  salesByChannel?: { channel: string; salesCount: number; netSales: number }[];
   paymentMethods: {
     method: string;
     amount: number;
@@ -383,6 +384,10 @@ export default function ReportsWorkspace() {
         item.grossProfit,
       ]) ?? []),
       [],
+      ["SALES BY SALE TYPE"],
+      ["Sale type", "Sales", "Net sales"],
+      ...(analytics?.salesByChannel?.map((item) => [item.channel, item.salesCount, item.netSales]) ?? []),
+      [],
       ["SALES BY CATEGORY"],
       ["Category", "Net sales", "Cost", "Gross profit"],
       ...(analytics?.salesByCategory?.map((item) => [
@@ -676,6 +681,27 @@ export default function ReportsWorkspace() {
                 <tr><td colSpan={6} className="empty-row">No product sales in this period.</td></tr>
               )}
               {loading && <tr><td colSpan={6}>Loading product performance...</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article className="panel" style={{ padding: 24 }}>
+        <SectionHeading title="Sales by sale type" description="Walk-in, online and other sales, net of VAT" />
+        <div className="table-scroll">
+          <table>
+            <thead><tr><th>SALE TYPE</th><th>SALES</th><th>NET SALES</th></tr></thead>
+            <tbody>
+              {analytics?.salesByChannel?.map((item) => (
+                <tr key={item.channel}>
+                  <td><strong>{({ walk_in: "Walk-in", online: "Online", phone: "Phone order", delivery: "Delivery", other: "Other" } as Record<string, string>)[item.channel] ?? item.channel}</strong></td>
+                  <td>{item.salesCount}</td>
+                  <td>{money(item.netSales)}</td>
+                </tr>
+              ))}
+              {!loading && !analytics?.salesByChannel?.length && (
+                <tr><td colSpan={3} className="empty-row">No sales in this period.</td></tr>
+              )}
             </tbody>
           </table>
         </div>

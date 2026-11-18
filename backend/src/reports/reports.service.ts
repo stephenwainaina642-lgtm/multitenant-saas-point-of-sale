@@ -219,6 +219,18 @@ export async function getBusinessReports(
       categoryMap.set(key, current);
     }
   }
+  // How the sales were made (walk-in, online, ...), on the same net-of-VAT basis.
+  const channelMap = new Map<string, { channel: string; count: number; netSales: bigint }>();
+  for (const sale of sales) {
+    const current = channelMap.get(sale.channel) || { channel: sale.channel, count: 0, netSales: 0n };
+    current.count += 1;
+    current.netSales += cents(sale.total) - cents(sale.tax);
+    channelMap.set(sale.channel, current);
+  }
+  const salesByChannel = Array.from(channelMap.values())
+    .sort((a, b) => (b.netSales > a.netSales ? 1 : b.netSales < a.netSales ? -1 : 0))
+    .map((c) => ({ channel: c.channel, salesCount: c.count, netSales: out(c.netSales) }));
+
   const salesByCategory = Array.from(categoryMap.values())
     .sort((a, b) => (b.netSales > a.netSales ? 1 : b.netSales < a.netSales ? -1 : 0))
     .map((c) => ({
@@ -366,6 +378,7 @@ export async function getBusinessReports(
     trends,
     bestSellingProducts,
     salesByCategory,
+    salesByChannel,
     paymentMethods,
     purchaseBreakdown,
     expenseBreakdown,

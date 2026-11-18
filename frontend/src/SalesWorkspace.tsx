@@ -20,6 +20,7 @@ type Sale = {
   balanceDue: number | string;
   paymentStatus: string;
   status: string;
+  channel?: string;
 };
 
 type SaleItem = {
@@ -53,6 +54,8 @@ type SaleDetails = Sale & {
   refunds?: { id: string; amount: number | string; method: string; reference: string | null; reason: string | null; createdAt: string }[];
 };
 
+const CHANNELS: Record<string, string> = { walk_in: "Walk-in", online: "Online", phone: "Phone order", delivery: "Delivery", other: "Other" };
+const channelText = (c?: string) => CHANNELS[c ?? "walk_in"] ?? c ?? "Walk-in";
 const money = (value: number | string) =>
   `KSh ${new Intl.NumberFormat("en-KE", {
     minimumFractionDigits: 2,
@@ -209,7 +212,7 @@ export default function SalesWorkspace() {
     if (!term) return sales;
 
     return sales.filter((sale) =>
-      `${sale.receiptNumber} ${sale.customerName || "Walk-in customer"} ${sale.paymentStatus} ${sale.status}`
+      `${sale.receiptNumber} ${sale.customerName || "Walk-in customer"} ${channelText(sale.channel)} ${sale.paymentStatus} ${sale.status}`
         .toLowerCase()
         .includes(term)
     );
@@ -293,6 +296,7 @@ export default function SalesWorkspace() {
               <tr>
                 <th>Receipt</th>
                 <th>Customer</th>
+                <th>Type</th>
                 <th>Date</th>
                 <th>Total</th>
                 <th>Paid</th>
@@ -335,6 +339,7 @@ export default function SalesWorkspace() {
                         </button>
                       </td>
                       <td>{sale.customerName || "Walk-in customer"}</td>
+                      <td>{channelText(sale.channel)}</td>
                       <td>{dateText(sale.saleDate || sale.createdAt)}</td>
                       <td>{money(sale.total)}</td>
                       <td>{money(sale.amountPaid)}</td>

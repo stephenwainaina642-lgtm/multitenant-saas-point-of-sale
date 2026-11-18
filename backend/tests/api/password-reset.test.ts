@@ -28,7 +28,7 @@ describe("forgot / reset password by email", () => {
   const forgot = (email: string) => call(base, "/auth/forgot-password", { email });
   const reset = (token: string, newPassword = NEW) => call(base, "/auth/reset-password", { token, newPassword });
   const tokenFrom = (m: Mail) => /#reset-password=([0-9a-f]{64})/.exec(m.body)![1]!;
-  const settle = () => new Promise((r) => setTimeout(r, 700)); // mail is sent after the HTTP reply
+  const settle = () => new Promise((r) => setTimeout(r, 2000)); // mail is sent after the HTTP reply (generous: a loaded machine made 700 ms flaky once)
   const login = (email: string, password: string) => call(base, "/auth/login", { email, password });
 
   beforeAll(async () => {

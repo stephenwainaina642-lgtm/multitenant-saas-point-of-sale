@@ -57,6 +57,7 @@ export default function PointOfSaleWorkspace() {
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [mpesaCode, setMpesaCode] = useState("");
   const [notes, setNotes] = useState("");
+  const [channel, setChannel] = useState("walk_in");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   // VAT is worked out by the server, so the cashier sees exactly what will be recorded.
@@ -346,6 +347,7 @@ export default function PointOfSaleWorkspace() {
         tax: vatOn ? 0 : taxValue,
         amountPaid: paid,
         paymentMethod,
+        channel,
         ...(customerId && { customerId }),
         ...(paid > 0 && paymentMethod === "mpesa" && { paymentReference: normalizeMpesaCode(mpesaCode) }),
         notes: notes.trim(),
@@ -593,6 +595,17 @@ export default function PointOfSaleWorkspace() {
               <small className="inventory-muted">{money(total - Number(amountPaid))} will be recorded as owed by this customer.</small>
             )}
           </div>
+
+          <label className="inventory-field">
+            Sale type
+            <select value={channel} onChange={(event) => setChannel(event.target.value)} aria-label="Sale type">
+              <option value="walk_in">Walk-in</option>
+              <option value="online">Online</option>
+              <option value="phone">Phone order</option>
+              <option value="delivery">Delivery</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
 
           <label className="inventory-field">
             Amount paid (KSh)

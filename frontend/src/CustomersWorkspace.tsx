@@ -1,5 +1,6 @@
 import { can } from "./permissions";
 import ImportPanel from "./ImportPanel";
+import SettleDebtModal from "./SettleDebtModal";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
 
@@ -36,6 +37,7 @@ export default function CustomersWorkspace() {
   const [search, setSearch] = useState("");
   const [form, setForm] = useState<CustomerForm>(emptyForm);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [settlingId, setSettlingId] = useState<string | null>(null);
 
   const token = sessionStorage.getItem("pos_token") ?? "";
   const businessId = sessionStorage.getItem("pos_business_id") ?? "";
@@ -330,6 +332,11 @@ export default function CustomersWorkspace() {
                         : "—"}
                     </td>
                     <td>
+                      {can("payments.create") && Number(customer.balance ?? 0) > 0 && (
+                        <button type="button" className="button-primary" style={{ marginRight: 6 }} onClick={() => setSettlingId(String(customer.id))}>
+                          Receive payment
+                        </button>
+                      )}
                       {can("customers.manage") && (
                       <div className="customer-actions">
                         <button
@@ -372,6 +379,10 @@ export default function CustomersWorkspace() {
           </table>
         </div>
       </article>
+
+      {settlingId && (
+        <SettleDebtModal customerId={settlingId} onClose={() => setSettlingId(null)} onDone={() => void loadCustomers()} />
+      )}
 
       {can("customers.manage") && (
       <article className="panel customer-form-panel" style={{ padding: 24 }}>

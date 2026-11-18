@@ -284,6 +284,7 @@ model Sale {
   balanceDue    Decimal  @default(0) @map("balance_due") @db.Decimal(12, 2)
   paymentStatus String   @default("paid") @map("payment_status") @db.VarChar(50)
   status        String   @default("completed") @db.VarChar(50)
+  channel       String   @default("walk_in") @db.VarChar(20)
   idempotencyKey String? @map("idempotency_key") @db.VarChar(100)
   notes         String?
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)

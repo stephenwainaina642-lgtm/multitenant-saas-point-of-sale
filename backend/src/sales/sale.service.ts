@@ -25,6 +25,13 @@ type SaleItemData = {
   tax?: number;
 };
 
+export const SALE_CHANNELS = ["walk_in", "online", "phone", "delivery", "other"] as const;
+function saleChannel(value: unknown): string {
+  if (value === undefined || value === null || value === "") return "walk_in";
+  if (typeof value === "string" && (SALE_CHANNELS as readonly string[]).includes(value)) return value;
+  throw new AppError(400, `Sale type must be one of: ${SALE_CHANNELS.join(", ")}`);
+}
+
 type SaleData = {
   customerId?: string;
   discount?: number;
@@ -32,6 +39,7 @@ type SaleData = {
   amountPaid?: number;
   paymentMethod?: string;
   paymentReference?: string;
+  channel?: string;
   notes?: string;
   items: SaleItemData[];
 };
@@ -99,6 +107,7 @@ export async function getBusinessSales(
     balanceDue: sale.balanceDue,
     paymentStatus: sale.paymentStatus,
     status: sale.status,
+    channel: sale.channel,
     notes: sale.notes,
     createdAt: sale.createdAt,
     items: sale.items.map((item) => ({
@@ -196,6 +205,7 @@ export async function getBusinessSaleById(
     balanceDue: sale.balanceDue,
     paymentStatus: sale.paymentStatus,
     status: sale.status,
+    channel: sale.channel,
     notes: sale.notes,
     createdAt: sale.createdAt,
     updatedAt: sale.updatedAt,
@@ -250,6 +260,7 @@ type SaleRecord = {
   balanceDue: unknown;
   paymentStatus: string;
   status: string;
+  channel: string;
   notes: string | null;
   createdAt: Date;
   items: {
@@ -283,6 +294,7 @@ function formatCreatedSale(
     balanceDue: sale.balanceDue,
     paymentStatus: sale.paymentStatus,
     status: sale.status,
+    channel: sale.channel,
     notes: sale.notes,
     createdAt: sale.createdAt,
     idempotentReplay,
@@ -449,6 +461,7 @@ export async function createBusinessSale(
           balanceDue: centsToString(balanceDue),
           paymentStatus,
           status: "completed",
+          channel: saleChannel(data.channel),
           idempotencyKey,
           notes: data.notes || null,
           items: {
