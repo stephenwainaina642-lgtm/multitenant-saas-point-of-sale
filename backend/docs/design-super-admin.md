@@ -1,4 +1,8 @@
-# Design: platform super admin (for approval — nothing built yet)
+# Design: platform super admin (APPROVED and built)
+
+Approved by the owner on 2026-11-18 with these answers: 2FA included in v1 (authenticator app), same website at `/#platform`,
+per-business counts, dates AND sale totals visible, temporary-password fallback allowed. Changes versus the text below:
+2FA is in v1 (not a later add-on) and sale totals are shown. Still not built: delete business, impersonation, billing.
 
 Goal: you, the platform owner, can see every business on nexaPOS and handle problems (suspend, help an owner back in)
 without opening the database, and without being able to read businesses' customer or money details.
@@ -16,14 +20,14 @@ without opening the database, and without being able to read businesses' custome
   business routes (and normal tokens are rejected by platform routes). Short life (8 hours).
 - **No public sign-up.** The first admin is created by a script run on your computer
   (`node scripts/create-platform-admin.mjs`) that asks for name, e-mail and password. Same password rules as users.
-- Login rate-limited like normal login. Optional but recommended **later**: authenticator-app 2FA (not in v1).
+- Login rate-limited like normal login. **Authenticator-app 2FA is required** (6-digit code, each code works once).
 - The screen lives at its own address (`/#platform`), not linked from the normal login page.
 
 ## 2. What you can see (read only)
 Per business: name, type, owner name and e-mail, created date, active/suspended, number of users, products and sales,
 **sales count in the last 30 days and date of last sale** (to tell dead tests from live shops), VAT-registered yes/no.
 Totals across the platform: businesses, active in last 30 days, users.
-**You cannot see:** customer names or phones, sale/payment amounts, product prices, expenses, any business documents.
+**You cannot see:** customer names or phones, individual sales or payments, product prices, expenses, any business documents.
 (Counts and dates only — that keeps this a support tool, not a window into clients' finances.)
 
 ## 3. What you can do

@@ -29,3 +29,12 @@ The production build itself (`npm run build` + `node dist/server.js`) was run lo
 - Render free web services sleep after idle time (first request is slow) — use a paid plan for a till that must always respond.
 - Backups: use the provider's automatic backups *and* `scripts/backup.sh` occasionally; test a restore with `scripts/restore-check.sh`.
 - Not done: Dockerfile (no Docker daemon here to test it), custom domain/HTTPS setup (platforms do HTTPS for you), log shipping.
+
+## Platform super admin (after the migration `add_platform_admin` is applied)
+1. Apply migrations to the database as in step 2 above (`prisma migrate deploy`).
+2. On your computer, in `backend/`, with `DATABASE_URL` and the **same `JWT_SECRET` as the live API** set in the environment:
+   `npx tsx scripts/create-platform-admin.ts` — enter name, e-mail, a 12+ character password. It prints a setup key:
+   add it in Google/Microsoft Authenticator ("Enter a setup key", time-based).
+3. Sign in at `https://<your site>/#platform` with e-mail, password and the 6-digit code.
+4. Lost phone, or you rotated `JWT_SECRET`: run `npx tsx scripts/create-platform-admin.ts reset-2fa` and add the new key.
+Do not share the address or the key. Admin actions are listed on the "Admin activity" tab.
