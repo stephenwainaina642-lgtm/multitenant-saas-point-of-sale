@@ -95,7 +95,11 @@ app.use("/api/employees", employeeRoutes);
 // Liveness: the process is up. Readiness: it can also reach its database.
 // Shows the caller their own address as the server sees it: use it to check TRUST_PROXY is right
 // (behind a proxy a wrong value makes everyone share one address, and the login limiter then locks everyone out together).
-app.get("/api/health/whoami", (req, res) => { res.json({ ip: req.ip }); });
+app.get("/api/health/whoami", (req, res) => {
+  // Also shows the address chain the proxies sent (the caller's own request headers, nothing secret)
+  // plus the connecting address, so the right TRUST_PROXY value can be read off instead of guessed.
+  res.json({ ip: req.ip, trustProxy: config.trustProxy, forwardedFor: req.headers["x-forwarded-for"] ?? null, socket: req.socket.remoteAddress ?? null });
+});
 
 app.get("/api/health", (_req, res) => {
   res.json({ success: true, message: "POS backend is running" });
