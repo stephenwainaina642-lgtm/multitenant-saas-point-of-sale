@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import prisma from "../lib/prisma.js";
+import { readCookie, SESSION_COOKIE } from "../lib/session-cookie.js";
 
 export type AuthenticatedRequest = Request & {
   user?: {
@@ -16,14 +17,11 @@ export async function authenticate(
   try {
     const authHeader = req.headers.authorization;
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication token is required",
-      });
-    }
-
-    const token = authHeader.substring(7);
+    // A Bearer header (scripts, tests) wins; browsers send the httpOnly session cookie.
+    const token =
+      authHeader && authHeader.startsWith("Bearer ")
+        ? authHeader.substring(7)
+        : readCookie(req, SESSION_COOKIE) ?? "";
 
     if (!token) {
       return res.status(401).json({

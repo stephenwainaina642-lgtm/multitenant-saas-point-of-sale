@@ -61,3 +61,18 @@ schema. Do **not** try to reverse migrations by hand; if data is damaged, restor
 - Changing a password signs out other devices (tokens issued in the same second as the change are not cut off). Forgot-password by e-mail exists but only works once SMTP is configured (SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS, MAIL_FROM, APP_URL; see .env.example). It is tested against a fake SMTP server only, not a real provider: after setting it up, send yourself a reset link and check it arrives and opens. Without SMTP the screen says so and points to the owner/admin reset in Employees. Links last 30 minutes, work once, and are limited to 3 requests per account per hour.
 - Logs go to stdout as JSON; there is no log shipping, alerting or error tracker configured – add one (e.g. uptime check on `/api/health/ready`).
 - eTIMS and VAT returns are not implemented. Do not market the app as KRA-compliant.
+
+## Cookie sign-in (httpOnly session) — required settings
+
+Browsers now sign in with an **httpOnly cookie**; no token is returned in the response or kept in browser storage.
+A cookie is only sent back when the browser thinks the site and the API are the *same site*, so the frontend calls
+`/api/...` on its own domain and Vercel forwards it to Render (see `frontend/vercel.json`).
+
+Order matters, because the old and new versions do not understand each other:
+1. Render: set `TRUST_PROXY=2` (Render + the Vercel forward = two proxies). Deploy the backend first.
+2. Vercel: set `VITE_API_URL=/api`, then merge/deploy the frontend (with the `vercel.json` rewrite).
+3. Check `https://<your-vercel-site>/api/health/whoami` shows YOUR address (not a Vercel/Render one). If it
+   shows a proxy address, change `TRUST_PROXY` (1 or 3) until it shows yours, otherwise the login rate limiter treats everyone as one person.
+4. Everyone signs in once again (old tokens are no longer used by the browser). Sessions now last 12 hours (`JWT_EXPIRES_IN`).
+
+Non-browser callers (scripts, tests) send `X-Auth-Mode: bearer` to receive the token in the body and use `Authorization: Bearer`.

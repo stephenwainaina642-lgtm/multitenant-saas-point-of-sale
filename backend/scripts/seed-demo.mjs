@@ -12,7 +12,7 @@ const code = () => Array.from({ length: 10 }, () => "ABCDEFGHJKLMNPQRSTUVWXYZ012
 async function call(method, path, token, businessId, body) {
   const res = await fetch(base + path, {
     method,
-    headers: { "content-type": "application/json", ...(token && { authorization: `Bearer ${token}` }), ...(businessId && { "x-business-id": businessId }) },
+    headers: { "content-type": "application/json", "x-auth-mode": "bearer", ...(token && { authorization: `Bearer ${token}` }), ...(businessId && { "x-business-id": businessId }) },
     ...(body && { body: JSON.stringify(body) }),
   });
   const json = await res.json().catch(() => ({}));

@@ -14,7 +14,8 @@ export async function api<T = any>(
   path: string,
   opts: { session?: Partial<Session>; body?: unknown; headers?: Record<string, string> } = {}
 ): Promise<ApiResult<T>> {
-  const headers: Record<string, string> = { "content-type": "application/json" };
+  // Tests read the token from the body, so they ask for bearer mode (browsers get an httpOnly cookie instead).
+  const headers: Record<string, string> = { "content-type": "application/json", "x-auth-mode": "bearer" };
   if (opts.session?.token) headers.authorization = `Bearer ${opts.session.token}`;
   if (opts.session?.businessId) headers["x-business-id"] = opts.session.businessId;
 

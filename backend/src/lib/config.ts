@@ -9,7 +9,8 @@ export type AppConfig = {
   jwtSecret: string;
   jwtExpiresIn: string;
   corsOrigins: string[];
-  trustProxy: boolean;
+  /** Number of reverse proxies in front of the app (0 = none). Render alone is 1; behind a Vercel pass-through it is 2. */
+  trustProxy: number;
   loginRateLimitMax: number;
   registerRateLimitMax: number;
   /** Public address of the web app, used in password-reset links. */
@@ -50,10 +51,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     nodeEnv,
     isProduction,
     jwtSecret,
-    jwtExpiresIn: env.JWT_EXPIRES_IN || "7d",
+    jwtExpiresIn: env.JWT_EXPIRES_IN || "12h",
     // Production must list its origins explicitly; development defaults to Vite.
     corsOrigins: configured.length > 0 ? configured : isProduction ? [] : DEV_ORIGINS,
-    trustProxy: env.TRUST_PROXY === "1",
+    trustProxy: /^[1-9]$/.test((env.TRUST_PROXY ?? "").trim()) ? Number(env.TRUST_PROXY) : 0,
     loginRateLimitMax: Number(env.LOGIN_RATE_LIMIT_MAX) || 10,
     registerRateLimitMax: Number(env.REGISTER_RATE_LIMIT_MAX) || 10,
     appUrl: appUrl || null,

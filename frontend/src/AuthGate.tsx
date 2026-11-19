@@ -1,7 +1,7 @@
 import PasswordInput from "./PasswordInput";
 import { useEffect, useState } from "react";
 import { BUSINESS_TYPE_OPTIONS } from "./businessTypes";
-import { apiRequest } from "./api/client";
+import { apiRequest, SESSION_MARKER } from "./api/client";
 import "./AuthGate.css";
 import { storePermissions } from "./permissions";
 import { ForgotPasswordScreen, ResetPasswordScreen } from "./ForgotPassword";
@@ -21,7 +21,7 @@ type Business = {
 };
 
 type AuthResult = {
-  token: string;
+  token?: string; // only present for non-browser clients; browsers get an httpOnly cookie
   user: { id: string; name: string; email: string };
   businesses: Business[];
 };
@@ -96,9 +96,9 @@ export default function AuthGate({ onAuthenticated }: Props) {
         const result = response.data!;
         sessionStorage.setItem("pos_pending_user", result.user.name);
         if (result.businesses.length === 1) {
-          await finishBusinessSelection(result.token, result.businesses[0]);
+          await finishBusinessSelection(SESSION_MARKER, result.businesses[0]);
         } else {
-          setToken(result.token);
+          setToken(SESSION_MARKER);
           setBusinesses(result.businesses);
           setSelectedBusinessId(result.businesses[0]?.id ?? "");
         }
@@ -114,9 +114,9 @@ export default function AuthGate({ onAuthenticated }: Props) {
         if (result.businesses.length === 0) {
           setMessage("Your account has no active businesses. Please contact your administrator.");
         } else if (result.businesses.length === 1) {
-          await finishBusinessSelection(result.token, result.businesses[0]);
+          await finishBusinessSelection(SESSION_MARKER, result.businesses[0]);
         } else {
-          setToken(result.token);
+          setToken(SESSION_MARKER);
           setBusinesses(result.businesses);
           setSelectedBusinessId(result.businesses[0].id);
         }

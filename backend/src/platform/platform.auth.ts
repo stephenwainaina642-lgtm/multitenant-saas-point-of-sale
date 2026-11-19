@@ -1,3 +1,4 @@
+import { PLATFORM_COOKIE, readCookie } from "../lib/session-cookie.js";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -40,8 +41,9 @@ export async function platformLogin(email: string, password: string, code: strin
 export async function requirePlatformAdmin(req: PlatformRequest, res: Response, next: NextFunction) {
   try {
     const header = req.headers.authorization;
-    if (!header?.startsWith("Bearer ")) return res.status(401).json({ success: false, message: "Platform sign-in required" });
-    const decoded = jwt.verify(header.substring(7), secret(), { audience: AUDIENCE });
+    const raw = header?.startsWith("Bearer ") ? header.substring(7) : readCookie(req, PLATFORM_COOKIE);
+    if (!raw) return res.status(401).json({ success: false, message: "Platform sign-in required" });
+    const decoded = jwt.verify(raw, secret(), { audience: AUDIENCE });
     if (typeof decoded === "string" || typeof decoded.adminId !== "string") throw new Error("bad token");
     const admin = await prisma.platformAdmin.findUnique({ where: { id: BigInt(decoded.adminId) } });
     if (!admin || !admin.isActive) throw new Error("inactive");

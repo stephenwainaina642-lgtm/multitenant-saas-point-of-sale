@@ -1,6 +1,6 @@
 import PasswordInput from "./PasswordInput";
 import { useCallback, useEffect, useState } from "react";
-import { apiRequest } from "./api/client";
+import { apiRequest, SESSION_MARKER } from "./api/client";
 
 type Biz = {
   id: string; name: string; businessType: string; isActive: boolean; createdAt: string; ownerName: string | null; ownerEmail: string | null;
@@ -50,11 +50,11 @@ export default function PlatformAdmin() {
   async function signIn(ev: React.FormEvent) {
     ev.preventDefault(); setBusy(true); setError("");
     try {
-      const r = await apiRequest<{ token: string }>("/platform/login", { method: "POST", body: form });
-      sessionStorage.setItem(KEY, r.data!.token); setToken(r.data!.token); setForm({ email: "", password: "", code: "" });
+      await apiRequest("/platform/login", { method: "POST", body: form });
+      sessionStorage.setItem(KEY, SESSION_MARKER); setToken(SESSION_MARKER); setForm({ email: "", password: "", code: "" });
     } catch (e) { setError(msg(e)); } finally { setBusy(false); }
   }
-  function signOut() { try { sessionStorage.removeItem(KEY); } catch { /* ignore */ } setToken(""); setData(null); window.location.hash = ""; window.location.reload(); }
+  async function signOut() { try { await apiRequest("/platform/logout", { method: "POST" }); } catch { /* the cookie expires on its own */ } try { sessionStorage.removeItem(KEY); } catch { /* ignore */ } setToken(""); setData(null); window.location.hash = ""; window.location.reload(); }
 
   async function confirm(ev: React.FormEvent) {
     ev.preventDefault(); if (!dialog) return; setBusy(true); setError("");

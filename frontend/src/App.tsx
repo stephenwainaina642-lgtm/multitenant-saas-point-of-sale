@@ -180,7 +180,12 @@ function App() {
   const lowStockCount = dashboard?.stock?.lowStockCount ?? 0;
   const businessTimeZone = dashboard?.timeZone ?? "Africa/Nairobi";
 
-  function signOut() {
+  async function signOut() {
+    try {
+      await apiRequest("/auth/logout", { method: "POST" }); // clears the session cookie
+    } catch {
+      /* offline: the cookie still expires on its own */
+    }
     try {
       sessionStorage.clear();
     } catch {

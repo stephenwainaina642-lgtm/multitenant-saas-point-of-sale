@@ -1,5 +1,6 @@
 import { Router } from "express";
 import type { Response, NextFunction } from "express";
+import { clearSessionCookie, issueSession, PLATFORM_COOKIE, PLATFORM_COOKIE_PATH } from "../lib/session-cookie.js";
 import { requirePlatformAdmin, platformLogin, type PlatformRequest } from "./platform.auth.js";
 import { auditTrail, overview, resetOwnerAccess, setBusinessActive } from "./platform.service.js";
 
@@ -10,8 +11,9 @@ const idParam = (req: PlatformRequest) => String(req.params.id ?? "");
 
 router.post("/login", wrap(async (req, res) => {
   const r = await platformLogin(str(req.body?.email), str(req.body?.password), str(req.body?.code));
-  res.json({ success: true, message: "Signed in", data: r });
+  res.json({ success: true, message: "Signed in", data: issueSession(req, res, r, PLATFORM_COOKIE, PLATFORM_COOKIE_PATH) });
 }));
+router.post("/logout", (_req, res) => { clearSessionCookie(res, PLATFORM_COOKIE, PLATFORM_COOKIE_PATH); res.json({ success: true, message: "Signed out" }); });
 
 router.use(requirePlatformAdmin);
 router.get("/me", wrap(async (req, res) => { res.json({ success: true, data: req.admin && { name: req.admin.name, email: req.admin.email } }); }));

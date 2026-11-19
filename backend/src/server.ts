@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import { csrfGuard } from "./lib/session-cookie.js";
 import dotenv from "dotenv";
 import prisma from "./lib/prisma.js";
 import { requestLog } from "./middleware/request-log.js";
@@ -39,7 +40,7 @@ const app = express();
 const PORT = config.port;
 
 if (config.trustProxy) {
-  app.set("trust proxy", 1);
+  app.set("trust proxy", config.trustProxy);
 }
 
 app.disable("x-powered-by");
@@ -54,9 +55,11 @@ app.use(
       }
       return callback(null, false);
     },
-    allowedHeaders: ["Content-Type", "Authorization", "X-Business-ID", "X-Branch-ID", "Idempotency-Key"],
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization", "X-Business-ID", "X-Branch-ID", "Idempotency-Key", "X-Requested-With", "X-Auth-Mode"],
   })
 );
+app.use(csrfGuard(config.corsOrigins));
 app.use(express.json({ limit: "200kb" }));
 
 app.use("/api/auth/login", loginLimiter(config));
@@ -90,6 +93,10 @@ app.use("/api/roles", roleRoutes);
 app.use("/api/employees", employeeRoutes);
 
 // Liveness: the process is up. Readiness: it can also reach its database.
+// Shows the caller their own address as the server sees it: use it to check TRUST_PROXY is right
+// (behind a proxy a wrong value makes everyone share one address, and the login limiter then locks everyone out together).
+app.get("/api/health/whoami", (req, res) => { res.json({ ip: req.ip }); });
+
 app.get("/api/health", (_req, res) => {
   res.json({ success: true, message: "POS backend is running" });
 });

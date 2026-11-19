@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { registerUser } from "./register.service.js";
+import { issueSession } from "../lib/session-cookie.js";
 
 export async function registerController(
   req: Request,
@@ -27,7 +28,7 @@ export async function registerController(
     return res.status(201).json({
       success: true,
       message: "Registration successful",
-      data: result,
+      data: issueSession(req, res, result),
     });
   } catch (error) {
     return next(error);

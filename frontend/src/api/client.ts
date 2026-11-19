@@ -1,6 +1,9 @@
 const API_BASE_URL =
   import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
+/** Stored in place of a token: the real session is an httpOnly cookie. */
+export const SESSION_MARKER = "cookie";
+
 type ApiResponse<T> = {
   success: boolean;
   message: string;
@@ -32,9 +35,13 @@ export async function apiRequest<T>(
     "Content-Type": "application/json",
   };
 
-  if (options.token) {
+  // The session itself lives in an httpOnly cookie the browser sends on its own. "cookie" is only a marker
+  // saying "signed in"; a real token is never kept in page-readable storage.
+  if (options.token && options.token !== SESSION_MARKER) {
     headers.Authorization = `Bearer ${options.token}`;
   }
+  // Tells the server this call comes from the app itself (the cookie-based CSRF guard requires it).
+  headers["X-Requested-With"] = "nexapos";
 
   if (options.businessId) {
     headers["X-Business-ID"] = options.businessId;
@@ -54,6 +61,7 @@ export async function apiRequest<T>(
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: options.method ?? "GET",
+    credentials: "include",
     headers,
     body:
       options.body === undefined

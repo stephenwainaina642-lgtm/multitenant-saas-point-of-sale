@@ -10,7 +10,7 @@ export function signToken(userId: string): string {
   }
 
   const options: jwt.SignOptions = {
-    expiresIn: (process.env.JWT_EXPIRES_IN || "7d") as NonNullable<jwt.SignOptions["expiresIn"]>,
+    expiresIn: (process.env.JWT_EXPIRES_IN || "12h") as NonNullable<jwt.SignOptions["expiresIn"]>,
   };
 
   return jwt.sign({ userId }, secret, options);

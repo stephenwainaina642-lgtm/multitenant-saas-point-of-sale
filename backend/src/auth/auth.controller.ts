@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { changePassword, loginUser } from "./auth.service.js";
 import type { AuthenticatedRequest } from "./auth.middleware.js";
+import { clearSessionCookie, issueSession, SESSION_COOKIE } from "../lib/session-cookie.js";
 
 export async function loginController(
   req: Request,
@@ -22,7 +23,7 @@ export async function loginController(
     return res.status(200).json({
       success: true,
       message: "Login successful",
-      data: result,
+      data: issueSession(req, res, result),
     });
   } catch (error) {
     // AppError keeps its status (401); anything else becomes a generic 500.
@@ -37,8 +38,13 @@ export async function changePasswordController(req: AuthenticatedRequest, res: R
       return res.status(400).json({ success: false, message: "Current and new password are required" });
     }
     const token = await changePassword(BigInt(req.user!.userId), currentPassword, newPassword);
-    return res.status(200).json({ success: true, message: "Password changed. Other devices have been signed out.", data: { token } });
+    return res.status(200).json({ success: true, message: "Password changed. Other devices have been signed out.", data: issueSession(req, res, { token }) });
   } catch (error) {
     return next(error);
   }
+}
+
+export function logoutController(_req: Request, res: Response) {
+  clearSessionCookie(res, SESSION_COOKIE);
+  return res.status(200).json({ success: true, message: "Signed out" });
 }
