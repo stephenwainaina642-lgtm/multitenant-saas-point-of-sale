@@ -14,7 +14,7 @@ Node 22, PostgreSQL 16 (managed Postgres with daily backups is strongly recommen
 | JWT_SECRET | required, ≥32 chars in production. Changing it logs everyone out |
 | NODE_ENV=production | enables JSON request logs and strict checks |
 | CORS_ORIGINS | required in production, e.g. `https://app.example.co.ke` |
-| TRUST_PROXY=1 | only when behind a proxy; otherwise rate limiting sees the proxy IP |
+| TRUST_PROXY=<hops> | number of proxies in front of the app (0 = none; 1 = Render alone; 4 on the Vercel + Render setup); wrong value makes rate limiting see the proxy IP |
 | PORT, JWT_EXPIRES_IN, LOGIN_RATE_LIMIT_MAX, REGISTER_RATE_LIMIT_MAX | optional |
 
 Frontend: build with `VITE_API_URL=https://api.example.co.ke/api npx vite build` and serve `frontend/dist` as static files.
@@ -69,7 +69,7 @@ A cookie is only sent back when the browser thinks the site and the API are the 
 `/api/...` on its own domain and Vercel forwards it to Render (see `frontend/vercel.json`).
 
 Order matters, because the old and new versions do not understand each other:
-1. Render: set `TRUST_PROXY=2` (Render + the Vercel forward = two proxies). Deploy the backend first.
+1. Render: set `TRUST_PROXY=4` (measured on the live setup: Vercel, then Render's Cloudflare and its own proxies; `/api/health/whoami` showed the real address at 4). Deploy the backend first.
 2. Vercel: nothing to set — production builds call `/api` by themselves (`VITE_API_URL` is ignored in production). Deploy the frontend (with the `vercel.json` rewrite).
 3. Check `https://<your-vercel-site>/api/health/whoami` shows YOUR address (not a Vercel/Render one). If it
    shows a proxy address, change `TRUST_PROXY` until it shows yours, using the smallest number that does (too high lets visitors fake their address with X-Forwarded-For), otherwise the login rate limiter treats everyone as one person.
