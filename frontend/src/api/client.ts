@@ -1,5 +1,8 @@
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+// Production builds call "/api" on the site's own address (Vercel forwards it to the backend, see vercel.json),
+// so the session cookie is first-party. VITE_API_URL only applies to local development.
+const API_BASE_URL = import.meta.env.PROD
+  ? "/api"
+  : import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 /** Stored in place of a token: the real session is an httpOnly cookie. */
 export const SESSION_MARKER = "cookie";
