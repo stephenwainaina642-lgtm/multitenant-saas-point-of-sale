@@ -9,7 +9,7 @@ import { loadConfig } from "./lib/config.js";
 import shiftRoutes from "./shifts/shift.routes.js";
 import branchRoutes from "./branches/branch.routes.js";
 import platformRoutes from "./platform/platform.routes.js";
-import { loginLimiter, registerLimiter } from "./middleware/security.js";
+import { accountLoginLimiter, loginLimiter, registerLimiter } from "./middleware/security.js";
 import { errorHandler, notFoundHandler } from "./middleware/errors.js";
 
 import authRoutes from "./auth/auth.routes.js";
@@ -63,6 +63,7 @@ app.use(csrfGuard(config.corsOrigins));
 app.use(express.json({ limit: "200kb" }));
 
 app.use("/api/auth/login", loginLimiter(config));
+app.use("/api/auth/login", accountLoginLimiter(config));
 app.use("/api/auth/register", registerLimiter(config));
 app.use("/api/auth/change-password", loginLimiter(config)); // stops guessing the current password
 app.use("/api/auth/forgot-password", loginLimiter(config)); // stops mail-bombing an address

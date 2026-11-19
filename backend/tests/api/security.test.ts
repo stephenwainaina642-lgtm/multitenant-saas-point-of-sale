@@ -166,6 +166,33 @@ describe("API security hardening", () => {
       expect(codes).toEqual([201, 201, 429]);
     });
 
+    it("limits failed sign-ins per account across different networks; successes and other accounts are unaffected", async () => {
+      // High per-IP limit, low per-account limit, and the proxy header honoured so each call looks like a new network.
+      const acct = startServer(cfg.apiPort + 3, { LOGIN_RATE_LIMIT_MAX: "1000", ACCOUNT_LOGIN_FAILURES_MAX: "3", TRUST_PROXY: "1" });
+      try {
+        await waitForHealth(`http://127.0.0.1:${cfg.apiPort + 3}/api/health`, 40_000, acct);
+        const login = (email: string, password: string, n: number) =>
+          fetch(`http://127.0.0.1:${cfg.apiPort + 3}/api/auth/login`, {
+            method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": `10.9.${n}.1` }, body: JSON.stringify({ email, password }),
+          });
+        const email = `acct-${Date.now()}@nexa-test.example`;
+        const other = `other-${Date.now()}@nexa-test.example`;
+        for (const e of [email, other]) {
+          const r = await fetch(`http://127.0.0.1:${cfg.apiPort + 3}/api/auth/register`, { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": "10.8.0.1" }, body: JSON.stringify(goodRegistration(e)) });
+          expect(r.status).toBe(201);
+        }
+        for (let i = 0; i < 5; i++) expect((await login(email, PASSWORD, i)).status).toBe(200); // successes never count
+        const fails: number[] = [];
+        for (let i = 10; i < 15; i++) fails.push((await login(email, "wrong-password-1", i)).status);
+        expect(fails).toEqual([401, 401, 401, 429, 429]); // from five different networks
+        expect((await login(email, PASSWORD, 99)).status).toBe(429); // even the right password waits out the window
+        expect((await login(email.toUpperCase(), "wrong-password-1", 98)).status).toBe(429); // capitalisation does not dodge it
+        expect((await login(other, PASSWORD, 97)).status).toBe(200); // another account is unaffected
+      } finally {
+        await acct.stop();
+      }
+    }, 60_000);
+
     it("refuses to start without JWT_SECRET", async () => {
       const broken = startServer(cfg.apiPort + 2, { JWT_SECRET: "" });
       const code = await Promise.race([broken.exited, new Promise<string>((r) => setTimeout(() => r("still-running"), 15_000))]);

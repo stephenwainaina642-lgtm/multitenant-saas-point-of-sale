@@ -15,6 +15,7 @@ Node 22, PostgreSQL 16 (managed Postgres with daily backups is strongly recommen
 | NODE_ENV=production | enables JSON request logs and strict checks |
 | CORS_ORIGINS | required in production, e.g. `https://app.example.co.ke` |
 | TRUST_PROXY=<hops> | number of proxies in front of the app (0 = none; 1 = Render alone; 4 on the Vercel + Render setup); wrong value makes rate limiting see the proxy IP |
+| ACCOUNT_LOGIN_FAILURES_MAX=10 | optional: failed sign-ins allowed per email address per 15 minutes, from any network (successful sign-ins do not count) |
 | PORT, JWT_EXPIRES_IN, LOGIN_RATE_LIMIT_MAX, REGISTER_RATE_LIMIT_MAX | optional |
 
 Frontend: build with `VITE_API_URL=https://api.example.co.ke/api npx vite build` and serve `frontend/dist` as static files.
