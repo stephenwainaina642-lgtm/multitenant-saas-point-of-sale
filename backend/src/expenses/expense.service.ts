@@ -81,10 +81,10 @@ export async function getBusinessExpenseById(businessId: string, idText: string)
   return format(await findOwn(businessId, idText));
 }
 
-export async function createBusinessExpense(businessId: string, data: ExpenseData, actorUserId?: string) {
+export async function createBusinessExpense(businessId: string, data: ExpenseData, actorUserId?: string, branchId?: bigint) {
   const fields = parse(data, false) as any;
   const row = await prisma.$transaction(async (tx) => {
-    const created = await tx.expense.create({ data: { ...fields, businessId: BigInt(businessId) } });
+    const created = await tx.expense.create({ data: { ...fields, businessId: BigInt(businessId), ...(branchId && { branchId }) } });
     await tx.auditLog.create({
       data: {
         businessId: BigInt(businessId), userId: actorUserId ? BigInt(actorUserId) : null,

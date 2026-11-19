@@ -1,3 +1,4 @@
+import { takeBranchStockOrFail } from "../branches/branch-stock.js";
 import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
 import { checkedPaymentReference, isMpesaClash, MPESA_CLASH_MESSAGE } from "../lib/mpesa.js";
@@ -244,6 +245,8 @@ type CreateSaleOptions = {
   idempotencyKey?: string | undefined;
   /** Price in this mode instead of the business's current one (quotation conversion keeps its own). */
   pricesIncludeVat?: boolean | undefined;
+  /** The branch selling; defaults to the business's Main branch. */
+  branchId?: bigint | undefined;
 };
 
 type SaleRecord = {
@@ -417,21 +420,13 @@ export async function createBusinessSale(
       // deduct with a guarded atomic update, in a stable order to avoid deadlocks.
       const orderedProducts = aggregateByProduct(lines);
 
+      const branchId =
+        options.branchId ??
+        (await tx.branch.findFirstOrThrow({ where: { businessId: bizId, isMain: true } })).id;
+
       for (const [productId, entry] of orderedProducts) {
-        const updated = await tx.$executeRaw`
-          UPDATE products
-             SET stock_quantity = stock_quantity - ${milliToString(entry.quantity)}::numeric,
-                 updated_at = now()
-           WHERE id = ${productId}
-             AND business_id = ${bizId}
-             AND is_active = true
-             AND stock_quantity >= ${milliToString(entry.quantity)}::numeric`;
-        if (updated === 0) {
-          throw new AppError(
-            400,
-            `Insufficient stock for product: ${entry.name}`
-          );
-        }
+        // Stock is taken from the selling branch only.
+        await takeBranchStockOrFail(tx, bizId, branchId, productId, milliToString(entry.quantity), entry.name);
       }
 
       // Per-business sequential receipt number.
@@ -449,6 +444,7 @@ export async function createBusinessSale(
       const sale = await tx.sale.create({
         data: {
           businessId: bizId,
+          branchId,
           salespersonId: BigInt(salespersonId),
           customerId: customer?.id ?? null,
           receiptNumber,
@@ -498,6 +494,7 @@ export async function createBusinessSale(
         await tx.inventoryMovement.create({
           data: {
             businessId: bizId,
+            branchId,
             productId,
             type: "OUT",
             quantity: milliToString(entry.quantity),

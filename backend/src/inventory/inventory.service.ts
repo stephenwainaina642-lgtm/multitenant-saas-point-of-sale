@@ -1,4 +1,5 @@
 import prisma from "../lib/prisma.js";
+import { addBranchStock, takeBranchStock } from "../branches/branch-stock.js";
 
 type InventoryMovementData = {
   productId: string;
@@ -9,11 +10,13 @@ type InventoryMovementData = {
 };
 
 export async function getBusinessInventoryMovements(
-  businessId: string
+  businessId: string,
+  branchId?: bigint
 ) {
   const movements = await prisma.inventoryMovement.findMany({
     where: {
       businessId: BigInt(businessId),
+      ...(branchId && { branchId }),
     },
     include: {
       product: {
@@ -46,6 +49,7 @@ export async function getBusinessInventoryMovements(
 
 export async function createInventoryMovement(
   businessId: string,
+  branchId: bigint,
   data: InventoryMovementData
 ) {
   const type = data.type.toUpperCase();
@@ -85,7 +89,11 @@ export async function createInventoryMovement(
       throw new Error("Product not found");
     }
 
-    const currentStock = Number(product.stockQuantity);
+    // Stock is counted per branch: this is what the active branch holds.
+    const held = await tx.branchStock.findUnique({
+      where: { branchId_productId: { branchId, productId: product.id } },
+    });
+    const currentStock = Number(held?.quantity ?? 0);
     let stockChange: number;
 
     if (type === "IN") {
@@ -112,6 +120,7 @@ export async function createInventoryMovement(
     const movement = await tx.inventoryMovement.create({
       data: {
         businessId: BigInt(businessId),
+        branchId,
         productId: product.id,
         type,
         quantity: movementQuantity,
@@ -120,14 +129,14 @@ export async function createInventoryMovement(
       },
     });
 
-    const updatedProduct = await tx.product.update({
-      where: {
-        id: product.id,
-      },
-      data: {
-        stockQuantity: newStock,
-      },
-    });
+    const change = (newStock - currentStock).toFixed(3);
+    if (Number(change) > 0) {
+      await addBranchStock(tx, BigInt(businessId), branchId, product.id, change);
+    } else if (Number(change) < 0) {
+      const ok = await takeBranchStock(tx, BigInt(businessId), branchId, product.id, change.slice(1));
+      if (!ok) throw new Error("Insufficient stock");
+    }
+    const updatedProduct = await tx.product.findUniqueOrThrow({ where: { id: product.id } });
 
     return {
       movement: {
@@ -142,6 +151,7 @@ export async function createInventoryMovement(
       product: {
         id: updatedProduct.id.toString(),
         stockQuantity: updatedProduct.stockQuantity,
+        branchQuantity: newStock,
       },
     };
       }, { isolationLevel: "Serializable" });

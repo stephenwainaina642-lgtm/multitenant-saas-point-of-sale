@@ -35,6 +35,9 @@ export const PERMISSION_CATALOG = {
   "settings.manage": "Change business settings",
   "shifts.use": "Open and close own till shift (cash-up)",
   "shifts.view_all": "View every cashier's shifts and add manager notes",
+  "branches.manage": "Create and edit branches and assign staff to them",
+  "branches.all": "Work in and see every branch (others stay in their assigned branch)",
+  "stock.transfer": "Move stock between branches",
 } as const;
 
 export type Permission = keyof typeof PERMISSION_CATALOG;
@@ -51,7 +54,7 @@ export const BUILT_IN_ROLES: Record<string, Permission[]> = {
   ),
   "inventory manager": [
     "products.view", "products.manage", "inventory.view", "inventory.adjust",
-    "suppliers.view", "suppliers.manage", "purchases.view", "purchases.create",
+    "suppliers.view", "suppliers.manage", "purchases.view", "purchases.create", "stock.transfer",
   ],
   salesperson: [
     "products.view", "customers.view", "customers.manage",
@@ -63,7 +66,7 @@ export const BUILT_IN_ROLES: Record<string, Permission[]> = {
   ],
   accountant: [
     "sales.view_all", "payments.view", "expenses.view", "expenses.manage",
-    "purchases.view", "purchases.pay", "invoices.view", "quotations.view", "reports.view", "shifts.view_all",
+    "purchases.view", "purchases.pay", "invoices.view", "quotations.view", "reports.view", "shifts.view_all", "branches.all",
   ],
 };
 

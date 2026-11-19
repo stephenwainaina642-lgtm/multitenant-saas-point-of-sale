@@ -2,17 +2,17 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { query, resetData, withRollback } from "../support/db.js";
 
 const EXPECTED_TABLES = [
-  "audit_logs", "business_users", "businesses", "categories", "customers", "document_sequences", "expenses",
+  "audit_logs", "branch_stock", "branches", "business_users", "businesses", "categories", "customers", "document_sequences", "expenses",
   "inventory_movements", "invoice_items", "invoices", "password_reset_tokens", "payments", "platform_admins", "platform_audit_logs", "products",
   "purchase_items", "purchases", "quotation_items", "quotations", "refunds", "register_shifts", "roles",
-  "sale_items", "sales", "supplier_payments", "suppliers", "users",
+  "sale_items", "sales", "stock_transfer_items", "stock_transfers", "supplier_payments", "suppliers", "users",
 ];
 
 // Tables that must carry business_id (directly business-owned).
 const TENANT_TABLES = [
   "audit_logs", "business_users", "categories", "customers", "document_sequences", "expenses",
   "inventory_movements", "invoices", "payments", "products", "purchases", "register_shifts",
-  "quotations", "sales", "suppliers",
+  "quotations", "sales", "suppliers", "branches", "branch_stock", "stock_transfers",
 ];
 
 describe("migrations and schema", () => {
@@ -200,7 +200,7 @@ describe("more integrity rules", () => {
     const rows = await query<{ conname: string; convalidated: boolean }>(
       `select conname, convalidated from pg_constraint
         where contype = 'c' and connamespace = 'public'::regnamespace
-          and conname not in ('refunds_amount_positive','supplier_payments_amount_positive','businesses_tax_pin_format','businesses_vat_rate_range','products_tax_class_valid','businesses_inclusive_needs_vat','platform_audit_reason_not_blank','register_shifts_status_valid','register_shifts_float_nonneg','register_shifts_closed_complete','sales_channel_valid')`
+          and conname not in ('refunds_amount_positive','supplier_payments_amount_positive','businesses_tax_pin_format','businesses_vat_rate_range','products_tax_class_valid','businesses_inclusive_needs_vat','platform_audit_reason_not_blank','register_shifts_status_valid','register_shifts_float_nonneg','register_shifts_closed_complete','sales_channel_valid','branches_name_not_blank','branches_main_is_active','branch_stock_quantity_nonneg','stock_transfers_different_branches','stock_transfer_items_quantity_positive')`
     );
     expect(rows.length).toBe(12);
     for (const r of rows) expect(r.convalidated, r.conname).toBe(false);

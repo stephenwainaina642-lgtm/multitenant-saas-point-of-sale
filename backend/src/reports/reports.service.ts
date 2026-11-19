@@ -6,6 +6,8 @@ type ReportDateRange = {
   startDate: Date;
   endDateExclusive: Date;
   timeZone: string;
+  /** Report on one branch only; omitted = the whole business. */
+  branchId?: bigint | undefined;
 };
 
 const RECORD_LIMIT = 1000;
@@ -31,6 +33,7 @@ export async function getBusinessReports(
         businessId: businessFilter,
         status: "completed",
         saleDate: dateFilter,
+        ...(range.branchId && { branchId: range.branchId }),
       },
       include: {
         customer: { select: { name: true } },
@@ -58,6 +61,7 @@ export async function getBusinessReports(
         // Cash basis: every payment received counts, including ones on sales that were
         // voided later. The matching refund is reported separately as refundsIssued.
         paymentDate: dateFilter,
+        ...(range.branchId && { sale: { branchId: range.branchId } }),
       },
       orderBy: {
         paymentDate: "asc",
@@ -69,6 +73,7 @@ export async function getBusinessReports(
         businessId: businessFilter,
         status: "received",
         purchaseDate: dateFilter,
+        ...(range.branchId && { branchId: range.branchId }),
       },
       include: {
         supplier: {
@@ -87,6 +92,7 @@ export async function getBusinessReports(
       where: {
         businessId: businessFilter,
         expenseDate: dateFilter,
+        ...(range.branchId && { branchId: range.branchId }),
       },
       orderBy: {
         expenseDate: "asc",
@@ -94,11 +100,11 @@ export async function getBusinessReports(
     }),
 
     prisma.refund.findMany({
-      where: { businessId: businessFilter, createdAt: dateFilter },
+      where: { businessId: businessFilter, createdAt: dateFilter, ...(range.branchId && { sale: { branchId: range.branchId } }) },
     }),
 
     prisma.supplierPayment.findMany({
-      where: { businessId: businessFilter, paymentDate: dateFilter, purchase: { status: "received" } },
+      where: { businessId: businessFilter, paymentDate: dateFilter, purchase: { status: "received", ...(range.branchId && { branchId: range.branchId }) } },
     }),
   ]);
 
@@ -397,10 +403,12 @@ type DebtRow = { customer_id: bigint | null; name: string | null; owed: string; 
  */
 async function debtReport(businessId: bigint, range: ReportDateRange) {
   const tz = range.timeZone;
+  const branch = range.branchId ?? null;
   const rows = await prisma.$queryRaw<DebtRow[]>`
     select s.customer_id, c.name, sum(s.balance_due)::text as owed, min(s.sale_date) as oldest, count(*) as sales
       from sales s left join customers c on c.id = s.customer_id
      where s.business_id = ${businessId} and s.status = 'completed' and s.balance_due > 0
+       and (${branch}::bigint is null or s.branch_id = ${branch}::bigint)
      group by s.customer_id, c.name
      order by sum(s.balance_due) desc`;
   const aging = await prisma.$queryRaw<{ bucket: string; owed: string }[]>`
@@ -409,12 +417,14 @@ async function debtReport(businessId: bigint, range: ReportDateRange) {
       from (select balance_due,
                    ((now() at time zone ${tz})::date - (sale_date at time zone ${tz})::date) as age
               from sales
-             where business_id = ${businessId} and status = 'completed' and balance_due > 0) x
+             where business_id = ${businessId} and status = 'completed' and balance_due > 0
+               and (${branch}::bigint is null or branch_id = ${branch}::bigint)) x
      group by 1`;
   const collected = await prisma.$queryRaw<{ amount: string; payments: bigint }[]>`
     select coalesce(sum(p.amount), 0)::text as amount, count(*) as payments
       from payments p join sales s on s.id = p.sale_id
      where p.business_id = ${businessId}
+       and (${branch}::bigint is null or s.branch_id = ${branch}::bigint)
        and p.payment_date >= ${range.startDate} and p.payment_date < ${range.endDateExclusive}
        and (p.payment_date at time zone ${tz})::date > (s.sale_date at time zone ${tz})::date`;
   const created = await prisma.$queryRaw<{ amount: string }[]>`
@@ -424,6 +434,7 @@ async function debtReport(businessId: bigint, range: ReportDateRange) {
                 and (p.payment_date at time zone ${tz})::date <= (s.sale_date at time zone ${tz})::date), 0)), 0)::text as amount
       from sales s
      where s.business_id = ${businessId} and s.status = 'completed'
+       and (${branch}::bigint is null or s.branch_id = ${branch}::bigint)
        and s.sale_date >= ${range.startDate} and s.sale_date < ${range.endDateExclusive}`;
 
   let total = 0n;

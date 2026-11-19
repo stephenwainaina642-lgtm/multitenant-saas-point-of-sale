@@ -236,6 +236,7 @@ export async function createProductController(
 
     const product = await createBusinessProduct(
       req.businessId.toString(),
+      req.branchId!,
       {
         name: parsedName,
         costPrice: parsedCostPrice,

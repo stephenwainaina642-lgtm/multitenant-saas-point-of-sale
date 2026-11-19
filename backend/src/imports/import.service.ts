@@ -1,4 +1,5 @@
 import prisma from "../lib/prisma.js";
+import { addBranchStock } from "../branches/branch-stock.js";
 import { AppError } from "../lib/errors.js";
 import { centsToString, milliToString, parseMoney, parseQuantity } from "../lib/money.js";
 
@@ -73,7 +74,7 @@ type ProductRow = {
   costPrice: string; sellingPrice: string; stockQuantity: string; minimumStock: string; unitOfMeasure: string; taxClass: string; category: string | null;
 };
 
-export async function importProducts(businessId: bigint, userId: bigint, input: unknown, dryRun: boolean): Promise<ImportResult> {
+export async function importProducts(businessId: bigint, userId: bigint, input: unknown, dryRun: boolean, branchId?: bigint): Promise<ImportResult> {
   const raw = rowsOf(input);
   const existing = await prisma.product.findMany({
     where: { businessId, isActive: true },
@@ -142,12 +143,15 @@ export async function importProducts(businessId: bigint, userId: bigint, input: 
     }
     for (const { category, ...p } of good) {
       const product = await tx.product.create({
-        data: { businessId, ...p, categoryId: category ? byName.get(category.toLowerCase()) ?? null : null, isActive: true },
+        data: { businessId, ...p, stockQuantity: "0.000", categoryId: category ? byName.get(category.toLowerCase()) ?? null : null, isActive: true },
       });
       if (Number(p.stockQuantity) > 0) {
+        // Opening stock goes into the branch the import was run in (Main when none is given).
+        const target = branchId ?? (await tx.branch.findFirstOrThrow({ where: { businessId, isMain: true } })).id;
+        await addBranchStock(tx, businessId, target, product.id, p.stockQuantity);
         await tx.inventoryMovement.create({
           data: {
-            businessId, productId: product.id, type: "IN", quantity: p.stockQuantity,
+            businessId, branchId: target, productId: product.id, type: "IN", quantity: p.stockQuantity,
             reference: "OPENING-STOCK", notes: "Opening stock recorded by product import",
           },
         });

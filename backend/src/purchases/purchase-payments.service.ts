@@ -1,3 +1,4 @@
+import { takeBranchStock } from "../branches/branch-stock.js";
 import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
 import { centsToString, decimalToCents, milliToString, decimalToMilli, parseMoney } from "../lib/money.js";
@@ -131,15 +132,13 @@ export async function voidBusinessPurchase(
     for (const [productId, milli] of [...perProduct.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
       const qty = milliToString(milli);
       // Guarded: stock that has already been sold cannot be taken back out.
-      const changed = await tx.$executeRaw`
-        UPDATE products SET stock_quantity = stock_quantity - ${qty}::numeric, updated_at = now()
-         WHERE id = ${productId} AND business_id = ${bizId} AND stock_quantity >= ${qty}::numeric`;
-      if (changed === 0) {
+      const changed = await takeBranchStock(tx, bizId, purchase.branchId, productId, qty);
+      if (!changed) {
         throw new AppError(409, "Some of this stock has already been sold, so the purchase cannot be voided");
       }
       await tx.inventoryMovement.create({
         data: {
-          businessId: bizId, productId, type: "OUT", quantity: qty,
+          businessId: bizId, branchId: purchase.branchId, productId, type: "OUT", quantity: qty,
           reference: `PURCHASE-VOID-${id}`, notes: `Purchase voided: ${reason}`.slice(0, 500),
         },
       });

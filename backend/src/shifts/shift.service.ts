@@ -60,12 +60,12 @@ export async function currentShift(businessId: string, userId: string) {
   return s ? format(s, await liveFigures(prisma, s)) : null;
 }
 
-export async function openShift(businessId: string, userId: string, floatIn: unknown) {
+export async function openShift(businessId: string, userId: string, floatIn: unknown, branchId?: bigint) {
   const openingFloat = parseMoney(floatIn ?? 0, "Opening float");
   if (openingFloat < 0n) throw new AppError(400, "Opening float cannot be negative");
   try {
     const s = await prisma.registerShift.create({
-      data: { businessId: BigInt(businessId), openedBy: BigInt(userId), openingFloat: centsToString(openingFloat) },
+      data: { businessId: BigInt(businessId), ...(branchId && { branchId }), openedBy: BigInt(userId), openingFloat: centsToString(openingFloat) },
       include: { opener: true, closer: true },
     });
     await audit(BigInt(businessId), userId, "shift.open", s.id, { openingFloat: centsToString(openingFloat) });

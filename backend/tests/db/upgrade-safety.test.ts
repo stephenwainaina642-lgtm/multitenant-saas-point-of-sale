@@ -28,7 +28,7 @@ describe("integrity migration on a database with legacy data", () => {
 
     try {
       // 1. Schema as it was before the integrity migration.
-      await applyMigrations(db, (m) => !NEW_MIGRATIONS.includes(m));
+      await applyMigrations(db, (m) => m < "20261114120000");
 
       // 2. Legacy data that the new rules would forbid.
       await db.query(`insert into businesses(name) values ('A'),('B')`);

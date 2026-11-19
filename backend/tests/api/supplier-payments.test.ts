@@ -93,11 +93,11 @@ describe("purchases on credit, supplier payments and voiding", () => {
 
     const p = await buy(3, 100, 0);
     const stock = await stockOf(s.oud6.id);
-    await query(`update products set stock_quantity = 0 where id = $1`, [s.oud6.id]); // stock sold since
+    await query(`update branch_stock set quantity = 0 where product_id = $1`, [s.oud6.id]); // stock sold since
     const r2 = await post(`/purchases/${p.id}/void`, s.t, { reason: "x" });
     expect(r2.status).toBe(409);
     expect(r2.body.message).toMatch(/already been sold/);
-    await query(`update products set stock_quantity = $2 where id = $1`, [s.oud6.id, stock]);
+    await query(`update branch_stock set quantity = $2 where product_id = $1`, [s.oud6.id, stock]);
     expect(N((await get(`/purchases/${p.id}`, s.t)).body.data.items[0].quantity)).toBe(3);
   });
 

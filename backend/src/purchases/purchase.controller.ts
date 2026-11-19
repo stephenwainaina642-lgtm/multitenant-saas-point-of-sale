@@ -123,7 +123,8 @@ export async function createPurchaseController(
           }),
         })),
       },
-      req.user?.userId
+      req.user?.userId,
+      req.branchId
     );
 
     return res.status(201).json({

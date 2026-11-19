@@ -6,6 +6,8 @@ import { resolvePermissions } from "./permissions.js";
 
 export type BusinessRequest = AuthenticatedRequest & {
   businessId?: bigint;
+  /** The branch this request works in (stock, sales, shifts are recorded against it). */
+  branchId?: bigint;
   businessRole?: string;
   isBusinessOwner?: boolean;
   permissions?: Set<string>;
@@ -77,6 +79,22 @@ export async function requireBusinessAccess(
       membership.role.permissions,
       req.isBusinessOwner
     );
+
+    // Which branch? Staff assigned to a branch stay in it; people with "branches.all" may pick one
+    // with X-Branch-ID; everyone else without an assignment works in the Main branch.
+    const branchHeader = req.headers["x-branch-id"];
+    const requested =
+      typeof branchHeader === "string" && /^[1-9]\d*$/.test(branchHeader) ? BigInt(branchHeader) : null;
+    const canPick = req.permissions.has("branches.all");
+    const wanted =
+      membership.branchId && !canPick ? membership.branchId : requested ?? membership.branchId;
+    const branch = wanted
+      ? await prisma.branch.findFirst({ where: { id: wanted, businessId, isActive: true } })
+      : await prisma.branch.findFirst({ where: { businessId, isMain: true } });
+    if (!branch) {
+      return res.status(403).json({ success: false, message: "That branch is not available" });
+    }
+    req.branchId = branch.id;
 
     next();
   } catch (error) {

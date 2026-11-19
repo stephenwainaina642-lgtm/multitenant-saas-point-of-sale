@@ -186,6 +186,7 @@ export async function createSaleController(
         })),
       },
       {
+        branchId: req.branchId,
         idempotencyKey: Array.isArray(req.headers["idempotency-key"])
           ? undefined
           : req.headers["idempotency-key"],

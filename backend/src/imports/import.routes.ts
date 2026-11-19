@@ -15,7 +15,7 @@ const run =
     try {
       if (!req.businessId) throw new AppError(400, "Business context is required");
       const { rows, dryRun } = req.body ?? {};
-      const result = await fn(req.businessId, BigInt(req.user!.userId), rows, dryRun === true);
+      const result = await fn(req.businessId, BigInt(req.user!.userId), rows, dryRun === true, req.branchId);
       const failed = result.errors.length > 0;
       res.status(failed ? 422 : result.dryRun ? 200 : 201).json({
         success: !failed,

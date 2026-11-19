@@ -1,3 +1,4 @@
+import { addBranchStock } from "../branches/branch-stock.js";
 import prisma from "../lib/prisma.js";
 
 export async function getBusinessProducts(businessId: string) {
@@ -32,6 +33,7 @@ export async function getBusinessProducts(businessId: string) {
 
 export async function createBusinessProduct(
   businessId: string,
+  branchId: bigint,
   data: {
     name: string;
     sku?: string;
@@ -58,7 +60,7 @@ export async function createBusinessProduct(
         description: data.description?.trim() || null,
         costPrice: data.costPrice,
         sellingPrice: data.sellingPrice,
-        stockQuantity: openingStock,
+        stockQuantity: 0, // opening stock is added to the branch below
         minimumStock: data.minimumStock ?? 0,
         unitOfMeasure: data.unitOfMeasure || "piece",
         taxClass: data.taxClass || "standard",
@@ -68,9 +70,11 @@ export async function createBusinessProduct(
     });
 
     if (openingStock > 0) {
+      await addBranchStock(tx, BigInt(businessId), branchId, product.id, String(openingStock));
       await tx.inventoryMovement.create({
         data: {
           businessId: BigInt(businessId),
+          branchId,
           productId: product.id,
           type: "IN",
           quantity: openingStock,
@@ -80,6 +84,7 @@ export async function createBusinessProduct(
       });
     }
 
+    const stocked = await tx.product.findUniqueOrThrow({ where: { id: product.id } });
     return {
       id: product.id.toString(),
       name: product.name,
@@ -88,7 +93,7 @@ export async function createBusinessProduct(
       description: product.description,
       costPrice: product.costPrice,
       sellingPrice: product.sellingPrice,
-      stockQuantity: product.stockQuantity,
+      stockQuantity: stocked.stockQuantity,
       minimumStock: product.minimumStock,
       unitOfMeasure: product.unitOfMeasure,
       taxClass: product.taxClass,

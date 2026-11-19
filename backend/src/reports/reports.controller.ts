@@ -57,7 +57,15 @@ export async function getReportsController(
     const range = await readRange(req, res);
     if (!range) return;
 
-    const data = await getBusinessReports(req.businessId.toString(), range);
+    // Without "branches.all" a user only ever sees their own branch; others may ask for one branch
+    // (?branchId=) or leave it out for the whole business.
+    const asked = typeof req.query.branchId === "string" && /^[1-9]\d*$/.test(req.query.branchId) ? BigInt(req.query.branchId) : undefined;
+    const branchId = req.permissions?.has("branches.all") ? asked : req.branchId;
+    if (branchId && !(await prisma.branch.findFirst({ where: { id: branchId, businessId: req.businessId } }))) {
+      return res.status(404).json({ success: false, message: "Branch not found" });
+    }
+
+    const data = await getBusinessReports(req.businessId.toString(), { ...range, branchId });
 
     return res.status(200).json({
       success: true,

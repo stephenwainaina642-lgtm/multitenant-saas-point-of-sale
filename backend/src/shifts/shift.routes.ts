@@ -17,7 +17,7 @@ const idOf = (req: Req) => String(req.params.id ?? "");
 
 router.get("/current", requirePermission("shifts.use"), wrap(async (req, res) => { res.json({ success: true, data: await currentShift(biz(req), uid(req)) }); }));
 router.post("/open", requirePermission("shifts.use"), wrap(async (req, res) => {
-  res.status(201).json({ success: true, message: "Shift opened", data: await openShift(biz(req), uid(req), req.body?.openingFloat) });
+  res.status(201).json({ success: true, message: "Shift opened", data: await openShift(biz(req), uid(req), req.body?.openingFloat, req.branchId) });
 }));
 router.post("/:id/close", requirePermission("shifts.use"), wrap(async (req, res) => {
   res.json({ success: true, message: "Shift closed", data: await closeShift(biz(req), { userId: uid(req), canSeeAll: canSeeAll(req) }, idOf(req), req.body ?? {}) });

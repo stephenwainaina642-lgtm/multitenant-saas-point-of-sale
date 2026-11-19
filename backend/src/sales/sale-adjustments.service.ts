@@ -1,3 +1,4 @@
+import { addBranchStock, takeBranchStockOrFail } from "../branches/branch-stock.js";
 import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
 import {
@@ -234,28 +235,16 @@ export async function editBusinessSale(
       if (delta === 0n) continue;
 
       if (delta > 0n) {
-        const updated = await tx.$executeRaw`
-          UPDATE products
-             SET stock_quantity = stock_quantity - ${milliToString(delta)}::numeric,
-                 updated_at = now()
-           WHERE id = ${productId}
-             AND business_id = ${bizId}
-             AND stock_quantity >= ${milliToString(delta)}::numeric`;
-        if (updated === 0) {
-          const name = newQty.get(productId)?.name ?? "";
-          throw new AppError(400, `Insufficient stock for product: ${name}`);
-        }
+        // Changes go to the branch the sale was made in.
+        await takeBranchStockOrFail(tx, bizId, sale.branchId, productId, milliToString(delta), newQty.get(productId)?.name ?? "", { requireActive: false });
       } else {
-        await tx.$executeRaw`
-          UPDATE products
-             SET stock_quantity = stock_quantity + ${milliToString(-delta)}::numeric,
-                 updated_at = now()
-           WHERE id = ${productId} AND business_id = ${bizId}`;
+        await addBranchStock(tx, bizId, sale.branchId, productId, milliToString(-delta));
       }
 
       await tx.inventoryMovement.create({
         data: {
           businessId: bizId,
+          branchId: sale.branchId,
           productId,
           type: delta > 0n ? "OUT" : "IN",
           quantity: milliToString(delta > 0n ? delta : -delta),
@@ -386,15 +375,12 @@ export async function voidBusinessSale(
     );
 
     for (const [productId, entry] of quantities) {
-      await tx.$executeRaw`
-        UPDATE products
-           SET stock_quantity = stock_quantity + ${milliToString(entry.quantity)}::numeric,
-               updated_at = now()
-         WHERE id = ${productId} AND business_id = ${bizId}`;
+      await addBranchStock(tx, bizId, sale.branchId, productId, milliToString(entry.quantity));
 
       await tx.inventoryMovement.create({
         data: {
           businessId: bizId,
+          branchId: sale.branchId,
           productId,
           type: "IN",
           quantity: milliToString(entry.quantity),

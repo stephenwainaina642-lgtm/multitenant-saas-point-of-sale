@@ -8,26 +8,26 @@ datasource db {
 }
 
 model Business {
-  id           BigInt   @id @default(autoincrement())
-  ownerUserId  BigInt?  @map("owner_user_id")
-  name         String   @db.VarChar(255)
-  businessType String   @default("retail") @map("business_type") @db.VarChar(100)
-  email        String?  @db.VarChar(255)
-  phone        String?  @db.VarChar(50)
-  address      String?
-  taxPin       String?  @map("tax_pin") @db.VarChar(20)
-  vatRegistered Boolean  @default(false) @map("vat_registered")
-  vatRate      Decimal  @default(16.00) @map("vat_rate") @db.Decimal(5, 2)
-  pricesIncludeVat Boolean @default(false) @map("prices_include_vat")
-  currency     String   @default("KES") @db.VarChar(10)
-  timezone     String   @default("Africa/Nairobi") @db.VarChar(100)
-  isActive     Boolean  @default(true) @map("is_active")
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  id               BigInt   @id @default(autoincrement())
+  ownerUserId      BigInt?  @map("owner_user_id")
+  name             String   @db.VarChar(255)
+  businessType     String   @default("retail") @map("business_type") @db.VarChar(100)
+  email            String?  @db.VarChar(255)
+  phone            String?  @db.VarChar(50)
+  address          String?
+  taxPin           String?  @map("tax_pin") @db.VarChar(20)
+  vatRegistered    Boolean  @default(false) @map("vat_registered")
+  vatRate          Decimal  @default(16.00) @map("vat_rate") @db.Decimal(5, 2)
+  pricesIncludeVat Boolean  @default(false) @map("prices_include_vat")
+  currency         String   @default("KES") @db.VarChar(10)
+  timezone         String   @default("Africa/Nairobi") @db.VarChar(100)
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   memberships        BusinessUser[]
   roles              Role[]
-  owner               User? @relation("BusinessOwner", fields: [ownerUserId], references: [id])
+  owner              User?               @relation("BusinessOwner", fields: [ownerUserId], references: [id])
   categories         Category[]
   products           Product[]
   inventoryMovements InventoryMovement[]
@@ -45,42 +45,48 @@ model Business {
   refunds            Refund[]
   supplierPayments   SupplierPayment[]
 
+  branches       Branch[]
+  branchStock    BranchStock[]
+  stockTransfers StockTransfer[]
+
   @@map("businesses")
 }
 
 model User {
-  id           BigInt   @id @default(autoincrement())
-  name         String   @db.VarChar(255)
-  email        String   @unique @db.VarChar(255)
-  phone        String?  @db.VarChar(50)
-  passwordHash String   @map("password_hash")
-  isActive     Boolean  @default(true) @map("is_active")
+  id                 BigInt    @id @default(autoincrement())
+  name               String    @db.VarChar(255)
+  email              String    @unique @db.VarChar(255)
+  phone              String?   @db.VarChar(50)
+  passwordHash       String    @map("password_hash")
+  isActive           Boolean   @default(true) @map("is_active")
   sessionsValidAfter DateTime? @map("sessions_valid_after") @db.Timestamptz(6)
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  memberships BusinessUser[]
-  passwordResetTokens PasswordResetToken[]
-  ownedBusinesses Business[] @relation("BusinessOwner")
-  auditLogs   AuditLog[]
-  sales       Sale[] @relation("SaleSalesperson")
-  refundsCreated Refund[]
+  memberships             BusinessUser[]
+  passwordResetTokens     PasswordResetToken[]
+  ownedBusinesses         Business[]           @relation("BusinessOwner")
+  auditLogs               AuditLog[]
+  sales                   Sale[]               @relation("SaleSalesperson")
+  refundsCreated          Refund[]
   supplierPaymentsCreated SupplierPayment[]
-  paymentsReceived Payment[] @relation("PaymentReceivedBy")
-  shiftsOpened RegisterShift[] @relation("ShiftOpenedBy")
-  shiftsClosed RegisterShift[] @relation("ShiftClosedBy")
+  paymentsReceived        Payment[]            @relation("PaymentReceivedBy")
+  shiftsOpened            RegisterShift[]      @relation("ShiftOpenedBy")
+  shiftsClosed            RegisterShift[]      @relation("ShiftClosedBy")
+
+  transfersCreated StockTransfer[] @relation("TransferCreator")
 
   @@map("users")
 }
 
 model Role {
-  id          BigInt  @id @default(autoincrement())
-  name        String  @db.VarChar(100)
+  id          BigInt   @id @default(autoincrement())
+  name        String   @db.VarChar(100)
   description String?
-  businessId  BigInt? @map("business_id")
+  businessId  BigInt?  @map("business_id")
   permissions String[] @default([])
 
-  business Business? @relation(fields: [businessId], references: [id])
+  business    Business?      @relation(fields: [businessId], references: [id])
   memberships BusinessUser[]
 
   @@unique([businessId, name])
@@ -92,6 +98,7 @@ model BusinessUser {
   businessId BigInt   @map("business_id")
   userId     BigInt   @map("user_id")
   roleId     BigInt   @map("role_id")
+  branchId   BigInt?  @map("branch_id")
   isActive   Boolean  @default(true) @map("is_active")
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
@@ -99,9 +106,89 @@ model BusinessUser {
   business Business @relation(fields: [businessId], references: [id])
   user     User     @relation(fields: [userId], references: [id])
   role     Role     @relation(fields: [roleId], references: [id])
+  branch   Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   @@unique([businessId, userId])
   @@map("business_users")
+}
+
+model Branch {
+  id         BigInt   @id @default(autoincrement())
+  businessId BigInt   @map("business_id")
+  name       String   @db.VarChar(120)
+  address    String?
+  phone      String?  @db.VarChar(50)
+  isMain     Boolean  @default(false) @map("is_main")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  business     Business            @relation(fields: [businessId], references: [id])
+  stock        BranchStock[]
+  sales        Sale[]
+  purchases    Purchase[]
+  expenses     Expense[]
+  shifts       RegisterShift[]
+  movements    InventoryMovement[]
+  staff        BusinessUser[]
+  transfersOut StockTransfer[]     @relation("TransferFrom")
+  transfersIn  StockTransfer[]     @relation("TransferTo")
+
+  @@unique([businessId, name])
+  @@index([businessId])
+  @@map("branches")
+}
+
+model BranchStock {
+  branchId   BigInt   @map("branch_id")
+  productId  BigInt   @map("product_id")
+  businessId BigInt   @map("business_id")
+  quantity   Decimal  @default(0) @db.Decimal(12, 3)
+  updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  branch   Branch   @relation(fields: [branchId], references: [id])
+  product  Product  @relation(fields: [productId], references: [id])
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@id([branchId, productId])
+  @@index([productId])
+  @@index([businessId])
+  @@map("branch_stock")
+}
+
+model StockTransfer {
+  id             BigInt   @id @default(autoincrement())
+  businessId     BigInt   @map("business_id")
+  fromBranchId   BigInt   @map("from_branch_id")
+  toBranchId     BigInt   @map("to_branch_id")
+  reference      String?  @db.VarChar(100)
+  notes          String?
+  idempotencyKey String?  @map("idempotency_key") @db.VarChar(100)
+  createdBy      BigInt?  @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  business   Business            @relation(fields: [businessId], references: [id])
+  fromBranch Branch              @relation("TransferFrom", fields: [fromBranchId], references: [id])
+  toBranch   Branch              @relation("TransferTo", fields: [toBranchId], references: [id])
+  creator    User?               @relation("TransferCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  items      StockTransferItem[]
+
+  @@unique([businessId, idempotencyKey])
+  @@index([businessId, createdAt])
+  @@map("stock_transfers")
+}
+
+model StockTransferItem {
+  id         BigInt  @id @default(autoincrement())
+  transferId BigInt  @map("transfer_id")
+  productId  BigInt  @map("product_id")
+  quantity   Decimal @db.Decimal(12, 3)
+
+  transfer StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  product  Product       @relation(fields: [productId], references: [id])
+
+  @@index([transferId])
+  @@map("stock_transfer_items")
 }
 
 model Category {
@@ -147,6 +234,8 @@ model Product {
   saleItems      SaleItem[]
   quotationItems QuotationItem[]
   invoiceItems   InvoiceItem[]
+  branchStock    BranchStock[]
+  transferItems  StockTransferItem[]
 
   @@unique([businessId, sku])
   @@unique([businessId, barcode])
@@ -158,6 +247,7 @@ model Product {
 model InventoryMovement {
   id         BigInt   @id @default(autoincrement())
   businessId BigInt   @map("business_id")
+  branchId   BigInt   @map("branch_id")
   productId  BigInt   @map("product_id")
   type       String   @db.VarChar(50)
   quantity   Decimal  @db.Decimal(12, 3)
@@ -166,6 +256,7 @@ model InventoryMovement {
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   business Business @relation(fields: [businessId], references: [id])
+  branch   Branch   @relation(fields: [branchId], references: [id])
   product  Product  @relation(fields: [productId], references: [id])
 
   @@index([businessId])
@@ -224,6 +315,7 @@ model Supplier {
 model Purchase {
   id            BigInt   @id @default(autoincrement())
   businessId    BigInt   @map("business_id")
+  branchId      BigInt   @map("branch_id")
   supplierId    BigInt   @map("supplier_id")
   invoiceNumber String?  @map("invoice_number") @db.VarChar(100)
   purchaseDate  DateTime @default(now()) @map("purchase_date") @db.Timestamptz(6)
@@ -238,8 +330,9 @@ model Purchase {
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  business Business       @relation(fields: [businessId], references: [id])
-  supplier Supplier       @relation(fields: [supplierId], references: [id])
+  business Business          @relation(fields: [businessId], references: [id])
+  branch   Branch            @relation(fields: [branchId], references: [id])
+  supplier Supplier          @relation(fields: [supplierId], references: [id])
   items    PurchaseItem[]
   payments SupplierPayment[]
 
@@ -269,35 +362,37 @@ model PurchaseItem {
 }
 
 model Sale {
-  id            BigInt   @id @default(autoincrement())
-  businessId    BigInt   @map("business_id")
-  customerId    BigInt?  @map("customer_id")
-  salespersonId BigInt?  @map("salesperson_id")
-  receiptNumber String   @map("receipt_number") @db.VarChar(100)
-  saleDate      DateTime @default(now()) @map("sale_date") @db.Timestamptz(6)
-  subtotal      Decimal  @default(0) @db.Decimal(12, 2)
-  discount      Decimal  @default(0) @db.Decimal(12, 2)
-  tax           Decimal  @default(0) @db.Decimal(12, 2)
-  total         Decimal  @default(0) @db.Decimal(12, 2)
-  pricesIncludeVat Boolean @default(false) @map("prices_include_vat")
-  amountPaid    Decimal  @default(0) @map("amount_paid") @db.Decimal(12, 2)
-  balanceDue    Decimal  @default(0) @map("balance_due") @db.Decimal(12, 2)
-  paymentStatus String   @default("paid") @map("payment_status") @db.VarChar(50)
-  status        String   @default("completed") @db.VarChar(50)
-  channel       String   @default("walk_in") @db.VarChar(20)
-  idempotencyKey String? @map("idempotency_key") @db.VarChar(100)
-  notes         String?
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  id               BigInt   @id @default(autoincrement())
+  businessId       BigInt   @map("business_id")
+  branchId         BigInt   @map("branch_id")
+  customerId       BigInt?  @map("customer_id")
+  salespersonId    BigInt?  @map("salesperson_id")
+  receiptNumber    String   @map("receipt_number") @db.VarChar(100)
+  saleDate         DateTime @default(now()) @map("sale_date") @db.Timestamptz(6)
+  subtotal         Decimal  @default(0) @db.Decimal(12, 2)
+  discount         Decimal  @default(0) @db.Decimal(12, 2)
+  tax              Decimal  @default(0) @db.Decimal(12, 2)
+  total            Decimal  @default(0) @db.Decimal(12, 2)
+  pricesIncludeVat Boolean  @default(false) @map("prices_include_vat")
+  amountPaid       Decimal  @default(0) @map("amount_paid") @db.Decimal(12, 2)
+  balanceDue       Decimal  @default(0) @map("balance_due") @db.Decimal(12, 2)
+  paymentStatus    String   @default("paid") @map("payment_status") @db.VarChar(50)
+  status           String   @default("completed") @db.VarChar(50)
+  channel          String   @default("walk_in") @db.VarChar(20)
+  idempotencyKey   String?  @map("idempotency_key") @db.VarChar(100)
+  notes            String?
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  business Business   @relation(fields: [businessId], references: [id])
-  customer Customer?  @relation(fields: [customerId], references: [id])
-  salesperson User? @relation("SaleSalesperson", fields: [salespersonId], references: [id], onDelete: SetNull)
-  items    SaleItem[]
-  payments Payment[]
-  refunds  Refund[]
-  invoice  Invoice?
-  quotation Quotation?
+  business    Business   @relation(fields: [businessId], references: [id])
+  branch      Branch     @relation(fields: [branchId], references: [id])
+  customer    Customer?  @relation(fields: [customerId], references: [id])
+  salesperson User?      @relation("SaleSalesperson", fields: [salespersonId], references: [id], onDelete: SetNull)
+  items       SaleItem[]
+  payments    Payment[]
+  refunds     Refund[]
+  invoice     Invoice?
+  quotation   Quotation?
 
   @@unique([businessId, receiptNumber])
   @@unique([businessId, idempotencyKey])
@@ -350,21 +445,21 @@ model SupplierPayment {
 }
 
 model Payment {
-  id          BigInt   @id @default(autoincrement())
-  businessId  BigInt   @map("business_id")
-  saleId      BigInt   @map("sale_id")
-  amount      Decimal  @db.Decimal(12, 2)
-  method      String   @db.VarChar(50)
-  reference   String?  @db.VarChar(100)
-  paymentDate DateTime @default(now()) @map("payment_date") @db.Timestamptz(6)
-  idempotencyKey String? @map("idempotency_key") @db.VarChar(100)
-  notes       String?
-  createdBy   BigInt?  @map("created_by")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id             BigInt   @id @default(autoincrement())
+  businessId     BigInt   @map("business_id")
+  saleId         BigInt   @map("sale_id")
+  amount         Decimal  @db.Decimal(12, 2)
+  method         String   @db.VarChar(50)
+  reference      String?  @db.VarChar(100)
+  paymentDate    DateTime @default(now()) @map("payment_date") @db.Timestamptz(6)
+  idempotencyKey String?  @map("idempotency_key") @db.VarChar(100)
+  notes          String?
+  createdBy      BigInt?  @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  business Business @relation(fields: [businessId], references: [id])
-  sale     Sale     @relation(fields: [saleId], references: [id])
-  receivedBy User?  @relation("PaymentReceivedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+  business   Business @relation(fields: [businessId], references: [id])
+  sale       Sale     @relation(fields: [saleId], references: [id])
+  receivedBy User?    @relation("PaymentReceivedBy", fields: [createdBy], references: [id], onDelete: SetNull)
 
   @@unique([businessId, idempotencyKey])
   @@index([createdBy, paymentDate])
@@ -377,6 +472,7 @@ model Payment {
 model Expense {
   id            BigInt   @id @default(autoincrement())
   businessId    BigInt   @map("business_id")
+  branchId      BigInt   @map("branch_id")
   category      String   @db.VarChar(100)
   description   String?
   amount        Decimal  @db.Decimal(12, 2)
@@ -388,6 +484,7 @@ model Expense {
   updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   business Business @relation(fields: [businessId], references: [id])
+  branch   Branch   @relation(fields: [branchId], references: [id])
 
   @@index([businessId])
   @@index([businessId, expenseDate])
@@ -396,22 +493,22 @@ model Expense {
 }
 
 model Quotation {
-  id              BigInt    @id @default(autoincrement())
-  businessId      BigInt    @map("business_id")
-  customerId      BigInt?   @map("customer_id")
-  quotationNumber String    @map("quotation_number") @db.VarChar(100)
-  quotationDate   DateTime  @default(now()) @map("quotation_date") @db.Timestamptz(6)
-  expiryDate      DateTime? @map("expiry_date") @db.Timestamptz(6)
-  subtotal        Decimal   @default(0) @db.Decimal(12, 2)
-  discount        Decimal   @default(0) @db.Decimal(12, 2)
-  tax             Decimal   @default(0) @db.Decimal(12, 2)
-  total           Decimal   @default(0) @db.Decimal(12, 2)
-  pricesIncludeVat Boolean @default(false) @map("prices_include_vat")
-  status          String    @default("draft") @db.VarChar(50)
-  notes           String?
-  convertedSaleId BigInt?   @unique @map("converted_sale_id")
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  id               BigInt    @id @default(autoincrement())
+  businessId       BigInt    @map("business_id")
+  customerId       BigInt?   @map("customer_id")
+  quotationNumber  String    @map("quotation_number") @db.VarChar(100)
+  quotationDate    DateTime  @default(now()) @map("quotation_date") @db.Timestamptz(6)
+  expiryDate       DateTime? @map("expiry_date") @db.Timestamptz(6)
+  subtotal         Decimal   @default(0) @db.Decimal(12, 2)
+  discount         Decimal   @default(0) @db.Decimal(12, 2)
+  tax              Decimal   @default(0) @db.Decimal(12, 2)
+  total            Decimal   @default(0) @db.Decimal(12, 2)
+  pricesIncludeVat Boolean   @default(false) @map("prices_include_vat")
+  status           String    @default("draft") @db.VarChar(50)
+  notes            String?
+  convertedSaleId  BigInt?   @unique @map("converted_sale_id")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   business      Business        @relation(fields: [businessId], references: [id])
   customer      Customer?       @relation(fields: [customerId], references: [id])
@@ -562,6 +659,7 @@ model PasswordResetToken {
 model RegisterShift {
   id             BigInt    @id @default(autoincrement())
   businessId     BigInt    @map("business_id")
+  branchId       BigInt    @map("branch_id")
   openedBy       BigInt    @map("opened_by")
   openedAt       DateTime  @default(now()) @map("opened_at") @db.Timestamptz(6)
   openingFloat   Decimal   @map("opening_float") @db.Decimal(12, 2)
@@ -580,6 +678,7 @@ model RegisterShift {
   managerNote    String?   @map("manager_note")
 
   business Business @relation(fields: [businessId], references: [id])
+  branch   Branch   @relation(fields: [branchId], references: [id])
   opener   User     @relation("ShiftOpenedBy", fields: [openedBy], references: [id])
   closer   User?    @relation("ShiftClosedBy", fields: [closedBy], references: [id])
 

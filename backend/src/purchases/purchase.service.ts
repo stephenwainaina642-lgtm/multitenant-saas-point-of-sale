@@ -1,3 +1,4 @@
+import { addBranchStock } from "../branches/branch-stock.js";
 import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
 import {
@@ -101,7 +102,8 @@ export async function getBusinessPurchases(
 export async function createBusinessPurchase(
   businessId: string,
   data: PurchaseData,
-  actorUserId?: string
+  actorUserId?: string,
+  branchIdIn?: bigint
 ) {
   if (!data.items || data.items.length === 0) {
     throw new AppError(400, "At least one purchase item is required");
@@ -221,9 +223,14 @@ export async function createBusinessPurchase(
       }
     }
 
+    // Stock is received into the branch recording the purchase (Main when none is given).
+    const branchId =
+      branchIdIn ?? (await tx.branch.findFirstOrThrow({ where: { businessId: bizId, isMain: true } })).id;
+
     const purchase = await tx.purchase.create({
       data: {
         businessId: bizId,
+        branchId,
         supplierId: supplier.id,
         invoiceNumber: data.invoiceNumber || null,
         subtotal: centsToString(subtotal),
@@ -277,17 +284,16 @@ export async function createBusinessPurchase(
     );
 
     for (const line of ordered) {
+      await addBranchStock(tx, bizId, branchId, line.productId, milliToString(line.quantity));
       await tx.product.update({
         where: { id: line.productId },
-        data: {
-          stockQuantity: { increment: milliToString(line.quantity) },
-          costPrice: centsToString(line.unitCost),
-        },
+        data: { costPrice: centsToString(line.unitCost) },
       });
 
       await tx.inventoryMovement.create({
         data: {
           businessId: bizId,
+          branchId,
           productId: line.productId,
           type: "IN",
           quantity: milliToString(line.quantity),

@@ -18,7 +18,8 @@ export async function getInventoryController(
     }
 
     const movements = await getBusinessInventoryMovements(
-      req.businessId.toString()
+      req.businessId.toString(),
+      req.branchId
     );
 
     return res.status(200).json({
@@ -104,6 +105,7 @@ export async function createInventoryController(
 
     const result = await createInventoryMovement(
       req.businessId.toString(),
+      req.branchId!,
       {
         productId: String(productId),
         type: movementType,
