@@ -132,6 +132,13 @@ describe("branches with their own stock", () => {
     await expect(query(`update products set stock_quantity = 999 where id = $1`, [item.id])).rejects.toThrow(/total of branch_stock/);
   });
 
+  it("lists stock for every branch, or only the branch being worked in", async () => {
+    const all = (await get("/branches/stock", owner)).body.data.filter((r: any) => r.productId === item.id);
+    expect(all.length).toBe(2);
+    const here = (await inBranch(owner, westlands, "GET", "/branches/stock?current=1")).body.data.filter((r: any) => r.productId === item.id);
+    expect(here.map((r: any) => r.branchId)).toEqual([westlands]);
+  });
+
   it("will not let one business use another business's branch", async () => {
     const other = await registerTenant("Other Shop");
     const theirMain = (await get("/branches", other)).body.data[0].id;

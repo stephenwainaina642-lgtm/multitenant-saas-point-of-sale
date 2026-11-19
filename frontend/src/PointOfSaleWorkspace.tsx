@@ -85,7 +85,18 @@ export default function PointOfSaleWorkspace() {
         token,
         businessId,
       });
-      setProducts((response.data ?? []).filter((product) => product.isActive));
+      // Show what THIS branch holds, not the business-wide total.
+      const held = new Map<string, number>();
+      try {
+        const stock = await apiRequest<{ branchId: string; productId: string; quantity: number | string }[]>("/branches/stock?current=1", { token, businessId });
+        for (const row of stock.data ?? []) held.set(row.productId, (held.get(row.productId) ?? 0) + Number(row.quantity));
+      } catch {
+        /* older server: fall back to the product totals */
+        for (const p of response.data ?? []) held.set(p.id, Number(p.stockQuantity));
+      }
+      setProducts(
+        (response.data ?? []).filter((product) => product.isActive).map((p) => ({ ...p, stockQuantity: held.get(p.id) ?? 0 }))
+      );
       setSelectedProductId((current) =>
         current || (response.data ?? []).find((product) => product.isActive)?.id || ""
       );

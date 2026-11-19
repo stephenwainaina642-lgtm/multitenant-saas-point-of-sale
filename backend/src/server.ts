@@ -54,7 +54,7 @@ app.use(
       }
       return callback(null, false);
     },
-    allowedHeaders: ["Content-Type", "Authorization", "X-Business-ID", "Idempotency-Key"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Business-ID", "X-Branch-ID", "Idempotency-Key"],
   })
 );
 app.use(express.json({ limit: "200kb" }));

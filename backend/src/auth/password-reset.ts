@@ -62,15 +62,20 @@ export async function forgotPasswordController(req: Request, res: Response) {
       select: { id: true, name: true, email: true },
     });
     if (!user) return;
-    const recent = await prisma.passwordResetToken.count({
-      where: { userId: user.id, createdAt: { gt: new Date(Date.now() - 60 * 60 * 1000) } },
-    });
-    if (recent >= MAX_REQUESTS_PER_HOUR) return;
-
+    // Lock the account row while counting and issuing, so a burst of requests cannot all pass the check.
     const token = crypto.randomBytes(32).toString("hex");
-    await prisma.passwordResetToken.create({
-      data: { userId: user.id, tokenHash: sha256(token), expiresAt: new Date(Date.now() + TOKEN_MINUTES * 60 * 1000) },
+    const issued = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`select id from users where id = ${user.id} for update`;
+      const recent = await tx.passwordResetToken.count({
+        where: { userId: user.id, createdAt: { gt: new Date(Date.now() - 60 * 60 * 1000) } },
+      });
+      if (recent >= MAX_REQUESTS_PER_HOUR) return false;
+      await tx.passwordResetToken.create({
+        data: { userId: user.id, tokenHash: sha256(token), expiresAt: new Date(Date.now() + TOKEN_MINUTES * 60 * 1000) },
+      });
+      return true;
     });
+    if (!issued) return;
     // The token goes in the URL fragment, which browsers never send to any server.
     const link = `${config.appUrl}/#reset-password=${token}`;
     await send({

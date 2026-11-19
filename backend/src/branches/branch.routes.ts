@@ -18,7 +18,11 @@ router.get("/", wrap(async (req, res) => { res.json({ success: true, data: await
 router.post("/", requirePermission("branches.manage"), wrap(async (req, res) => {
   res.status(201).json({ success: true, message: "Branch created", data: await createBranch(biz(req), uid(req), req.body ?? {}) });
 }));
-router.get("/stock", requirePermission("products.view", "inventory.view"), wrap(async (req, res) => { res.json({ success: true, data: await stockByBranch(biz(req), actor(req)) }); }));
+router.get("/stock", requirePermission("products.view", "inventory.view"), wrap(async (req, res) => {
+  // ?current=1: only the branch this request works in (the till uses this).
+  const a = actor(req);
+  res.json({ success: true, data: await stockByBranch(biz(req), req.query.current === "1" ? { ...a, canSeeAll: false } : a) });
+}));
 router.put("/staff/:userId", requirePermission("branches.manage"), wrap(async (req, res) => {
   res.json({ success: true, message: "Staff assignment saved", data: await assignStaff(biz(req), uid(req), req.params.userId, req.body?.branchId) });
 }));
@@ -28,8 +32,10 @@ router.post("/transfers", requirePermission("stock.transfer"), wrap(async (req, 
   const data = await createTransfer(biz(req), actor(req), req.body ?? {}, Array.isArray(header) ? undefined : header);
   res.status(201).json({ success: true, message: "Stock transferred", data });
 }));
-router.patch("/:id", requirePermission("branches.manage"), wrap(async (req, res) => {
+const update = wrap(async (req, res) => {
   res.json({ success: true, message: "Branch updated", data: await updateBranch(biz(req), uid(req), req.params.id, req.body ?? {}) });
-}));
+});
+router.patch("/:id", requirePermission("branches.manage"), update);
+router.put("/:id", requirePermission("branches.manage"), update); // the web app only sends PUT
 
 export default router;

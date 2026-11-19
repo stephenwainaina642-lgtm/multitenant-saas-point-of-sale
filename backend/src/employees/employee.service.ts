@@ -15,7 +15,7 @@ function tempPassword(): string {
 }
 
 function format(m: {
-  id: bigint; userId: bigint; isActive: boolean; createdAt: Date;
+  id: bigint; userId: bigint; isActive: boolean; createdAt: Date; branchId?: bigint | null;
   user: { name: string; email: string; phone: string | null; isActive: boolean };
   role: { id: bigint; name: string };
 }, ownerUserId: bigint | null) {
@@ -26,6 +26,7 @@ function format(m: {
     email: m.user.email,
     phone: m.user.phone,
     role: { id: m.role.id.toString(), name: m.role.name },
+    branchId: m.branchId?.toString() ?? null,
     isOwner: ownerUserId === m.userId,
     isActive: m.isActive,
     createdAt: m.createdAt,

@@ -40,6 +40,14 @@ export async function apiRequest<T>(
     headers["X-Business-ID"] = options.businessId;
   }
 
+  // Which branch this device is working in (chosen in the sidebar; the server checks it is allowed).
+  try {
+    const branch = options.businessId ? sessionStorage.getItem(`pos_branch_${options.businessId}`) : null;
+    if (branch) headers["X-Branch-ID"] = branch;
+  } catch {
+    /* storage unavailable: the server falls back to the main branch */
+  }
+
   if (options.idempotencyKey) {
     headers["Idempotency-Key"] = options.idempotencyKey;
   }

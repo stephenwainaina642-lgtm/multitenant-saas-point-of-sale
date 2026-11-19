@@ -1,6 +1,7 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
 import VatReportPanel from "./VatReportPanel";
+import { can } from "./permissions";
 
 type Sale = {
   id: string;
@@ -194,6 +195,16 @@ export default function ReportsWorkspace() {
     localDate(new Date(now.getFullYear(), now.getMonth(), 1))
   );
   const [endDate, setEndDate] = useState(localDate(now));
+  const [branchFilter, setBranchFilter] = useState("");
+  const [branchOptions, setBranchOptions] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    const token = sessionStorage.getItem("pos_token") ?? "";
+    const businessId = sessionStorage.getItem("pos_business_id") ?? "";
+    if (!can("branches.all")) return;
+    apiRequest<{ id: string; name: string }[]>("/branches", { token, businessId })
+      .then((r) => setBranchOptions(r.data ?? []))
+      .catch(() => setBranchOptions([]));
+  }, []);
 
   const [sales, setSales] = useState<Sale[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
@@ -228,7 +239,8 @@ export default function ReportsWorkspace() {
     try {
       const reportPath =
         `/reports?startDate=${encodeURIComponent(startDate)}` +
-        `&endDate=${encodeURIComponent(endDate)}`;
+        `&endDate=${encodeURIComponent(endDate)}` +
+        (branchFilter ? `&branchId=${encodeURIComponent(branchFilter)}` : "");
 
       const reportsResponse = await apiRequest<ReportsData>(reportPath, { token, businessId });
 
@@ -247,7 +259,7 @@ export default function ReportsWorkspace() {
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate]);
+  }, [startDate, endDate, branchFilter]);
 
   useEffect(() => {
     void loadReports();
@@ -508,6 +520,15 @@ export default function ReportsWorkspace() {
               onChange={(event) => setEndDate(event.target.value)}
             />
           </label>
+          {branchOptions.length > 1 && (
+            <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600 }}>
+              Branch
+              <select value={branchFilter} onChange={(event) => setBranchFilter(event.target.value)}>
+                <option value="">All branches</option>
+                {branchOptions.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </label>
+          )}
           <button
             type="button"
             className="button-secondary"

@@ -9,7 +9,7 @@ select (select count(*) from businesses) as businesses_to_delete, (select count(
 truncate table
   audit_logs, invoice_items, invoices, quotation_items, quotations, refunds, supplier_payments, purchase_items, purchases,
   payments, sale_items, sales, inventory_movements, expenses, products, categories, customers, suppliers,
-  document_sequences, password_reset_tokens, business_users, roles, businesses, users
+  document_sequences, stock_transfer_items, stock_transfers, branch_stock, register_shifts, branches, password_reset_tokens, business_users, roles, businesses, users
   cascade;
 select (select count(*) from businesses) as businesses_left, (select count(*) from users) as users_left;
 commit;

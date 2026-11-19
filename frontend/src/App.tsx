@@ -1,5 +1,7 @@
 import ShiftsWorkspace from "./ShiftsWorkspace";
 import BusinessSwitcher from "./BusinessSwitcher";
+import BranchSwitcher from "./BranchSwitcher";
+import BranchesWorkspace from "./BranchesWorkspace";
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 import ProductsWorkspace from "./ProductsWorkspace";
@@ -34,6 +36,7 @@ const navigationPermissions: Record<string, string[]> = {
   Expenses: ["expenses.view"],
   Reports: ["reports.view"],
   Shifts: ["shifts.use", "shifts.view_all"],
+  Branches: ["branches.manage", "branches.all", "stock.transfer"],
 };
 
 const navigation = [
@@ -50,6 +53,7 @@ const navigation = [
   { name: "Invoices", icon: "I" },
   { name: "Expenses", icon: "E" },
   { name: "Shifts", icon: "T" },
+  { name: "Branches", icon: "L" },
   { name: "Reports", icon: "R" },
   { name: "Settings", icon: "G" },
 ];
@@ -203,6 +207,7 @@ function App() {
 
         <div className="workspace-label">WORKSPACE</div>
         <BusinessSwitcher />
+        <BranchSwitcher />
 
         <div className="nav-label">MAIN MENU</div>
         <nav className="navigation">
@@ -305,6 +310,8 @@ function App() {
             <ExpensesWorkspace />
           ) : activePage === "Shifts" ? (
             <ShiftsWorkspace />
+          ) : activePage === "Branches" ? (
+            <BranchesWorkspace />
           ) : activePage === "Reports" ? (
             <ReportsWorkspace />
           ) : activePage === "Settings" ? (
