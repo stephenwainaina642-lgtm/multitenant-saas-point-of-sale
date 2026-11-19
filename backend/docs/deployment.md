@@ -14,7 +14,7 @@ Node 22, PostgreSQL 16 (managed Postgres with daily backups is strongly recommen
 | JWT_SECRET | required, ≥32 chars in production. Changing it logs everyone out |
 | NODE_ENV=production | enables JSON request logs and strict checks |
 | CORS_ORIGINS | required in production, e.g. `https://app.example.co.ke` |
-| TRUST_PROXY=<hops> | number of proxies in front of the app (0 = none; 1 = Render alone; 4 on the Vercel + Render setup); wrong value makes rate limiting see the proxy IP |
+| TRUST_PROXY=3 | number of proxies in front of the app (0 = none; 1 = Render alone). On Vercel + Render use 3: it cannot be faked, but sees Vercel's forwarder, not the visitor (4 shows the visitor but Vercel keeps a client-sent X-Forwarded-For, so it can be faked). Per-account limiting covers guessing |
 | ACCOUNT_LOGIN_FAILURES_MAX=10 | optional: failed sign-ins allowed per email address per 15 minutes, from any network (successful sign-ins do not count) |
 | PORT, JWT_EXPIRES_IN, LOGIN_RATE_LIMIT_MAX, REGISTER_RATE_LIMIT_MAX | optional |
 
@@ -70,10 +70,9 @@ A cookie is only sent back when the browser thinks the site and the API are the 
 `/api/...` on its own domain and Vercel forwards it to Render (see `frontend/vercel.json`).
 
 Order matters, because the old and new versions do not understand each other:
-1. Render: set `TRUST_PROXY=4` (measured on the live setup: Vercel, then Render's Cloudflare and its own proxies; `/api/health/whoami` showed the real address at 4). Deploy the backend first.
+1. Render: set `TRUST_PROXY=3` (see the variable table for why not 4). Deploy the backend first.
 2. Vercel: nothing to set — production builds call `/api` by themselves (`VITE_API_URL` is ignored in production). Deploy the frontend (with the `vercel.json` rewrite).
-3. Check `https://<your-vercel-site>/api/health/whoami` shows YOUR address (not a Vercel/Render one). If it
-   shows a proxy address, change `TRUST_PROXY` until it shows yours, using the smallest number that does (too high lets visitors fake their address with X-Forwarded-For), otherwise the login rate limiter treats everyone as one person.
+3. `https://<your-vercel-site>/api/health/whoami` shows the proxy chain; at 3 the address is Vercel's forwarder (expected).
 4. Everyone signs in once again (old tokens are no longer used by the browser). Sessions now last 12 hours (`JWT_EXPIRES_IN`).
 
 Non-browser callers (scripts, tests) send `X-Auth-Mode: bearer` to receive the token in the body and use `Authorization: Bearer`.
