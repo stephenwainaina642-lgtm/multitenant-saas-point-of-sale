@@ -72,7 +72,7 @@ Order matters, because the old and new versions do not understand each other:
 1. Render: set `TRUST_PROXY=2` (Render + the Vercel forward = two proxies). Deploy the backend first.
 2. Vercel: nothing to set — production builds call `/api` by themselves (`VITE_API_URL` is ignored in production). Deploy the frontend (with the `vercel.json` rewrite).
 3. Check `https://<your-vercel-site>/api/health/whoami` shows YOUR address (not a Vercel/Render one). If it
-   shows a proxy address, change `TRUST_PROXY` (1 or 3) until it shows yours, otherwise the login rate limiter treats everyone as one person.
+   shows a proxy address, change `TRUST_PROXY` until it shows yours, using the smallest number that does (too high lets visitors fake their address with X-Forwarded-For), otherwise the login rate limiter treats everyone as one person.
 4. Everyone signs in once again (old tokens are no longer used by the browser). Sessions now last 12 hours (`JWT_EXPIRES_IN`).
 
 Non-browser callers (scripts, tests) send `X-Auth-Mode: bearer` to receive the token in the body and use `Authorization: Bearer`.
