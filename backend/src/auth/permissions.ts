@@ -44,8 +44,9 @@ export type Permission = keyof typeof PERMISSION_CATALOG;
 export const ALL_PERMISSIONS = Object.keys(PERMISSION_CATALOG) as Permission[];
 
 /**
- * Defaults for the built-in role names (matched case-insensitively). A role
- * row with its own non-empty permission list overrides these.
+ * Starter templates. They are copied into every business as ordinary, editable
+ * roles when it is created; nothing here is consulted when checking access.
+ * Only the Owner is hardcoded (see resolvePermissions).
  */
 export const BUILT_IN_ROLES: Record<string, Permission[]> = {
   owner: ALL_PERMISSIONS,
@@ -81,12 +82,20 @@ export function resolvePermissions(
     return new Set(ALL_PERMISSIONS);
   }
 
-  const known = stored.filter((p) => p in PERMISSION_CATALOG);
-  if (known.length > 0) {
-    return new Set(known);
-  }
+  // Everyone else gets exactly what their role row lists, no more.
+  return new Set(stored.filter((p) => p in PERMISSION_CATALOG));
+}
 
-  return new Set(BUILT_IN_ROLES[name] ?? []);
+/** Rows to create for a new business: the starter roles, with their permissions written out. */
+export function starterRoleRows(businessId: bigint) {
+  return Object.entries(BUILT_IN_ROLES)
+    .filter(([name]) => name !== "owner")
+    .map(([name, permissions]) => ({
+      businessId,
+      name: name.replace(/\b\w/g, (c) => c.toUpperCase()),
+      description: "Starter role (editable)",
+      permissions: [...permissions],
+    }));
 }
 
 /** Allow the request only if the member holds at least one listed permission. */
@@ -103,4 +112,16 @@ export function requirePermission(...allowed: Permission[]) {
 
     next();
   };
+}
+
+export type GrantActor = { permissions?: ReadonlySet<string> | undefined; isOwner?: boolean | undefined };
+
+/**
+ * Privilege-escalation guard: only the owner may hand out anything. Anyone else can
+ * grant only permissions they hold themselves.
+ */
+export function missingForGrant(actor: GrantActor, wanted: readonly string[]): string[] {
+  if (actor.isOwner) return [];
+  const held = actor.permissions ?? new Set<string>();
+  return wanted.filter((p) => !held.has(p));
 }

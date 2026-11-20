@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { starterRoleRows } from "./permissions.js";
 import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
 import { signToken } from "../lib/token.js";
@@ -88,6 +89,8 @@ export async function registerUser(input: RegisterInput) {
         businessId: business.id,
       },
     });
+
+    await tx.role.createMany({ data: starterRoleRows(business.id) });
 
     await tx.businessUser.create({
       data: {

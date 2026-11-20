@@ -9,6 +9,8 @@ import {
   updateBusinessRole,
 } from "./role.service.js";
 
+const grantActor = (req: BusinessRequest) => ({ permissions: req.permissions, isOwner: req.isBusinessOwner });
+
 function fail(res: Response, error: unknown, label: string) {
   if (error instanceof AppError) {
     return res.status(error.status).json({ success: false, message: error.message });
@@ -36,7 +38,7 @@ export async function getRolesController(req: BusinessRequest, res: Response) {
 
 export async function createRoleController(req: BusinessRequest, res: Response) {
   try {
-    const role = await createBusinessRole(req.businessId!.toString(), req.body ?? {});
+    const role = await createBusinessRole(req.businessId!.toString(), req.body ?? {}, grantActor(req));
     return res.status(201).json({ success: true, message: "Role created", data: role });
   } catch (error) {
     return fail(res, error, "Create role error");
@@ -48,7 +50,8 @@ export async function updateRoleController(req: BusinessRequest, res: Response) 
     const role = await updateBusinessRole(
       req.businessId!.toString(),
       String(req.params.id),
-      req.body ?? {}
+      req.body ?? {},
+      { ...grantActor(req), userId: BigInt(req.user!.userId) }
     );
     return res.json({ success: true, message: "Role updated", data: role });
   } catch (error) {

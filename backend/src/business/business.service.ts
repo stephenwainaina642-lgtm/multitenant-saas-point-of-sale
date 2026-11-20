@@ -1,3 +1,4 @@
+import { starterRoleRows } from "../auth/permissions.js";
 import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
 import { BUSINESS_TYPES } from "../lib/business-presets.js";
@@ -18,6 +19,7 @@ export async function createBusinessForUser(userId: string, nameIn: unknown, typ
     if (owned >= MAX_OWNED_BUSINESSES) throw new AppError(409, `You can own at most ${MAX_OWNED_BUSINESSES} businesses. Contact support if you need more.`);
     const business = await tx.business.create({ data: { name, businessType, ownerUserId: uid } });
     const role = await tx.role.create({ data: { name: "owner", description: "Business owner with full access", businessId: business.id } });
+    await tx.role.createMany({ data: starterRoleRows(business.id) });
     await tx.businessUser.create({ data: { businessId: business.id, userId: uid, roleId: role.id } });
     return { id: business.id.toString(), name: business.name, businessType: business.businessType, role: role.name };
   });

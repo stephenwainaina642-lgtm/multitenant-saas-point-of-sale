@@ -1,3 +1,4 @@
+import { BUILT_IN_ROLES } from "../../src/auth/permissions.js";
 import { query } from "./db.js";
 import { get, post, type Session } from "./http.js";
 
@@ -50,14 +51,17 @@ export async function registerTenant(
 export async function addEmployee(
   owner: Tenant,
   roleName: string,
-  permissions: string[] = []
+  permissions?: string[]
 ): Promise<Tenant> {
+  // No explicit list: use the starter template of that name (what a new business gets as editable data).
+  // Only the owner is hardcoded in the backend now, so a role row with an empty list has no access.
+  const granted = permissions ?? [...(BUILT_IN_ROLES[roleName.toLowerCase()] ?? [])];
   const emp = await registerTenant(`${roleName} personal workspace`);
   const [role] = await query<{ id: string }>(
     `insert into roles(name, business_id, permissions) values ($1, $2, $3)
      on conflict (business_id, name) do update set permissions = excluded.permissions
      returning id`,
-    [roleName, owner.businessId, permissions]
+    [roleName, owner.businessId, granted]
   );
   await query(
     `insert into business_users(business_id, user_id, role_id) values ($1, $2, $3)`,

@@ -5,7 +5,7 @@ import {
 } from "./employee.service.js";
 
 const biz = (req: BusinessRequest) => req.businessId!.toString();
-const actor = (req: BusinessRequest) => ({ userId: BigInt(req.user!.userId) });
+const actor = (req: BusinessRequest) => ({ userId: BigInt(req.user!.userId), permissions: req.permissions, isOwner: req.isBusinessOwner });
 const id = (req: BusinessRequest) => String(req.params.id);
 
 export async function listEmployeesController(req: BusinessRequest, res: Response, next: NextFunction) {

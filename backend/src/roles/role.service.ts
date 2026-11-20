@@ -3,6 +3,8 @@ import { AppError } from "../lib/errors.js";
 import {
   BUILT_IN_ROLES,
   PERMISSION_CATALOG,
+  missingForGrant,
+  type GrantActor,
   type Permission,
 } from "../auth/permissions.js";
 
@@ -86,13 +88,22 @@ async function assertNameFree(businessId: bigint, name: string, exceptId?: bigin
   }
 }
 
+function assertMayGrant(actor: GrantActor | undefined, permissions: readonly string[]) {
+  const missing = actor ? missingForGrant(actor, permissions) : [];
+  if (missing.length > 0) {
+    throw new AppError(403, `You cannot grant permissions you do not hold yourself: ${missing.join(", ")}`);
+  }
+}
+
 export async function createBusinessRole(
   businessId: string,
-  data: { name: unknown; description?: unknown; permissions: unknown }
+  data: { name: unknown; description?: unknown; permissions: unknown },
+  actor?: GrantActor
 ) {
   const bizId = BigInt(businessId);
   const name = validateName(data.name);
   const permissions = validatePermissions(data.permissions);
+  assertMayGrant(actor, permissions);
 
   await assertNameFree(bizId, name);
 
@@ -132,15 +143,25 @@ async function findOwnRole(businessId: string, roleId: string) {
 export async function updateBusinessRole(
   businessId: string,
   roleId: string,
-  data: { name?: unknown; description?: unknown; permissions?: unknown }
+  data: { name?: unknown; description?: unknown; permissions?: unknown },
+  actor?: GrantActor & { userId?: bigint }
 ) {
   const role = await findOwnRole(businessId, roleId);
+
+  if (actor && !actor.isOwner) {
+    // Nobody but the owner may change the role they themselves hold.
+    const mine = actor.userId
+      ? await prisma.businessUser.findFirst({ where: { businessId: BigInt(businessId), userId: actor.userId }, select: { roleId: true } })
+      : null;
+    if (mine && mine.roleId === role.id) throw new AppError(403, "You cannot edit the role you hold yourself. Ask the owner.");
+  }
 
   const name = data.name !== undefined ? validateName(data.name) : role.name;
   const permissions =
     data.permissions !== undefined
       ? validatePermissions(data.permissions)
       : role.permissions;
+  if (data.permissions !== undefined) assertMayGrant(actor, permissions);
 
   if (name.toLowerCase() !== role.name.toLowerCase()) {
     await assertNameFree(BigInt(businessId), name, role.id);

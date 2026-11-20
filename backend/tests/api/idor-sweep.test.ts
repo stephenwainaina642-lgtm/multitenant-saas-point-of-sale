@@ -102,6 +102,7 @@ describe("cross-business access sweep", () => {
     ["GET", "/invoices/{invoice}"],
     ["PUT", "/roles/{role}", { name: "Hacked", permissions: [] }],
     ["DELETE", "/roles/{role}"],
+    ["GET", "/employees/{employee}/profile"],
     ["PUT", "/employees/{employee}", { name: "Hacked" }],
     ["POST", "/employees/{employee}/deactivate", {}],
     ["POST", "/employees/{employee}/activate", {}],

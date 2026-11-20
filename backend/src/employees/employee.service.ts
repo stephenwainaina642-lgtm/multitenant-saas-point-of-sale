@@ -4,11 +4,11 @@ import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
 import { decimalToCents } from "../lib/money.js";
 import { personName, phoneNumber } from "../lib/validate.js";
-import { BUILT_IN_ROLES } from "../auth/permissions.js";
+import { BUILT_IN_ROLES, missingForGrant } from "../auth/permissions.js";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-type Actor = { userId: bigint };
+type Actor = { userId: bigint; permissions?: ReadonlySet<string> | undefined; isOwner?: boolean | undefined };
 
 function tempPassword(): string {
   // 12 chars, unambiguous alphabet, from a CSPRNG.
@@ -49,7 +49,7 @@ export async function listEmployees(businessId: string) {
   return rows.map((m) => format(m, owner));
 }
 
-async function resolveRole(businessId: bigint, roleId: unknown, roleName: unknown) {
+async function resolveRole(businessId: bigint, roleId: unknown, roleName: unknown, actor?: Actor) {
   let role = null;
   if (roleId !== undefined && roleId !== null && roleId !== "") {
     if (!/^[1-9]\d*$/.test(String(roleId))) throw new AppError(400, "Invalid role");
@@ -59,7 +59,7 @@ async function resolveRole(businessId: bigint, roleId: unknown, roleName: unknow
     role = await prisma.role.findFirst({ where: { businessId, name: { equals: wanted, mode: "insensitive" } } });
     if (!role && wanted in BUILT_IN_ROLES && wanted !== "owner") {
       const label = wanted.replace(/\b\w/g, (c) => c.toUpperCase());
-      role = await prisma.role.create({ data: { businessId, name: label, permissions: [] } });
+      role = await prisma.role.create({ data: { businessId, name: label, permissions: [...BUILT_IN_ROLES[wanted]!] } });
     }
   } else {
     throw new AppError(400, "A role is required");
@@ -68,6 +68,8 @@ async function resolveRole(businessId: bigint, roleId: unknown, roleName: unknow
   if (role.name.trim().toLowerCase() === "owner") {
     throw new AppError(400, "The owner role cannot be assigned to employees");
   }
+  const missing = actor ? missingForGrant(actor, role.permissions) : [];
+  if (missing.length > 0) throw new AppError(403, "You cannot give someone a role with permissions you do not hold yourself");
   return role;
 }
 
@@ -97,7 +99,7 @@ export async function addEmployee(
     throw new AppError(400, "Enter a valid email address");
   }
   const email = data.email.trim().toLowerCase();
-  const role = await resolveRole(bizId, data.roleId, data.roleName);
+  const role = await resolveRole(bizId, data.roleId, data.roleName, actor);
 
   const existing = await prisma.user.findUnique({ where: { email } });
 
@@ -161,7 +163,7 @@ export async function updateEmployee(
   let roleId = m.roleId;
   const before = { role: m.role.name };
   if (data.roleId !== undefined || data.roleName !== undefined) {
-    roleId = (await resolveRole(bizId, data.roleId, data.roleName)).id;
+    roleId = (await resolveRole(bizId, data.roleId, data.roleName, actor)).id;
   }
 
   const profileChange = data.name !== undefined || data.phone !== undefined;
