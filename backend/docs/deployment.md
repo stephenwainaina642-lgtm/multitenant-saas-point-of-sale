@@ -28,7 +28,7 @@ Never commit `.env`.
 3. Install & build: `cd backend && npm ci && npx prisma generate --config prisma7.config.ts && npm run build`
 4. **Apply migrations (additive only)**: `npx prisma migrate deploy --config prisma7.config.ts`
    Never run `migrate reset`, `migrate dev --force`, `db push --force-reset` against a real database.
-   Migrations since Stage 2b: add_branches, add_sale_channel, add_register_shifts, add_platform_admin, add_password_reset_tokens, add_mpesa_reference_unique (run audit B5 first), add_prices_include_vat, add_user_sessions_valid_after, add_role_permissions, add_integrity_constraints, add_sale_refunds, add_supplier_payments,
+   Migrations since Stage 2b: add_public_id_categories, add_branches, add_sale_channel, add_register_shifts, add_platform_admin, add_password_reset_tokens, add_mpesa_reference_unique (run audit B5 first), add_prices_include_vat, add_user_sessions_valid_after, add_role_permissions, add_integrity_constraints, add_sale_refunds, add_supplier_payments,
    add_quotation_conversion, add_business_tax_pin, add_vat_settings (plus earlier ones). The CHECK constraints in
    add_integrity_constraints can fail if legacy rows violate them – that is a signal to review data, see
    `docs/stage-2b-migrations.md`.
