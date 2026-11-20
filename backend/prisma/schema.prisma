@@ -193,6 +193,8 @@ model StockTransferItem {
 
 model Category {
   id          BigInt   @id @default(autoincrement())
+  /// Random identifier shown by the API instead of the sequential `id`.
+  publicId    String   @unique @default(dbgenerated("gen_random_uuid()")) @map("public_id") @db.Uuid
   businessId  BigInt   @map("business_id")
   name        String   @db.VarChar(150)
   description String?

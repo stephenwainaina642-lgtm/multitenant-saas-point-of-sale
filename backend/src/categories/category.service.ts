@@ -1,6 +1,7 @@
 import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
 import { presetFor } from "../lib/business-presets.js";
+import { requirePublicId } from "../lib/public-id.js";
 
 type Input = { name?: unknown; description?: unknown };
 
@@ -17,8 +18,8 @@ function text(value: unknown, field: string, max: number, required: boolean): st
   return t || null;
 }
 
-const format = (c: { id: bigint; name: string; description: string | null }, productCount: number) => ({
-  id: c.id.toString(), name: c.name, description: c.description, productCount,
+const format = (c: { publicId: string; name: string; description: string | null }, productCount: number) => ({
+  id: c.publicId, name: c.name, description: c.description, productCount,
 });
 
 async function ensureNameFree(businessId: bigint, name: string, exceptId?: bigint) {
@@ -29,8 +30,8 @@ async function ensureNameFree(businessId: bigint, name: string, exceptId?: bigin
 }
 
 async function findOwn(businessId: string, idText: string) {
-  if (!/^\d+$/.test(idText) || idText === "0") throw new AppError(400, "A valid category ID is required");
-  const row = await prisma.category.findFirst({ where: { id: BigInt(idText), businessId: BigInt(businessId) } });
+  const publicId = requirePublicId(idText, "A valid category ID is required");
+  const row = await prisma.category.findFirst({ where: { publicId, businessId: BigInt(businessId) } });
   if (!row) throw new AppError(404, "Category not found");
   return row;
 }
@@ -96,16 +97,15 @@ export async function deleteCategory(businessId: string, idText: string, actor?:
       data: { businessId: row.businessId, userId: actor ? BigInt(actor) : null, action: "category.delete", entity: "category", entityId: row.id, details: { name: row.name } },
     });
   });
-  return { id: row.id.toString(), name: row.name };
+  return { id: row.publicId, name: row.name };
 }
 
 /** Validates a product's category belongs to this business. Returns the id or null. */
 export async function resolveCategoryId(businessId: string, value: unknown): Promise<bigint | null> {
   if (value === null || value === "" ) return null;
   if (typeof value !== "string" && typeof value !== "number") throw new AppError(400, "Category is invalid");
-  const idText = String(value);
-  if (!/^\d+$/.test(idText) || idText === "0") throw new AppError(400, "Category is invalid");
-  const row = await prisma.category.findFirst({ where: { id: BigInt(idText), businessId: BigInt(businessId), isActive: true } });
+  const publicId = requirePublicId(value, "Category is invalid");
+  const row = await prisma.category.findFirst({ where: { publicId, businessId: BigInt(businessId), isActive: true } });
   if (!row) throw new AppError(400, "Category not found in this business");
   return row.id;
 }

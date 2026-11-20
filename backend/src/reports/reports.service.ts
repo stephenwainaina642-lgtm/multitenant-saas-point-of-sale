@@ -44,7 +44,7 @@ export async function getBusinessReports(
                 id: true,
                 name: true,
                 sku: true,
-                category: { select: { id: true, name: true } },
+                category: { select: { publicId: true, name: true } },
               },
             },
           },
@@ -212,7 +212,7 @@ export async function getBusinessReports(
   const categoryMap = new Map<string, { categoryId: string | null; categoryName: string; netSales: bigint; costOfGoodsSold: bigint }>();
   for (const sale of sales) {
     for (const item of sale.items) {
-      const categoryId = item.product.category?.id.toString() ?? null;
+      const categoryId = item.product.category?.publicId ?? null;
       const key = categoryId ?? "none";
       const current = categoryMap.get(key) || {
         categoryId,

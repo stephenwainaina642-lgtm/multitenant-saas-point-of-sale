@@ -7,7 +7,7 @@ export async function getBusinessProducts(businessId: string) {
       businessId: BigInt(businessId),
       isActive: true,
     },
-    include: { category: { select: { name: true } } },
+    include: { category: { select: { publicId: true, name: true } } },
     orderBy: {
       createdAt: "desc",
     },
@@ -25,7 +25,7 @@ export async function getBusinessProducts(businessId: string) {
     minimumStock: product.minimumStock,
     unitOfMeasure: product.unitOfMeasure,
     taxClass: product.taxClass,
-    categoryId: product.categoryId ? product.categoryId.toString() : null,
+    categoryId: product.category?.publicId ?? null,
     categoryName: product.category?.name ?? null,
     isActive: product.isActive,
   }));
@@ -84,7 +84,7 @@ export async function createBusinessProduct(
       });
     }
 
-    const stocked = await tx.product.findUniqueOrThrow({ where: { id: product.id } });
+    const stocked = await tx.product.findUniqueOrThrow({ where: { id: product.id }, include: { category: { select: { publicId: true } } } });
     return {
       id: product.id.toString(),
       name: product.name,
@@ -97,7 +97,7 @@ export async function createBusinessProduct(
       minimumStock: product.minimumStock,
       unitOfMeasure: product.unitOfMeasure,
       taxClass: product.taxClass,
-      categoryId: product.categoryId ? product.categoryId.toString() : null,
+      categoryId: stocked.category?.publicId ?? null,
       isActive: product.isActive,
     };
   });
@@ -136,6 +136,7 @@ export async function updateBusinessProduct(
       id: BigInt(productId),
     },
     data,
+    include: { category: { select: { publicId: true } } },
   });
 
   return {
@@ -150,7 +151,7 @@ export async function updateBusinessProduct(
     minimumStock: updatedProduct.minimumStock,
     unitOfMeasure: updatedProduct.unitOfMeasure,
     taxClass: updatedProduct.taxClass,
-    categoryId: updatedProduct.categoryId ? updatedProduct.categoryId.toString() : null,
+    categoryId: updatedProduct.category?.publicId ?? null,
     isActive: updatedProduct.isActive,
   };
 }
