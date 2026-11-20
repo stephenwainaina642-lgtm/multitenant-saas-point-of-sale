@@ -1,3 +1,4 @@
+import { phoneNumber, validPersonName } from "../lib/validate.js";
 import prisma from "../lib/prisma.js";
 import { addBranchStock } from "../branches/branch-stock.js";
 import { AppError } from "../lib/errors.js";
@@ -181,7 +182,11 @@ export async function importCustomers(businessId: bigint, userId: bigint, input:
     const c = new Collector(i + 1);
     const name = text(c, row, "name", "Name", 255);
     if (!name && cell(row, "name") === undefined) c.fail("Name", "is required");
-    const phone = text(c, row, "phone", "Phone", 50);
+    let phone = text(c, row, "phone", "Phone", 50);
+    if (phone) {
+      try { phone = phoneNumber(phone); } catch { c.fail("Phone", "must be exactly 10 digits"); phone = null; }
+    }
+    if (name && !validPersonName(name.trim())) c.fail("Name", "may only contain letters, spaces, apostrophes, hyphens and full stops");
     const email = text(c, row, "email", "Email", 255);
     if (email && !EMAIL_PATTERN.test(email)) c.fail("Email", "is not a valid email address");
     const address = text(c, row, "address", "Address", 1000);

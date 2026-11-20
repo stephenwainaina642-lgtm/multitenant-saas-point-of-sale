@@ -1,5 +1,6 @@
 import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
+import { personName, phoneNumber } from "../lib/validate.js";
 import { requirePublicId } from "../lib/public-id.js";
 import { centsToString, decimalToCents, parseMoney } from "../lib/money.js";
 
@@ -25,9 +26,9 @@ function parse(data: CustomerData, partial: boolean) {
   if (data.name !== undefined || !partial) {
     const name = text(data.name, "Name", 255);
     if (!name) throw new AppError(400, "Customer name is required");
-    out.name = name;
+    out.name = personName(name, "Customer name");
   }
-  if (data.phone !== undefined) out.phone = text(data.phone, "Phone", 50);
+  if (data.phone !== undefined) out.phone = phoneNumber(text(data.phone, "Phone", 50) ?? "");
   if (data.email !== undefined) {
     const email = text(data.email, "Email", 255);
     if (email && !EMAIL_PATTERN.test(email)) throw new AppError(400, "Enter a valid email address");

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
 import RolePermissionsPanel, { type Role } from "./RolePermissionsPanel";
+import { checkName, checkPhone, cleanName, cleanPhone, PHONE_PROPS } from "./validation";
 
 type Employee = {
   id: string; userId: string; name: string; email: string; phone: string | null;
@@ -72,7 +73,10 @@ export default function EmployeesWorkspace({ salespersonPerformance = [] }: { sa
 
   async function add(event: React.FormEvent) {
     event.preventDefault();
-    setSaving(true); setError(""); setNotice(""); setSecret(null);
+    setError(""); setNotice(""); setSecret(null);
+    const problem = checkName(form.name, "Full name") ?? checkPhone(form.phone);
+    if (problem) { setError(problem); return; }
+    setSaving(true);
     try {
       const body: Record<string, string> = { name: form.name, email: form.email, phone: form.phone, roleName: form.role };
       const existing = roles.find((r) => r.name === form.role);
@@ -133,9 +137,9 @@ export default function EmployeesWorkspace({ salespersonPerformance = [] }: { sa
 
         {showForm && (
           <form onSubmit={add} style={{ display: "grid", gap: 12, margin: "16px 0", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
-            <label style={labelStyle}>Full name<input style={fieldStyle} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></label>
+            <label style={labelStyle}>Full name<input style={fieldStyle} value={form.name} onChange={(e) => setForm({ ...form, name: cleanName(e.target.value) })} required /></label>
             <label style={labelStyle}>Email<input style={fieldStyle} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required /></label>
-            <label style={labelStyle}>Phone<input style={fieldStyle} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
+            <label style={labelStyle}>Phone<input style={fieldStyle} value={form.phone} onChange={(e) => setForm({ ...form, phone: cleanPhone(e.target.value) })} {...PHONE_PROPS} /></label>
             <label style={labelStyle}>Role
               <select style={fieldStyle} value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
                 {roleOptions.map((r) => <option key={r}>{r}</option>)}

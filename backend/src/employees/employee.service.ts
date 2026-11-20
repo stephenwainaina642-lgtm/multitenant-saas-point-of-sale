@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
 import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
+import { personName, phoneNumber } from "../lib/validate.js";
 import { BUILT_IN_ROLES } from "../auth/permissions.js";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -113,9 +114,10 @@ export async function addEmployee(
     return { employee: format(m, await ownerOf(bizId)), temporaryPassword: null };
   }
 
-  const name = typeof data.name === "string" ? data.name.trim() : "";
-  if (!name || name.length > 255) throw new AppError(400, "Name is required (max 255 characters)");
-  const phone = typeof data.phone === "string" && data.phone.trim() ? data.phone.trim().slice(0, 50) : null;
+  const rawName = typeof data.name === "string" ? data.name.trim() : "";
+  if (!rawName || rawName.length > 255) throw new AppError(400, "Name is required (max 255 characters)");
+  const name = personName(rawName);
+  const phone = typeof data.phone === "string" ? phoneNumber(data.phone) : null;
 
   let password = tempPassword();
   let generated = true;
@@ -169,9 +171,10 @@ export async function updateEmployee(
   await prisma.$transaction(async (tx) => {
     if (roleId !== m.roleId) await tx.businessUser.update({ where: { id: m.id }, data: { roleId } });
     if (profileChange) {
-      const name = data.name === undefined ? m.user.name : typeof data.name === "string" ? data.name.trim() : "";
-      if (!name || name.length > 255) throw new AppError(400, "Name is required (max 255 characters)");
-      const phone = data.phone === undefined ? m.user.phone : typeof data.phone === "string" && data.phone.trim() ? data.phone.trim().slice(0, 50) : null;
+      const rawName = data.name === undefined ? m.user.name : typeof data.name === "string" ? data.name.trim() : "";
+      if (!rawName || rawName.length > 255) throw new AppError(400, "Name is required (max 255 characters)");
+      const name = data.name === undefined ? rawName : personName(rawName);
+      const phone = data.phone === undefined ? m.user.phone : typeof data.phone === "string" ? phoneNumber(data.phone) : null;
       await tx.user.update({ where: { id: m.userId }, data: { name, phone } });
     }
   });

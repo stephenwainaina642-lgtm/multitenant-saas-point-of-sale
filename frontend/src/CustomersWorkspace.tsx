@@ -3,6 +3,7 @@ import ImportPanel from "./ImportPanel";
 import SettleDebtModal from "./SettleDebtModal";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
+import { checkName, checkPhone, cleanName, cleanPhone, PHONE_PROPS } from "./validation";
 
 type Customer = {
   id: string;
@@ -116,10 +117,10 @@ export default function CustomersWorkspace() {
     setError("");
     setMessage("");
 
-    if (!form.name.trim()) {
-      setError("Enter the customer's name.");
-      return;
-    }
+    const nameProblem = checkName(form.name, "Customer name");
+    if (nameProblem) { setError(nameProblem); return; }
+    const phoneProblem = checkPhone(form.phone);
+    if (phoneProblem) { setError(phoneProblem); return; }
 
     if (form.name.trim().length > 150) {
       setError("Customer name must not exceed 150 characters.");
@@ -415,7 +416,7 @@ export default function CustomersWorkspace() {
               <input
                 style={{ ...fieldStyle, marginTop: 6 }}
                 value={form.name}
-                onChange={(event) => updateField("name", event.target.value)}
+                onChange={(event) => updateField("name", cleanName(event.target.value))}
                 maxLength={150}
                 autoComplete="name"
                 required
@@ -427,10 +428,8 @@ export default function CustomersWorkspace() {
               <input
                 style={{ ...fieldStyle, marginTop: 6 }}
                 value={form.phone}
-                onChange={(event) => updateField("phone", event.target.value)}
-                maxLength={30}
-                autoComplete="tel"
-                placeholder="+254..."
+                onChange={(event) => updateField("phone", cleanPhone(event.target.value))}
+                {...PHONE_PROPS}
               />
             </label>
 

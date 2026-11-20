@@ -5,6 +5,7 @@ import { can } from "./permissions";
 import { notify } from "./toast";
 import ReceiptModal, { type ReceiptData } from "./ReceiptModal";
 import { Plus, Printer, ReceiptText, Search } from "lucide-react";
+import { checkName, checkPhone, cleanName, cleanPhone, PHONE_PROPS } from "./validation";
 
 type Product = {
   id: string;
@@ -146,7 +147,8 @@ export default function PointOfSaleWorkspace() {
 
   async function addCustomer() {
     const name = newCustomer.name.trim();
-    if (!name) { setError("Enter the customer's name."); return; }
+    const problem = checkName(name, "Customer name") ?? checkPhone(newCustomer.phone);
+    if (problem) { setError(problem); return; }
     setCustomerBusy(true);
     setError("");
     try {
@@ -635,8 +637,8 @@ export default function PointOfSaleWorkspace() {
                 )}
                 {addingCustomer && (
                   <div style={{ display: "grid", gap: 6 }}>
-                    <input value={newCustomer.name} onChange={(event) => setNewCustomer({ ...newCustomer, name: event.target.value })} placeholder="Customer name" maxLength={255} />
-                    <input value={newCustomer.phone} onChange={(event) => setNewCustomer({ ...newCustomer, phone: event.target.value })} placeholder="Phone (optional)" maxLength={50} />
+                    <input value={newCustomer.name} onChange={(event) => setNewCustomer({ ...newCustomer, name: cleanName(event.target.value) })} placeholder="Customer name" maxLength={255} />
+                    <input value={newCustomer.phone} onChange={(event) => setNewCustomer({ ...newCustomer, phone: cleanPhone(event.target.value) })} {...PHONE_PROPS} placeholder="Phone, 10 digits (optional)" />
                     <div style={{ display: "flex", gap: 6 }}>
                       <button type="button" className="pos-primary-button" disabled={customerBusy} onClick={addCustomer}>{customerBusy ? "Saving..." : "Save customer"}</button>
                       <button type="button" className="pos-secondary-button" onClick={() => setAddingCustomer(false)}>Cancel</button>

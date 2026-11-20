@@ -1,6 +1,7 @@
 import { can } from "./permissions";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
+import { checkBusinessName, checkPhone, cleanBusinessName, cleanPhone, PHONE_PROPS } from "./validation";
 
 type Supplier = {
   id: string;
@@ -110,10 +111,10 @@ export default function SuppliersWorkspace() {
     setError("");
     setMessage("");
 
-    if (!form.name.trim()) {
-      setError("Enter the supplier's name.");
-      return;
-    }
+    const nameProblem = checkBusinessName(form.name, "Supplier name");
+    if (nameProblem) { setError(nameProblem); return; }
+    const phoneProblem = checkPhone(form.phone);
+    if (phoneProblem) { setError(phoneProblem); return; }
 
     if (form.name.trim().length > 150) {
       setError("Supplier name must not exceed 150 characters.");
@@ -396,7 +397,7 @@ export default function SuppliersWorkspace() {
               <input
                 style={{ ...fieldStyle, marginTop: 6 }}
                 value={form.name}
-                onChange={(event) => updateField("name", event.target.value)}
+                onChange={(event) => updateField("name", cleanBusinessName(event.target.value))}
                 maxLength={150}
                 autoComplete="name"
                 required
@@ -408,10 +409,8 @@ export default function SuppliersWorkspace() {
               <input
                 style={{ ...fieldStyle, marginTop: 6 }}
                 value={form.phone}
-                onChange={(event) => updateField("phone", event.target.value)}
-                maxLength={30}
-                autoComplete="tel"
-                placeholder="+254..."
+                onChange={(event) => updateField("phone", cleanPhone(event.target.value))}
+                {...PHONE_PROPS}
               />
             </label>
 
