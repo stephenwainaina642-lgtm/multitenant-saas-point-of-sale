@@ -19,6 +19,8 @@ import BusinessSettingsWorkspace from "./BusinessSettingsWorkspace";
 import ChangePasswordPanel from "./ChangePasswordPanel";
 import EmployeesWorkspace from "./EmployeesWorkspace";
 import { apiRequest } from "./api/client";
+import { notify } from "./toast";
+import { AlertTriangle, Bell, BarChart3, Banknote, Boxes, Clock, FileSpreadsheet, FileText, LayoutDashboard, Package, Receipt, Settings, ShoppingBag, ShoppingCart, Store, Truck, UserCog, Users, Wallet, ClipboardList } from "lucide-react";
 import { can, storePermissions } from "./permissions";
 
 /** The permission a member needs to see each screen (the server enforces the same rules). */
@@ -40,22 +42,22 @@ const navigationPermissions: Record<string, string[]> = {
 };
 
 const navigation = [
-  { name: "Dashboard", icon: "D" },
-  { name: "Point of Sale", icon: "P" },
-  { name: "Products", icon: "P" },
-  { name: "Inventory", icon: "I" },
-  { name: "Customers", icon: "C" },
-  { name: "Employees", icon: "E" },
-  { name: "Suppliers", icon: "S" },
-  { name: "Purchases", icon: "B" },
-  { name: "Sales", icon: "S" },
-  { name: "Quotations", icon: "Q" },
-  { name: "Invoices", icon: "I" },
-  { name: "Expenses", icon: "E" },
-  { name: "Shifts", icon: "T" },
-  { name: "Branches", icon: "L" },
-  { name: "Reports", icon: "R" },
-  { name: "Settings", icon: "G" },
+  { name: "Dashboard", icon: <LayoutDashboard size={18} strokeWidth={1.9} /> },
+  { name: "Point of Sale", icon: <ShoppingCart size={18} strokeWidth={1.9} /> },
+  { name: "Products", icon: <Package size={18} strokeWidth={1.9} /> },
+  { name: "Inventory", icon: <Boxes size={18} strokeWidth={1.9} /> },
+  { name: "Customers", icon: <Users size={18} strokeWidth={1.9} /> },
+  { name: "Employees", icon: <UserCog size={18} strokeWidth={1.9} /> },
+  { name: "Suppliers", icon: <Truck size={18} strokeWidth={1.9} /> },
+  { name: "Purchases", icon: <ClipboardList size={18} strokeWidth={1.9} /> },
+  { name: "Sales", icon: <Receipt size={18} strokeWidth={1.9} /> },
+  { name: "Quotations", icon: <FileText size={18} strokeWidth={1.9} /> },
+  { name: "Invoices", icon: <FileSpreadsheet size={18} strokeWidth={1.9} /> },
+  { name: "Expenses", icon: <Wallet size={18} strokeWidth={1.9} /> },
+  { name: "Shifts", icon: <Clock size={18} strokeWidth={1.9} /> },
+  { name: "Branches", icon: <Store size={18} strokeWidth={1.9} /> },
+  { name: "Reports", icon: <BarChart3 size={18} strokeWidth={1.9} /> },
+  { name: "Settings", icon: <Settings size={18} strokeWidth={1.9} /> },
 ];
 
 type DashboardData = {
@@ -263,7 +265,7 @@ function App() {
           <div className="topbar-actions">
             <button type="button" className="topbar-signout" onClick={signOut}>Sign out</button>
             <div className="system-status"><span style={dashboardError ? { background: "#d9534f" } : undefined}></span> {dashboardError ? "Connection problem" : "Connected"}</div>
-            <button className="icon-button notification-button" aria-label="Notifications" onClick={() => setNotice(`${lowStockCount} products need restocking.`)}><i></i></button>
+            <button className="icon-button notification-button" aria-label="Notifications" onClick={() => (lowStockCount > 0 ? notify.info(`${lowStockCount} product${lowStockCount === 1 ? "" : "s"} need restocking.`) : notify.success("Nothing needs restocking."))}><Bell size={17} /></button>
             <div className="topbar-avatar">{userInitials}</div>
           </div>
         </header>
@@ -342,25 +344,25 @@ function App() {
             <>
           <section className="metrics-grid">
             <article className="metric-card">
-              <div className="metric-top"><span>Total revenue</span><span className="metric-icon green"></span></div>
+              <div className="metric-top"><span>Total revenue</span><span className="metric-icon green"><Banknote size={17} /></span></div>
               <div className="metric-value">{money(totalRevenue)}</div>
               <div className="metric-foot"><span className="neutral-tag">Today {money(dashboard?.sales?.today.revenue ?? 0)}</span><span>{dashboard?.sales?.today.count ?? 0} sales</span></div>
               <div className="mini-bars"><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /></div>
             </article>
             <article className="metric-card">
-              <div className="metric-top"><span>Total orders</span><span className="metric-icon blue"></span></div>
+              <div className="metric-top"><span>Total orders</span><span className="metric-icon blue"><ShoppingBag size={17} /></span></div>
               <div className="metric-value">{totalOrders.toLocaleString("en-KE")}</div>
               <div className="metric-foot"><span className="neutral-tag">This month {dashboard?.sales?.thisMonth.count ?? 0}</span><span>completed sales</span></div>
               <div className="metric-line blue-line"><i /></div>
             </article>
             <article className="metric-card">
-              <div className="metric-top"><span>Products in stock</span><span className="metric-icon purple"></span></div>
+              <div className="metric-top"><span>Products in stock</span><span className="metric-icon purple"><Package size={17} /></span></div>
               <div className="metric-value">{stockUnits.toLocaleString("en-KE")}</div>
               <div className="metric-foot"><span className="trend negative">{lowStockCount} low stock</span><span>items need attention</span></div>
               <div className="stock-progress"><i /></div>
             </article>
             <article className="metric-card">
-              <div className="metric-top"><span>Outstanding payments</span><span className="metric-icon orange"></span></div>
+              <div className="metric-top"><span>Outstanding payments</span><span className="metric-icon orange"><AlertTriangle size={17} /></span></div>
               <div className="metric-value">{money(totalOutstanding)}</div>
               <div className="metric-foot"><span className="neutral-tag">{unpaidSales} unpaid sales</span><span>awaiting payment</span></div>
               <div className="metric-line orange-line"><i /></div>

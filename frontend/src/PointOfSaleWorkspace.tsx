@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { mpesaCodeError, normalizeMpesaCode } from "./mpesa";
 import { apiRequest } from "./api/client";
 import { can } from "./permissions";
+import { notify } from "./toast";
+import ReceiptModal, { type ReceiptData } from "./ReceiptModal";
+import { Plus, Printer, ReceiptText, Search } from "lucide-react";
 
 type Product = {
   id: string;
@@ -24,6 +27,11 @@ type CartItem = {
 type CreatedSale = {
   id: string;
   receiptNumber: string;
+  customerName?: string | null;
+  subtotal?: number | string;
+  discount?: number | string;
+  tax?: number | string;
+  pricesIncludeVat?: boolean;
   total: number | string;
   amountPaid: number | string;
   balanceDue: number | string;
@@ -65,9 +73,12 @@ export default function PointOfSaleWorkspace() {
   const [vatPreview, setVatPreview] = useState<{ tax: number; total: number } | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const saleKeyRef = useRef<{ fingerprint: string; key: string } | null>(null);
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
-  const [receipt, setReceipt] = useState<CreatedSale | null>(null);
+  // Messages are floating toasts, not elements in the page. An empty string means "clear", so old call sites still read naturally.
+  const setError = (text: string) => { if (text) notify.error(text); };
+  const setMessage = (text: string) => { if (text) notify.success(text); };
+  const [lastReceipt, setLastReceipt] = useState<ReceiptData | null>(null);
+  const [showReceipt, setShowReceipt] = useState(false);
+  const searchRef = useRef<HTMLInputElement | null>(null);
 
   const token = sessionStorage.getItem("pos_token") ?? "";
   const businessId = sessionStorage.getItem("pos_business_id") ?? "";
@@ -204,7 +215,6 @@ export default function PointOfSaleWorkspace() {
       products.find((item) => (item.barcode ?? "").toLowerCase() === code) ??
       products.find((item) => (item.sku ?? "").toLowerCase() === code);
     if (!product) {
-      setReceipt(null);
       setMessage("");
       setError(`No active product has the barcode or SKU "${raw.trim()}".`);
       return;
@@ -216,7 +226,6 @@ export default function PointOfSaleWorkspace() {
   function addProduct(productId: string = selectedProductId) {
     setError("");
     setMessage("");
-    setReceipt(null);
 
     const product = products.find((item) => item.id === productId);
     if (!product) {
@@ -287,7 +296,6 @@ export default function PointOfSaleWorkspace() {
     event.preventDefault();
     setError("");
     setMessage("");
-    setReceipt(null);
 
     if (!token || !businessId) {
       setError("Your login or selected business is missing. Please sign in again.");
@@ -387,8 +395,25 @@ export default function PointOfSaleWorkspace() {
       }
 
       saleKeyRef.current = null;
-      setReceipt(response.data);
-      setMessage("Sale completed successfully.");
+      const sale = response.data;
+      const num = (v: unknown, fallback = 0) => (v === undefined || v === null || v === "" ? fallback : Number(v));
+      setLastReceipt({
+        receiptNumber: sale.receiptNumber,
+        date: new Date(),
+        customerName: sale.customerName ?? customers.find((c) => c.id === customerId)?.name ?? null,
+        customerPhone: customers.find((c) => c.id === customerId)?.phone ?? null,
+        servedBy: sessionStorage.getItem("pos_user_name") || null,
+        items: cart.map((item) => ({
+          name: item.product.name, sku: item.product.sku, quantity: item.quantity, unit: item.product.unitOfMeasure,
+          unitPrice: Number(item.product.sellingPrice), total: Number(item.product.sellingPrice) * item.quantity,
+        })),
+        subtotal: num(sale.subtotal, subtotal), discount: num(sale.discount, discountValue), tax: num(sale.tax, taxValue),
+        pricesIncludeVat: sale.pricesIncludeVat, total: num(sale.total), amountPaid: num(sale.amountPaid), balanceDue: num(sale.balanceDue),
+        paymentMethod: paid > 0 ? paymentMethod : undefined,
+        paymentReference: paid > 0 && paymentMethod === "mpesa" ? normalizeMpesaCode(mpesaCode) : null,
+        notes: notes.trim() || null,
+      });
+      notify.success(`Sale ${sale.receiptNumber} recorded`);
       setCart([]);
       setDiscount("0");
       setTax("0");
@@ -402,6 +427,23 @@ export default function PointOfSaleWorkspace() {
     } finally {
       setSaving(false);
     }
+  }
+
+  const cartCount = cart.reduce((n, item) => n + item.quantity, 0);
+  const MAX_RESULTS = 30;
+  const matches = useMemo(() => {
+    const words = productSearch.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    return products
+      .filter((p) => !categoryFilter || p.categoryId === categoryFilter)
+      .filter((p) => {
+        const hay = `${p.name} ${p.sku ?? ""} ${p.barcode ?? ""} ${p.categoryName ?? ""}`.toLowerCase();
+        return words.every((w) => hay.includes(w));
+      });
+  }, [products, productSearch, categoryFilter]);
+
+  function addFromSearch(productId: string) {
+    addProduct(productId);
+    searchRef.current?.focus();
   }
 
   const posCategories = useMemo(() => {
@@ -426,19 +468,18 @@ export default function PointOfSaleWorkspace() {
         </button>
       </div>
 
-      {error && <div className="pos-alert pos-alert-error" role="alert">{error}</div>}
-      {message && <div className="pos-alert pos-alert-success" role="status">{message}</div>}
-
-      {receipt && (
-        <div className="pos-receipt-summary">
-          <h3>Sale recorded</h3>
-          <p>Receipt: <strong>{receipt.receiptNumber}</strong></p>
-          <p>Total: <strong>{money(Number(receipt.total))}</strong></p>
-          <p>Paid: {money(Number(receipt.amountPaid))} | Balance: {money(Number(receipt.balanceDue))}</p>
-          <p>Payment status: {receipt.paymentStatus}</p>
-          <p className="inventory-muted">Save the receipt number for your records. You can find the sale in the Sales section.</p>
-        </div>
-      )}
+      <div className="pos-totals-bar" aria-live="polite">
+        <div><span>Items</span><strong>{cartCount}</strong></div>
+        <div className="pos-totals-bar-total"><span>Total</span><strong>{money(total)}</strong></div>
+        {lastReceipt && (
+          <div className="pos-last-sale">
+            <span><ReceiptText size={15} /> Last sale {lastReceipt.receiptNumber}</span>
+            <button type="button" className="pos-secondary-button" onClick={() => setShowReceipt(true)}>View receipt</button>
+            <button type="button" className="pos-primary-button" onClick={() => { setShowReceipt(true); setTimeout(() => window.print(), 250); }}><Printer size={14} style={{ verticalAlign: -2, marginRight: 5 }} />Print receipt</button>
+          </div>
+        )}
+      </div>
+      {showReceipt && lastReceipt && <ReceiptModal receipt={lastReceipt} onClose={() => setShowReceipt(false)} />}
 
       <div className="pos-checkout-grid">
         <section className="pos-checkout-panel">
@@ -468,46 +509,48 @@ export default function PointOfSaleWorkspace() {
                   </select>
                 </label>
               )}
-              <label className="inventory-field">
-                Product
-                <input
-                  type="search"
-                  placeholder="Search name or SKU, or scan a barcode and press Enter..."
-                  value={productSearch}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
+              <div className="pos-search-field">
+                <label htmlFor="pos-product-search">Find a product</label>
+                <div className="pos-search-box">
+                  <Search size={17} aria-hidden="true" />
+                  <input
+                    id="pos-product-search"
+                    ref={searchRef}
+                    type="search"
+                    autoFocus
+                    autoComplete="off"
+                    placeholder="Type a product name, or scan a barcode and press Enter"
+                    value={productSearch}
+                    onChange={(event) => setProductSearch(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter") return;
                       event.preventDefault();
-                      scanCode(productSearch);
-                    }
-                  }}
-                  onChange={(event) => {
-                    const query = event.target.value.toLowerCase().trim();
-                    setProductSearch(event.target.value);
-                    const match = products.find((product) =>
-                      product.name.toLowerCase().includes(query) ||
-                      (product.sku ?? "").toLowerCase().includes(query)
+                      const code = productSearch.trim().toLowerCase();
+                      const exact = products.find((p) => (p.barcode ?? "").toLowerCase() === code || (p.sku ?? "").toLowerCase() === code);
+                      if (exact) { scanCode(productSearch); return; }
+                      if (matches[0]) addFromSearch(matches[0].id);
+                      else setError(`No product matches "${productSearch.trim()}".`);
+                    }}
+                  />
+                </div>
+                <ul className="pos-results" role="listbox" aria-label="Matching products">
+                  {matches.slice(0, MAX_RESULTS).map((product) => {
+                    const stock = Number(product.stockQuantity);
+                    return (
+                      <li key={product.id}>
+                        <button type="button" className="pos-result" disabled={saving || stock <= 0} onClick={() => addFromSearch(product.id)}>
+                          <span className="pos-result-name">{product.name}</span>
+                          <span className="pos-result-meta">{product.sku ? `${product.sku} · ` : ""}{stock <= 0 ? "Out of stock" : `${stock} ${product.unitOfMeasure} in stock`}</span>
+                          <strong className="pos-result-price">{money(Number(product.sellingPrice))}</strong>
+                          <Plus size={16} aria-hidden="true" />
+                        </button>
+                      </li>
                     );
-                    setSelectedProductId(match?.id ?? "");
-                  }}
-                />
-                <select value={selectedProductId} onChange={(event) => setSelectedProductId(event.target.value)}>
-                  {products
-                    .filter((product) => {
-                      if (categoryFilter && product.categoryId !== categoryFilter) return false;
-                      const query = productSearch.toLowerCase().trim();
-                      return product.name.toLowerCase().includes(query) ||
-                        (product.sku ?? "").toLowerCase().includes(query);
-                    })
-                    .map((product) => (
-                      <option key={product.id} value={product.id}>
-                        {product.name}  -  {money(Number(product.sellingPrice))}  -  stock: {Number(product.stockQuantity)} {product.unitOfMeasure}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <button type="button" className="pos-primary-button" onClick={() => addProduct()} disabled={saving || !selectedProductId}>
-                Add to cart
-              </button>
+                  })}
+                  {matches.length === 0 && <li className="inventory-muted pos-no-results">No product matches "{productSearch.trim()}".</li>}
+                  {matches.length > MAX_RESULTS && <li className="inventory-muted pos-no-results">Showing {MAX_RESULTS} of {matches.length}. Keep typing to narrow it down.</li>}
+                </ul>
+              </div>
             </div>
           )}
 
@@ -546,23 +589,26 @@ export default function PointOfSaleWorkspace() {
 
         <form className="pos-checkout-panel pos-payment-panel" onSubmit={completeSale}>
           <h3>Payment and totals</h3>
-          <div className="pos-total-row"><span>Subtotal</span><strong>{money(subtotal)}</strong></div>
-
-          <label className="inventory-field">
-            Discount (KSh)
-            <input type="number" min="0" step="0.01" value={discount} onChange={(event) => setDiscount(event.target.value)} />
-          </label>
-
-          {vatOn ? (
-            <div className="pos-total-row"><span>{vat?.inclusive ? `VAT included (${Number(vat?.rate)}%)` : `VAT (${Number(vat?.rate)}%)`}</span><strong>{money(taxValue)}</strong></div>
-          ) : (
-            <label className="inventory-field">
-              Tax (KSh)
-              <input type="number" min="0" step="0.01" value={tax} onChange={(event) => setTax(event.target.value)} />
-            </label>
-          )}
-
           <div className="pos-total-row pos-grand-total"><span>Total</span><strong>{money(total)}</strong></div>
+
+          <details className="pos-adjustments">
+            <summary>Subtotal, discount and VAT</summary>
+            <div className="pos-total-row"><span>Subtotal</span><strong>{money(subtotal)}</strong></div>
+
+            <label className="inventory-field">
+              Discount (KSh)
+              <input type="number" min="0" step="0.01" value={discount} onChange={(event) => setDiscount(event.target.value)} />
+            </label>
+
+            {vatOn ? (
+              <div className="pos-total-row"><span>{vat?.inclusive ? `VAT included (${Number(vat?.rate)}%)` : `VAT (${Number(vat?.rate)}%)`}</span><strong>{money(taxValue)}</strong></div>
+            ) : (
+              <label className="inventory-field">
+                Tax (KSh)
+                <input type="number" min="0" step="0.01" value={tax} onChange={(event) => setTax(event.target.value)} />
+              </label>
+            )}
+          </details>
 
           <div className="inventory-field">
             <span>Customer {Number(amountPaid) < total ? "(required: the balance will be owed)" : "(optional)"}</span>

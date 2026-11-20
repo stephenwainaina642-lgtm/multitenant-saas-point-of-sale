@@ -4,6 +4,7 @@ import "./index.css";
 import App from "./App.tsx";
 import AuthGate from "./AuthGate";
 import PlatformAdmin from "./PlatformAdmin";
+import AppToaster from "./AppToaster";
 import "./mobile.css"; // last, so the phone layout wins over the desktop styles
 
 const DEMO = import.meta.env.VITE_DEMO_MODE === "true";
@@ -19,7 +20,12 @@ function DemoBanner() {
 
 // The platform owner's screen lives at /#platform; it is not linked from anywhere in the normal app.
 function Root() {
-  return window.location.hash.startsWith("#platform") ? <PlatformAdmin /> : <BusinessApp />;
+  return (
+    <>
+      {window.location.hash.startsWith("#platform") ? <PlatformAdmin /> : <BusinessApp />}
+      <AppToaster />
+    </>
+  );
 }
 
 function BusinessApp() {

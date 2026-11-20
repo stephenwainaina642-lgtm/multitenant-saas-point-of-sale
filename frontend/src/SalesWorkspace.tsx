@@ -21,6 +21,7 @@ type Sale = {
   paymentStatus: string;
   status: string;
   channel?: string;
+  salespersonName?: string | null;
 };
 
 type SaleItem = {
@@ -497,6 +498,12 @@ export default function SalesWorkspace() {
                   <div>
                     <span>Email</span>
                     <strong>{selectedSale.customerEmail}</strong>
+                  </div>
+                )}
+                {(selectedSale as Sale).salespersonName && (
+                  <div>
+                    <span>Served by</span>
+                    <strong>{(selectedSale as Sale).salespersonName}</strong>
                   </div>
                 )}
               </div>
