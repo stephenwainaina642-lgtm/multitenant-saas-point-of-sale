@@ -591,8 +591,7 @@ export default function PointOfSaleWorkspace() {
           <h3>Payment and totals</h3>
           <div className="pos-total-row pos-grand-total"><span>Total</span><strong>{money(total)}</strong></div>
 
-          <details className="pos-adjustments">
-            <summary>Subtotal, discount and VAT</summary>
+          <div className="pos-adjustments">
             <div className="pos-total-row"><span>Subtotal</span><strong>{money(subtotal)}</strong></div>
 
             <label className="inventory-field">
@@ -608,7 +607,7 @@ export default function PointOfSaleWorkspace() {
                 <input type="number" min="0" step="0.01" value={tax} onChange={(event) => setTax(event.target.value)} />
               </label>
             )}
-          </details>
+          </div>
 
           <div className="inventory-field">
             <span>Customer {Number(amountPaid) < total ? "(required: the balance will be owed)" : "(optional)"}</span>
