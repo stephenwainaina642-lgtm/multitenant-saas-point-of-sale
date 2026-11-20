@@ -8,6 +8,7 @@ const router = Router();
 const guard = [authenticate, requireBusinessAccess, requirePermission("employees.manage")];
 
 router.get("/", ...guard, c.listEmployeesController);
+router.get("/:id/profile", ...guard, c.employeeProfileController);
 router.post("/", ...guard, c.addEmployeeController);
 router.put("/:id", ...guard, c.updateEmployeeController);
 router.post("/:id/deactivate", ...guard, c.deactivateEmployeeController);

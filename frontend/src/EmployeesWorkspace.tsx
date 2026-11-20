@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
 import RolePermissionsPanel, { type Role } from "./RolePermissionsPanel";
+import EmployeeProfile from "./EmployeeProfile";
 import { checkName, checkPhone, cleanName, cleanPhone, PHONE_PROPS } from "./validation";
 
 type Employee = {
@@ -34,6 +35,15 @@ export default function EmployeesWorkspace({ salespersonPerformance = [] }: { sa
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
+  // The open profile lives in the address (#employees/<id>) so it can be linked to directly.
+  const readHash = () => /^#employees\/(\d+)$/.exec(window.location.hash)?.[1] ?? null;
+  const [profileId, setProfileId] = useState<string | null>(readHash);
+  useEffect(() => {
+    const onHash = () => setProfileId(readHash());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+  const closeProfile = () => { history.replaceState(null, "", window.location.pathname + window.location.search); setProfileId(null); };
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -108,6 +118,8 @@ export default function EmployeesWorkspace({ salespersonPerformance = [] }: { sa
 
   const active = employees.filter((e) => e.isActive).length;
 
+  if (profileId) return <EmployeeProfile memberId={profileId} onBack={closeProfile} />;
+
   return (
     <section style={{ display: "grid", gap: 20 }}>
       <article className="panel" style={{ padding: 24 }}>
@@ -167,7 +179,7 @@ export default function EmployeesWorkspace({ salespersonPerformance = [] }: { sa
                 const p = perf(e);
                 return (
                   <tr key={e.id}>
-                    <td><strong>{e.name}</strong>{e.isOwner && " (owner)"}<div className="customer-secondary-text">{e.email}{e.phone ? ` · ${e.phone}` : ""}</div></td>
+                    <td><a href={`#employees/${e.id}`} className="employee-link"><strong>{e.name}</strong></a>{e.isOwner && " (owner)"}<div className="customer-secondary-text">{e.email}{e.phone ? ` · ${e.phone}` : ""}</div></td>
                     <td>
                       {e.isOwner ? "Owner" : (
                         <select value={e.role.name} onChange={(ev) => void changeRole(e, ev.target.value)} aria-label={`Role for ${e.name}`}>

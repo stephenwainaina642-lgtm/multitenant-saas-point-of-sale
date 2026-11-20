@@ -2192,3 +2192,5 @@ tbody tr:hover { background: #f7faf7; }
 .pos-search-box svg{left:14px;pointer-events:none;z-index:1}
 .pos-search-box input[type="search"]::-webkit-search-decoration,
 .pos-search-box input[type="search"]::-webkit-search-cancel-button{-webkit-appearance:none}
+.employee-link{color:#166534;text-decoration:none}
+.employee-link:hover{text-decoration:underline}

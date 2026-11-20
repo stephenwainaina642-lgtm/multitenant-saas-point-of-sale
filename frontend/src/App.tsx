@@ -82,7 +82,8 @@ const money = (amount: number) =>
   }).format(amount)}`;
 
 function App() {
-  const [activePage, setActivePage] = useState("Dashboard");
+  // A link like /#employees/12 opens that employee's profile directly.
+  const [activePage, setActivePage] = useState(() => (/^#employees\/\d+$/.test(window.location.hash) ? "Employees" : "Dashboard"));
   const [menuOpen, setMenuOpen] = useState(false); // phone/tablet: the sidebar is a slide-in drawer
   const [search, setSearch] = useState("");
   const [period, setPeriod] = useState("This week");

@@ -1,7 +1,7 @@
 import type { NextFunction, Response } from "express";
 import type { BusinessRequest } from "../auth/business.middleware.js";
 import {
-  addEmployee, listEmployees, resetEmployeePassword, setEmployeeActive, updateEmployee,
+  addEmployee, employeeProfile, listEmployees, resetEmployeePassword, setEmployeeActive, updateEmployee,
 } from "./employee.service.js";
 
 const biz = (req: BusinessRequest) => req.businessId!.toString();
@@ -31,4 +31,7 @@ export async function resetPasswordController(req: BusinessRequest, res: Respons
     const r = await resetEmployeePassword(biz(req), id(req), actor(req));
     res.json({ success: true, temporaryPassword: r.temporaryPassword });
   } catch (e) { next(e); }
+}
+export async function employeeProfileController(req: BusinessRequest, res: Response, next: NextFunction) {
+  try { res.json({ success: true, data: await employeeProfile(biz(req), id(req)) }); } catch (e) { next(e); }
 }

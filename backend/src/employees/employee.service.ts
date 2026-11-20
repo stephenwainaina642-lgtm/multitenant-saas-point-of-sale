@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
 import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
+import { decimalToCents } from "../lib/money.js";
 import { personName, phoneNumber } from "../lib/validate.js";
 import { BUILT_IN_ROLES } from "../auth/permissions.js";
 
@@ -213,4 +214,41 @@ async function audit(businessId: bigint, actor: Actor, action: string, entityId:
   await prisma.auditLog.create({
     data: { businessId, userId: actor.userId, action, entity: "employee", entityId, details },
   });
+}
+
+/** One person's profile: details plus what they have sold. Figures count completed sales only. */
+export async function employeeProfile(businessId: string, idText: string) {
+  const bizId = BigInt(businessId);
+  const m = await findMember(bizId, idText);
+  const owner = await ownerOf(bizId);
+  const where = { businessId: bizId, salespersonId: m.userId, status: "completed" } as const;
+  const [rows, recent] = await Promise.all([
+    prisma.sale.findMany({ where, select: { total: true, amountPaid: true, balanceDue: true, saleDate: true } }),
+    prisma.sale.findMany({
+      where, orderBy: { saleDate: "desc" }, take: 10,
+      select: { id: true, receiptNumber: true, saleDate: true, total: true, paymentStatus: true, customer: { select: { name: true } } },
+    }),
+  ]);
+  const monthAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000);
+  let revenue = 0n, collected = 0n, outstanding = 0n, last30Count = 0, last30Revenue = 0n;
+  for (const r of rows) {
+    const t = decimalToCents(r.total as unknown as string);
+    revenue += t;
+    collected += decimalToCents(r.amountPaid as unknown as string);
+    outstanding += decimalToCents(r.balanceDue as unknown as string);
+    if (r.saleDate >= monthAgo) { last30Count += 1; last30Revenue += t; }
+  }
+  const out = (c: bigint) => Number(c) / 100;
+  return {
+    employee: format(m, owner),
+    stats: {
+      salesCount: rows.length, revenue: out(revenue), collected: out(collected), outstanding: out(outstanding),
+      last30Days: { salesCount: last30Count, revenue: out(last30Revenue) },
+      lastSaleAt: recent[0]?.saleDate ?? null,
+    },
+    recentSales: recent.map((r) => ({
+      id: r.id.toString(), receiptNumber: r.receiptNumber, saleDate: r.saleDate,
+      customerName: r.customer?.name ?? null, total: out(decimalToCents(r.total as unknown as string)), paymentStatus: r.paymentStatus,
+    })),
+  };
 }
