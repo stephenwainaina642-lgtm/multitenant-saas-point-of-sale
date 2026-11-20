@@ -1,5 +1,6 @@
 import { addBranchStock } from "../branches/branch-stock.js";
 import prisma from "../lib/prisma.js";
+import { requirePublicId } from "../lib/public-id.js";
 import { AppError } from "../lib/errors.js";
 import {
   centsToString,
@@ -46,7 +47,7 @@ export async function getBusinessPurchases(
     include: {
       supplier: {
         select: {
-          id: true,
+          publicId: true,
           name: true,
         },
       },
@@ -70,7 +71,7 @@ export async function getBusinessPurchases(
 
   return purchases.map((purchase) => ({
     id: purchase.id.toString(),
-    supplierId: purchase.supplierId.toString(),
+    supplierId: purchase.supplier.publicId,
     supplierName: purchase.supplier.name,
     invoiceNumber: purchase.invoiceNumber,
     purchaseDate: purchase.purchaseDate,
@@ -114,7 +115,7 @@ export async function createBusinessPurchase(
   return prisma.$transaction(async (tx) => {
     const supplier = await tx.supplier.findFirst({
       where: {
-        id: BigInt(data.supplierId),
+        publicId: requirePublicId(data.supplierId, "Supplier is invalid"),
         businessId: bizId,
         isActive: true,
       },
@@ -305,7 +306,7 @@ export async function createBusinessPurchase(
 
     return {
       id: purchase.id.toString(),
-      supplierId: purchase.supplierId.toString(),
+      supplierId: supplier.publicId,
       supplierName: supplier.name,
       invoiceNumber: purchase.invoiceNumber,
       purchaseDate: purchase.purchaseDate,

@@ -196,13 +196,13 @@ describe("sales, stock and payments", () => {
         items: [{ productId: s.sugar.id, quantity: 10, unitPrice: 6900 }],
       });
       expect(res.status).toBe(201);
-      const [c] = await query(`select balance from customers where id = $1`, [s.customer.id]);
+      const [c] = await query(`select balance from customers where public_id = $1::uuid`, [s.customer.id]);
       expect(Number(c!.balance)).toBe(69000);
     });
 
     it("a credit sale above the customer's credit limit is rejected", async () => {
       const s = await seedWholesaler();
-      await query(`update customers set credit_limit = 10000 where id = $1`, [s.customer.id]);
+      await query(`update customers set credit_limit = 10000 where public_id = $1::uuid`, [s.customer.id]);
       const res = await post("/sales", s.t, {
         customerId: s.customer.id,
         items: [{ productId: s.sugar.id, quantity: 10, unitPrice: 6900 }],
@@ -218,7 +218,7 @@ describe("sales, stock and payments", () => {
         items: [{ productId: s.sugar.id, quantity: 2, unitPrice: 6900 }],
       });
       expect(sale.status).toBe(201);
-      const bal = async () => Number((await query(`select balance from customers where id = $1`, [s.customer.id]))[0]!.balance);
+      const bal = async () => Number((await query(`select balance from customers where public_id = $1::uuid`, [s.customer.id]))[0]!.balance);
       expect(await bal()).toBe(4800);
       await post("/payments", s.t, { saleId: sale.body.data.id, amount: 1800, method: "mpesa", reference: mpesaCode() });
       expect(await bal()).toBe(3000);

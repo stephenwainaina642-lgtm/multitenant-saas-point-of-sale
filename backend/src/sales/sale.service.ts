@@ -1,5 +1,6 @@
 import { takeBranchStockOrFail } from "../branches/branch-stock.js";
 import prisma from "../lib/prisma.js";
+import { requirePublicId } from "../lib/public-id.js";
 import { AppError } from "../lib/errors.js";
 import { checkedPaymentReference, isMpesaClash, MPESA_CLASH_MESSAGE } from "../lib/mpesa.js";
 import {
@@ -60,7 +61,7 @@ export async function getBusinessSales(
     include: {
       customer: {
         select: {
-          id: true,
+          publicId: true,
           name: true,
         },
       },
@@ -91,7 +92,7 @@ export async function getBusinessSales(
 
   return sales.map((sale) => ({
     id: sale.id.toString(),
-    customerId: sale.customerId?.toString() || null,
+    customerId: sale.customer?.publicId ?? null,
     customerName: sale.customer?.name || null,
     salespersonId: sale.salesperson?.id.toString() || null,
     salespersonName: sale.salesperson?.name || null,
@@ -144,7 +145,7 @@ export async function getBusinessSaleById(
     include: {
       customer: {
         select: {
-          id: true,
+          publicId: true,
           name: true,
           phone: true,
           email: true,
@@ -188,7 +189,7 @@ export async function getBusinessSaleById(
 
   return {
     id: sale.id.toString(),
-    customerId: sale.customerId?.toString() || null,
+    customerId: sale.customer?.publicId ?? null,
     customerName: sale.customer?.name || null,
     salespersonId: sale.salesperson?.id.toString() || null,
     salespersonName: sale.salesperson?.name || null,
@@ -279,13 +280,13 @@ type SaleRecord = {
 
 function formatCreatedSale(
   sale: SaleRecord,
-  customerName: string | null,
+  customer: { publicId: string; name: string } | null,
   idempotentReplay: boolean
 ) {
   return {
     id: sale.id.toString(),
-    customerId: sale.customerId?.toString() || null,
-    customerName,
+    customerId: customer?.publicId ?? null,
+    customerName: customer?.name ?? null,
     receiptNumber: sale.receiptNumber,
     saleDate: sale.saleDate,
     subtotal: sale.subtotal,
@@ -342,23 +343,23 @@ export async function createBusinessSale(
       if (idempotencyKey) {
         const existing = await tx.sale.findFirst({
           where: { businessId: bizId, idempotencyKey },
-          include: { items: true, customer: { select: { name: true } } },
+          include: { items: true, customer: { select: { publicId: true, name: true } } },
         });
         if (existing) {
-          return formatCreatedSale(existing, existing.customer?.name ?? null, true);
+          return formatCreatedSale(existing, existing.customer ?? null, true);
         }
       }
 
-      let customer: { id: bigint; name: string } | null = null;
+      let customer: { id: bigint; publicId: string; name: string } | null = null;
 
       if (data.customerId) {
         customer = await tx.customer.findFirst({
           where: {
-            id: BigInt(data.customerId),
+            publicId: requirePublicId(data.customerId, "Customer is invalid"),
             businessId: bizId,
             isActive: true,
           },
-          select: { id: true, name: true },
+          select: { id: true, publicId: true, name: true },
         });
 
         if (!customer) {
@@ -504,7 +505,7 @@ export async function createBusinessSale(
         });
       }
 
-      return formatCreatedSale(sale, customer?.name ?? null, false);
+      return formatCreatedSale(sale, customer, false);
     });
   } catch (error) {
     // Two requests with the same idempotency key raced: return the winner.
@@ -516,10 +517,10 @@ export async function createBusinessSale(
     ) {
       const existing = await prisma.sale.findFirst({
         where: { businessId: bizId, idempotencyKey },
-        include: { items: true, customer: { select: { name: true } } },
+        include: { items: true, customer: { select: { publicId: true, name: true } } },
       });
       if (existing) {
-        return formatCreatedSale(existing, existing.customer?.name ?? null, true);
+        return formatCreatedSale(existing, existing.customer ?? null, true);
       }
     }
     if (isMpesaClash(error)) throw new AppError(409, MPESA_CLASH_MESSAGE);

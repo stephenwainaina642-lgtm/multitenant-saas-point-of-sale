@@ -9,7 +9,7 @@ export type CreateInvoiceData = {
 };
 
 const saleInclude = {
-  customer: { select: { id: true, name: true, phone: true, email: true, address: true } },
+  customer: { select: { publicId: true, name: true, phone: true, email: true, address: true } },
   items: {
     orderBy: { id: "asc" as const },
     include: { product: { select: { id: true, name: true, sku: true, unitOfMeasure: true } } },
@@ -35,12 +35,12 @@ function present(invoice: any, sale: any) {
     invoiceNumber: invoice.invoiceNumber,
     saleId: sale.id.toString(),
     receiptNumber: sale.receiptNumber,
-    customerId: sale.customer?.id.toString() ?? null,
+    customerId: sale.customer?.publicId ?? null,
     customerName: sale.customer?.name ?? null,
     customerPhone: sale.customer?.phone ?? null,
     customer: sale.customer
       ? {
-          id: sale.customer.id.toString(), name: sale.customer.name, phone: sale.customer.phone,
+          id: sale.customer.publicId, name: sale.customer.name, phone: sale.customer.phone,
           email: sale.customer.email, address: sale.customer.address,
         }
       : null,

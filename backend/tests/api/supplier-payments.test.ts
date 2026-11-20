@@ -10,7 +10,7 @@ describe("purchases on credit, supplier payments and voiding", () => {
   let other: Tenant;
   beforeAll(async () => { await resetData(); s = await seedPerfumeBusiness(); other = await registerTenant("Other"); });
 
-  const supplierBalance = async () => N((await query(`select balance from suppliers where id = $1`, [s.supplier.id]))[0]!.balance);
+  const supplierBalance = async () => N((await query(`select balance from suppliers where public_id = $1::uuid`, [s.supplier.id]))[0]!.balance);
   const buy = async (qty: number, cost: number, paid = 0, extra: object = {}) => {
     const r = await post("/purchases", s.t, {
       supplierId: s.supplier.id, amountPaid: paid, ...(paid > 0 && { paymentMethod: "bank" }),

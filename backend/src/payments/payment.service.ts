@@ -26,7 +26,7 @@ export async function getBusinessPayments(
           receiptNumber: true,
           customer: {
             select: {
-              id: true,
+              publicId: true,
               name: true,
             },
           },
@@ -42,7 +42,7 @@ export async function getBusinessPayments(
     id: payment.id.toString(),
     saleId: payment.saleId.toString(),
     receiptNumber: payment.sale.receiptNumber,
-    customerId: payment.sale.customer?.id.toString() || null,
+    customerId: payment.sale.customer?.publicId ?? null,
     customerName: payment.sale.customer?.name || null,
     amount: payment.amount,
     method: payment.method,

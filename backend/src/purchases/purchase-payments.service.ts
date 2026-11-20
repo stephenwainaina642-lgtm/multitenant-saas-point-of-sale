@@ -31,7 +31,7 @@ export async function getBusinessPurchase(businessId: string, idText: string) {
   const p = await prisma.purchase.findFirst({
     where: { id, businessId: BigInt(businessId) },
     include: {
-      supplier: { select: { id: true, name: true } },
+      supplier: { select: { publicId: true, name: true } },
       payments: { orderBy: { id: "asc" } },
       items: { include: { product: { select: { name: true, sku: true, unitOfMeasure: true } } } },
     },
@@ -39,7 +39,7 @@ export async function getBusinessPurchase(businessId: string, idText: string) {
   if (!p) throw new AppError(404, "Purchase not found");
   return {
     id: p.id.toString(),
-    supplierId: p.supplierId.toString(),
+    supplierId: p.supplier.publicId,
     supplierName: p.supplier.name,
     invoiceNumber: p.invoiceNumber,
     purchaseDate: p.purchaseDate,

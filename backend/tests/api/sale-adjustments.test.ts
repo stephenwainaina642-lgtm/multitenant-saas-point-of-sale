@@ -19,7 +19,7 @@ describe("sale edit, void and refund", () => {
   });
 
   const customerBalance = async () =>
-    N((await query(`select balance from customers where id = $1`, [s.customer.id]))[0]!.balance);
+    N((await query(`select balance from customers where public_id = $1::uuid`, [s.customer.id]))[0]!.balance);
 
   /** A KES 2,400 credit sale of 2 chargers with KES 1,000 paid. */
   const creditSale = async (qty = 2, paid = 1000) => {
@@ -130,7 +130,7 @@ describe("sale edit, void and refund", () => {
       const res = await put(`/sales/${id}`, s.t, { customerId: other.body.data.id, items: [item(s.charger.id, 1, 1200)] });
       expect(res.status).toBe(200);
       expect(await customerBalance()).toBe(before - 1000);
-      const [o] = await query(`select balance from customers where id = $1`, [other.body.data.id]);
+      const [o] = await query(`select balance from customers where public_id = $1::uuid`, [other.body.data.id]);
       expect(N(o!.balance)).toBe(1000);
       expect(await ledgerViolations()).toEqual([]);
     });

@@ -1,5 +1,6 @@
 import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
+import { requirePublicId } from "../lib/public-id.js";
 import { centsToString, decimalToCents, parseMoney } from "../lib/money.js";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -44,21 +45,21 @@ function parse(data: CustomerData, partial: boolean) {
 }
 
 function format(r: {
-  id: bigint; name: string; phone: string | null; email: string | null; address: string | null;
+  publicId: string; name: string; phone: string | null; email: string | null; address: string | null;
   notes: string | null; taxNumber: string | null; balance: { toFixed(d: number): string }; creditLimit: { toFixed(d: number): string };
   isActive: boolean; createdAt: Date;
 }) {
   return {
-    id: r.id.toString(), name: r.name, phone: r.phone, email: r.email, address: r.address,
+    id: r.publicId, name: r.name, phone: r.phone, email: r.email, address: r.address,
     notes: r.notes, taxNumber: r.taxNumber, balance: r.balance.toFixed(2), creditLimit: r.creditLimit.toFixed(2),
     isActive: r.isActive, createdAt: r.createdAt,
   };
 }
 
 async function findOwn(businessId: string, idText: string) {
-  if (!/^[1-9]\d*$/.test(idText)) throw new AppError(400, "A valid customer ID is required");
+  const publicId = requirePublicId(idText, "A valid customer ID is required");
   const row = await prisma.customer.findFirst({
-    where: { id: BigInt(idText), businessId: BigInt(businessId), isActive: true },
+    where: { publicId, businessId: BigInt(businessId), isActive: true },
   });
   if (!row) throw new AppError(404, "Customer not found");
   return row;
@@ -89,5 +90,5 @@ export async function deleteBusinessCustomer(businessId: string, idText: string)
     throw new AppError(409, "This customer has an outstanding balance. Settle it before archiving");
   }
   const archived = await prisma.customer.update({ where: { id: row.id }, data: { isActive: false } });
-  return { id: archived.id.toString(), name: archived.name, isActive: archived.isActive };
+  return { id: archived.publicId, name: archived.name, isActive: archived.isActive };
 }

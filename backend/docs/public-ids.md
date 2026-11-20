@@ -19,7 +19,8 @@ working on the migrated database (the column is only added), so there is no brok
 | Table | Status |
 |---|---|
 | categories | DONE (migration `20261128090000_add_public_id_categories`) |
-| customers, suppliers, products, sales, purchases, expenses, quotations, invoices, branches, roles, employees/users, payments, stock transfers, businesses | not yet |
+| customers, suppliers | DONE (migration `20261129090000_add_public_id_customers_suppliers`): own routes, sales (create/list/detail/edit), purchases, purchase payments, quotations, invoices, payments list, customer debt and receive-payment, reports |
+| products, sales, purchases, expenses, quotations, invoices, branches, roles, employees/users, payments, stock transfers, businesses | not yet |
 
 ## Known gaps until every table is converted
 - `GET /api/audit-logs` still returns the numeric `entityId` for every entity type. It is mapped to public ids as the last step.

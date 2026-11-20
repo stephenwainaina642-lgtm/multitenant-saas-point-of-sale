@@ -1,5 +1,6 @@
 import { addBranchStock, takeBranchStockOrFail } from "../branches/branch-stock.js";
 import prisma from "../lib/prisma.js";
+import { requirePublicId } from "../lib/public-id.js";
 import { AppError } from "../lib/errors.js";
 import {
   centsToString,
@@ -153,18 +154,18 @@ export async function editBusinessSale(
     const before = snapshot(sale);
 
     // Customer: undefined keeps the current one, null/"" removes it.
-    let customer: { id: bigint; name: string } | null = null;
+    let customer: { id: bigint; publicId: string; name: string } | null = null;
     if (data.customerId === undefined) {
       if (sale.customerId) {
         customer = await tx.customer.findFirst({
           where: { id: sale.customerId, businessId: bizId },
-          select: { id: true, name: true },
+          select: { id: true, publicId: true, name: true },
         });
       }
     } else if (data.customerId !== null && data.customerId !== "") {
       customer = await tx.customer.findFirst({
-        where: { id: BigInt(data.customerId), businessId: bizId, isActive: true },
-        select: { id: true, name: true },
+        where: { publicId: requirePublicId(data.customerId, "Customer is invalid"), businessId: bizId, isActive: true },
+        select: { id: true, publicId: true, name: true },
       });
       if (!customer) {
         throw new AppError(404, "Customer not found");
@@ -300,7 +301,7 @@ export async function editBusinessSale(
     return {
       id: updated.id.toString(),
       receiptNumber: updated.receiptNumber,
-      customerId: updated.customerId?.toString() ?? null,
+      customerId: customer?.publicId ?? null,
       subtotal: updated.subtotal,
       discount: updated.discount,
       tax: updated.tax,

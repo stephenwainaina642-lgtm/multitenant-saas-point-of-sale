@@ -78,7 +78,7 @@ export async function getBusinessReports(
       include: {
         supplier: {
           select: {
-            id: true,
+            publicId: true,
             name: true,
           },
         },
@@ -275,7 +275,7 @@ export async function getBusinessReports(
   >();
 
   for (const purchase of purchases) {
-    const supplierId = purchase.supplierId.toString();
+    const supplierId = purchase.supplier.publicId;
     const current = supplierMap.get(supplierId) || {
       supplierId,
       supplierName: purchase.supplier.name,
@@ -395,7 +395,7 @@ export async function getBusinessReports(
 }
 
 
-type DebtRow = { customer_id: bigint | null; name: string | null; owed: string; oldest: Date; sales: bigint };
+type DebtRow = { customer_id: bigint | null; customer_public_id: string | null; name: string | null; owed: string; oldest: Date; sales: bigint };
 
 /**
  * Customer debt. "Outstanding" is as of now (a debt does not depend on the report period);
@@ -405,11 +405,11 @@ async function debtReport(businessId: bigint, range: ReportDateRange) {
   const tz = range.timeZone;
   const branch = range.branchId ?? null;
   const rows = await prisma.$queryRaw<DebtRow[]>`
-    select s.customer_id, c.name, sum(s.balance_due)::text as owed, min(s.sale_date) as oldest, count(*) as sales
+    select s.customer_id, c.public_id::text as customer_public_id, c.name, sum(s.balance_due)::text as owed, min(s.sale_date) as oldest, count(*) as sales
       from sales s left join customers c on c.id = s.customer_id
      where s.business_id = ${businessId} and s.status = 'completed' and s.balance_due > 0
        and (${branch}::bigint is null or s.branch_id = ${branch}::bigint)
-     group by s.customer_id, c.name
+     group by s.customer_id, c.public_id, c.name
      order by sum(s.balance_due) desc`;
   const aging = await prisma.$queryRaw<{ bucket: string; owed: string }[]>`
     select case when age <= 30 then 'days0to30' when age <= 60 then 'days31to60' else 'days61plus' end as bucket,
@@ -442,7 +442,7 @@ async function debtReport(businessId: bigint, range: ReportDateRange) {
     const owed = decimalToCents(r.owed);
     total += owed;
     return {
-      customerId: r.customer_id?.toString() ?? null,
+      customerId: r.customer_public_id ?? null,
       customerName: r.name ?? "Walk-in (no customer on record)",
       unpaidSales: Number(r.sales),
       owed: out(owed),

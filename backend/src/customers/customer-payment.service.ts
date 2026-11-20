@@ -1,6 +1,7 @@
 import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
 import { checkedPaymentReference, isMpesaClash, MPESA_CLASH_MESSAGE } from "../lib/mpesa.js";
+import { requirePublicId } from "../lib/public-id.js";
 import { centsToString, decimalToCents, parseMoney } from "../lib/money.js";
 
 type Actor = { userId: string; onlyOwnSales: boolean };
@@ -24,8 +25,8 @@ async function unpaidSales(tx: Pick<typeof prisma, "$queryRaw">, businessId: big
 }
 
 async function customerOf(businessId: bigint, idText: string) {
-  if (!/^[1-9]\d{0,17}$/.test(idText)) throw new AppError(400, "Invalid customer id");
-  const c = await prisma.customer.findFirst({ where: { id: BigInt(idText), businessId } });
+  const publicId = requirePublicId(idText, "Invalid customer id");
+  const c = await prisma.customer.findFirst({ where: { publicId, businessId } });
   if (!c) throw new AppError(404, "Customer not found");
   return c;
 }
@@ -36,7 +37,7 @@ export async function customerUnpaidSales(businessId: string, idText: string, ac
   const rows = await unpaidSales(prisma, biz, c.id, actor, false);
   const owed = rows.reduce((s, r) => s + decimalToCents(r.balance_due), 0n);
   return {
-    customer: { id: c.id.toString(), name: c.name },
+    customer: { id: c.publicId, name: c.name },
     totalOwed: centsToString(owed),
     sales: rows.map((r) => ({ id: r.id.toString(), receiptNumber: r.receipt_number, saleDate: r.sale_date, total: r.total, balanceDue: r.balance_due })),
   };
@@ -121,12 +122,12 @@ export async function receiveCustomerPayment(businessId: string, idText: string,
 
 type Alloc = { saleId: bigint; receiptNumber: string; paid: bigint; balanceAfter: bigint; status: string };
 
-async function result(db: Pick<typeof prisma, "customer">, customer: { id: bigint; name: string }, allocations: Alloc[], replay: boolean) {
+async function result(db: Pick<typeof prisma, "customer">, customer: { id: bigint; publicId: string; name: string }, allocations: Alloc[], replay: boolean) {
   // Read through the same transaction, so the balance returned is the one just written.
   const fresh = await db.customer.findUnique({ where: { id: customer.id } });
   const total = allocations.reduce((s, a) => s + a.paid, 0n);
   return {
-    customer: { id: customer.id.toString(), name: customer.name, balance: centsToString(decimalToCents(fresh?.balance ?? 0)) },
+    customer: { id: customer.publicId, name: customer.name, balance: centsToString(decimalToCents(fresh?.balance ?? 0)) },
     amount: centsToString(total),
     idempotentReplay: replay,
     allocations: allocations.map((a) => ({ saleId: a.saleId.toString(), receiptNumber: a.receiptNumber, paid: centsToString(a.paid), balanceAfter: centsToString(a.balanceAfter), status: a.status })),

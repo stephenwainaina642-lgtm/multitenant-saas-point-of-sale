@@ -81,8 +81,8 @@ describe("a phone shop trading day with an owner, cashier, manager and accountan
     expect(d.stock).toMatchObject({ units: 66, value: 600800 });
 
     // Customer and supplier balances match what is really owed.
-    expect(Number((await query(`select balance from customers where id = $1`, [s.customer.id]))[0]!.balance)).toBe(10000);
-    expect(Number((await query(`select balance from suppliers where id = $1`, [s.supplier.id]))[0]!.balance)).toBe(0);
+    expect(Number((await query(`select balance from customers where public_id = $1::uuid`, [s.customer.id]))[0]!.balance)).toBe(10000);
+    expect(Number((await query(`select balance from suppliers where public_id = $1::uuid`, [s.supplier.id]))[0]!.balance)).toBe(0);
     expect(await ledgerViolations()).toEqual([]);
   });
 });
@@ -119,8 +119,8 @@ describe("a hardware store selling by the metre and litre", () => {
       outstandingSales: 16044.75,
       totalPurchases: 10183.23, purchasePayments: 10000, outstandingPurchases: 183.23,
     });
-    expect(Number((await query(`select balance from customers where id = $1`, [s.customer.id]))[0]!.balance)).toBe(16044.75);
-    expect(Number((await query(`select balance from suppliers where id = $1`, [s.supplier.id]))[0]!.balance)).toBe(183.23);
+    expect(Number((await query(`select balance from customers where public_id = $1::uuid`, [s.customer.id]))[0]!.balance)).toBe(16044.75);
+    expect(Number((await query(`select balance from suppliers where public_id = $1::uuid`, [s.supplier.id]))[0]!.balance)).toBe(183.23);
     expect(await ledgerViolations()).toEqual([]);
   });
 });

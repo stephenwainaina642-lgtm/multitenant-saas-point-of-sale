@@ -1,5 +1,6 @@
 import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
+import { requirePublicId } from "../lib/public-id.js";
 import { centsToString, decimalToCents } from "../lib/money.js";
 import { enteredSaleDiscount, priceSale, type RawSaleItem } from "../sales/sale-calc.js";
 import { createBusinessSale } from "../sales/sale.service.js";
@@ -13,7 +14,7 @@ export type QuotationData = {
 };
 
 const include = {
-  customer: { select: { id: true, name: true, phone: true, email: true, address: true } },
+  customer: { select: { publicId: true, name: true, phone: true, email: true, address: true } },
   convertedSale: { select: { id: true, receiptNumber: true } },
   items: {
     orderBy: { id: "asc" as const },
@@ -33,10 +34,10 @@ function present(q: any) {
   return {
     id: q.id.toString(),
     quotationNumber: q.quotationNumber,
-    customerId: q.customer?.id.toString() ?? null,
+    customerId: q.customer?.publicId ?? null,
     customerName: q.customer?.name ?? null,
     customer: q.customer
-      ? { id: q.customer.id.toString(), name: q.customer.name, phone: q.customer.phone, email: q.customer.email, address: q.customer.address }
+      ? { id: q.customer.publicId, name: q.customer.name, phone: q.customer.phone, email: q.customer.email, address: q.customer.address }
       : null,
     quotationDate: q.quotationDate,
     expiryDate: q.expiryDate,
@@ -86,8 +87,7 @@ function parseItems(value: unknown): RawSaleItem[] {
 
 async function resolveCustomer(tx: any, businessId: bigint, value: unknown): Promise<bigint | null> {
   if (value === undefined || value === null || value === "") return null;
-  if (!/^[1-9]\d*$/.test(String(value))) throw new AppError(400, "Invalid customer");
-  const customer = await tx.customer.findFirst({ where: { id: BigInt(String(value)), businessId, isActive: true } });
+  const customer = await tx.customer.findFirst({ where: { publicId: requirePublicId(value, "Invalid customer"), businessId, isActive: true } });
   if (!customer) throw new AppError(404, "Customer not found");
   return customer.id;
 }
@@ -290,7 +290,7 @@ export async function convertQuotationToSale(
     sale = await createBusinessSale(
       businessId, actor.userId,
       {
-        ...(q.customerId && { customerId: q.customerId.toString() }),
+        ...(q.customer && { customerId: q.customer.publicId }),
         discount: Number(centsToString(saleDiscount < 0n ? 0n : saleDiscount)),
         tax: Number(centsToString(saleTax < 0n ? 0n : saleTax)),
         ...(data.amountPaid !== undefined && { amountPaid: Number(data.amountPaid) }),

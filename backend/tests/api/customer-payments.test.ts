@@ -83,7 +83,7 @@ describe("a customer pays off their debt", () => {
     expect([first.status, second.status]).toEqual([201, 201]);
     expect(second.body.data.idempotentReplay).toBe(true);
     expect(await owed(c)).toBe(300);
-    expect(await query(`select count(*)::int as n from payments p join sales s on s.id = p.sale_id where s.customer_id = $1`, [c.id])).toEqual([{ n: 1 }]);
+    expect(await query(`select count(*)::int as n from payments p join sales s on s.id = p.sale_id where s.customer_id = (select id from customers where public_id = $1::uuid)`, [c.id])).toEqual([{ n: 1 }]);
   });
 
   it("is safe with simultaneous payments: never takes more than is owed", async () => {
