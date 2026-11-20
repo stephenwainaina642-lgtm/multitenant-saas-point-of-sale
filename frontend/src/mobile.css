@@ -1,0 +1,100 @@
+/* Phone and tablet layout. Loaded last so it overrides the earlier desktop and "refresh" rules. */
+
+.menu-button, .sidebar-backdrop { display: none; }
+
+@media (max-width: 900px) {
+  /* ---- Navigation: a slide-in drawer with full labels (the old thin strip showed only first letters) ---- */
+  .menu-button {
+    display: inline-flex; flex-direction: column; justify-content: center; gap: 4px;
+    flex: 0 0 auto; width: 40px; height: 40px; margin-right: 8px; padding: 0 10px;
+    border: 1px solid var(--border); border-radius: 10px; background: #fff; cursor: pointer;
+  }
+  .menu-button span { display: block; height: 2px; border-radius: 2px; background: #2b4a3b; }
+  .sidebar {
+    width: min(84vw, 300px); padding: 18px 14px 14px; align-items: stretch;
+    transform: translateX(-102%); transition: transform .22s ease; visibility: hidden;
+    box-shadow: none; z-index: 60;
+  }
+  .sidebar.open { transform: translateX(0); visibility: visible; box-shadow: 8px 0 30px rgba(10, 30, 22, .35); }
+  .sidebar-backdrop { display: block; position: fixed; inset: 0; z-index: 50; background: rgba(10, 25, 18, .5); opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+  .sidebar-backdrop.open { opacity: 1; pointer-events: auto; }
+  body.menu-locked { overflow: hidden; }
+  /* bring the labels back (an earlier rule hid them for the thin strip) */
+  .brand { padding: 0 6px 18px; }
+  .brand > div:not(.brand-mark) { display: block; }
+  .workspace-label, .nav-label { display: block; }
+  .nav-label { margin-top: 16px; }
+  .business-switch { display: flex; }
+  .nav-item > span:not(.nav-icon) { display: inline; }
+  .nav-item { justify-content: flex-start; gap: 10px; padding: 9px 12px; font-size: 14px; min-height: 42px; }
+  .brand { justify-content: flex-start; }
+  .nav-icon { font-size: 16px; }
+  .sidebar-bottom { display: block; }
+  .main-content { margin-left: 0; }
+
+  /* ---- Top bar ---- */
+  .topbar { height: 56px; padding: 0 12px; gap: 6px; position: sticky; top: 0; z-index: 30; }
+  .breadcrumbs { min-width: 0; flex: 1; font-size: 13px; overflow: hidden; white-space: nowrap; }
+  .breadcrumbs > span, .crumb-separator { display: none; }
+  .breadcrumbs strong { font-size: 16px; overflow: hidden; text-overflow: ellipsis; }
+  .topbar-actions { gap: 8px; flex: 0 0 auto; }
+  .system-status { display: none; }
+  .topbar-signout { padding: 8px 10px; font-size: 12px; }
+  .topbar-avatar { width: 32px; height: 32px; }
+}
+
+@media (max-width: 900px) {
+  /* Grid and flex children refuse to shrink below their content by default, which pushed whole pages wider than the
+     screen (inputs have a built-in width). Letting them shrink fixes every screen at once. :where keeps this easy to override. */
+  .main-content :where(div, section, article, form, label, fieldset, header, main) { min-width: 0; }
+  .main-content :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { min-width: 0; max-width: 100%; }
+  .main-content :where(img, svg, canvas) { max-width: 100%; }
+}
+
+@media (max-width: 650px) {
+  /* ---- Page spacing and type: compact, readable ---- */
+  .page-content { padding: 14px 12px 18px; }
+  .welcome-row { gap: 12px; margin-bottom: 14px; }
+  h1 { font-size: 21px; letter-spacing: -.4px; line-height: 1.2; }
+  .eyebrow { font-size: 9px; }
+  .subtitle { font-size: 12.5px; }
+  .welcome-actions button { min-height: 42px; }
+  /* Other pages already show their title in the top bar and again inside the page, so the big banner is dropped on phones. */
+  .welcome-row-compact { display: none; }
+  h2 { font-size: 17px; }
+  h3 { font-size: 15px; }
+
+  .metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .metric-card { padding: 12px; border-radius: 12px; }
+  .metric-top { font-size: 11px; }
+  .metric-value { margin-top: 8px; font-size: 18px; overflow-wrap: anywhere; }
+  .metric-foot { font-size: 10.5px; }
+  .metric-foot > *, .metric-card .badge, .metric-card [class*="pill"] { font-size: 10px; }
+  .panel, .pos-checkout-panel, .pos-receipt-summary, .sales-summary-card { padding: 12px; border-radius: 12px; }
+
+  /* ---- Forms: one column, 16px text so phones do not zoom in on focus, comfortable taps ---- */
+  input, select, textarea { font-size: 16px; }
+  input:not([type="checkbox"]):not([type="radio"]), select { min-height: 42px; }
+  button { min-height: 38px; }
+  [class*="form"] { min-width: 0; }
+  .inventory-form, .products-form, .customers-form, .suppliers-form, .expense-form, .employee-form { grid-template-columns: minmax(0, 1fr) !important; }
+
+  /* ---- Tables: scroll inside their panel instead of stretching the page ---- */
+  .table-wrap, .table-scroll, .panel:has(> table), [class*="table-wrapper"], [class*="table-container"] { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table { min-width: 0; }
+  th, td { padding: 9px 8px; font-size: 12px; }
+
+  .sale-detail-action-buttons, [class*="detail-actions"] { flex-wrap: wrap; gap: 8px; }
+
+  /* ---- Dialogs: use the whole screen ---- */
+  .sale-detail-overlay, [class*="modal-overlay"], [class*="overlay"] { padding: 0; align-items: stretch; }
+  .sale-detail-modal, .sale-detail-dialog, [class*="modal"] { max-width: 100%; max-height: 100dvh; border-radius: 0; }
+}
+
+@media (max-width: 380px) {
+  .topbar { padding: 0 10px; overflow: hidden; }
+  .topbar-signout { display: none; } /* Sign out is in the menu drawer */
+  .menu-button { margin-right: 4px; }
+  .metrics-grid { grid-template-columns: minmax(0, 1fr); }
+  h1 { font-size: 19px; }
+}

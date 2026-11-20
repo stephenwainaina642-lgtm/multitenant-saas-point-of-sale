@@ -36,7 +36,7 @@ export default function BranchSwitcher() {
   }
 
   return (
-    <div style={{ margin: "8px 15px 0", padding: "8px 12px", borderRadius: 10, background: "rgba(255,255,255,0.08)", color: "#fff" }}>
+    <div style={{ margin: "8px 0 0", padding: "8px 12px", borderRadius: 10, background: "rgba(255,255,255,0.08)", color: "#fff" }}>
       <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1, opacity: 0.7 }}>BRANCH</div>
       {branches.length > 1 ? (
         <select value={current.id} onChange={(e) => change(e.target.value)} aria-label="Branch" style={{ width: "100%", marginTop: 4, padding: "6px 8px", borderRadius: 6 }}>

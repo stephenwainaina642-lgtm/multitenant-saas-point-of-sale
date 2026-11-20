@@ -81,6 +81,7 @@ const money = (amount: number) =>
 
 function App() {
   const [activePage, setActivePage] = useState("Dashboard");
+  const [menuOpen, setMenuOpen] = useState(false); // phone/tablet: the sidebar is a slide-in drawer
   const [search, setSearch] = useState("");
   const [period, setPeriod] = useState("This week");
   const [notice, setNotice] = useState("");
@@ -194,14 +195,24 @@ function App() {
     window.location.reload();
   }
 
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMenuOpen(false); };
+    window.addEventListener("keydown", onKey);
+    document.body.classList.add("menu-locked");
+    return () => { window.removeEventListener("keydown", onKey); document.body.classList.remove("menu-locked"); };
+  }, [menuOpen]);
+
   function selectPage(name: string) {
+    setMenuOpen(false);
     setActivePage(name);
     setNotice("");
   }
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      <div className={`sidebar-backdrop ${menuOpen ? "open" : ""}`} onClick={() => setMenuOpen(false)} aria-hidden="true" />
+      <aside className={`sidebar ${menuOpen ? "open" : ""}`} id="main-menu" aria-label="Main menu">
         <div className="brand">
           <div className="brand-mark">N</div>
           <div>
@@ -243,6 +254,9 @@ function App() {
 
       <main className="main-content">
         <header className="topbar">
+          <button type="button" className="menu-button" aria-label="Open menu" aria-expanded={menuOpen} aria-controls="main-menu" onClick={() => setMenuOpen((o) => !o)}>
+            <span /><span /><span />
+          </button>
           <div className="breadcrumbs">
             <span>Workspace</span><span className="crumb-separator">/</span><strong>{activePage}</strong>
           </div>
@@ -255,7 +269,7 @@ function App() {
         </header>
 
         <div className="page-content">
-          <section className="welcome-row">
+          <section className={`welcome-row ${activePage === "Dashboard" ? "" : "welcome-row-compact"}`}>
             <div>
               <div className="eyebrow">{new Date().toLocaleDateString("en-KE", { weekday: "long", year: "numeric", month: "long", day: "numeric" }).toUpperCase()}</div>
               <h1>{activePage === "Dashboard" ? `Welcome, ${currentUserName}` : activePage}</h1>
