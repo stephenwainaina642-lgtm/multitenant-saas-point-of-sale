@@ -107,7 +107,7 @@ export async function getDashboard(scope: DashboardScope) {
           orderBy: [{ saleDate: "desc" }, { id: "desc" }],
           take: 10,
           select: {
-            id: true, receiptNumber: true, saleDate: true, total: true, paymentStatus: true, status: true,
+            publicId: true, receiptNumber: true, saleDate: true, total: true, paymentStatus: true, status: true,
             customer: { select: { name: true } },
           },
         })
@@ -183,7 +183,7 @@ export async function getDashboard(scope: DashboardScope) {
     }
 
     recentSales = recent.map((s) => ({
-      id: s.id.toString(),
+      id: s.publicId,
       receiptNumber: s.receiptNumber,
       customerName: s.customer?.name ?? null,
       saleDate: s.saleDate,

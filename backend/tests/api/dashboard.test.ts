@@ -69,13 +69,13 @@ describe("dashboard", () => {
     const id = r.body.data.id;
     const start = startOfDay(dayKey(new Date(), TZ, false), TZ);
     expect(start.getUTCHours()).toBe(21);
-    await query(`update sales set sale_date = $1 where id = $2`, [new Date(start.getTime() - 60_000), id]);
+    await query(`update sales set sale_date = $1 where public_id = $2::uuid`, [new Date(start.getTime() - 60_000), id]);
     expect((await dash(s.t)).sales.today.count).toBe(0);
-    await query(`update sales set sale_date = $1 where id = $2`, [new Date(start.getTime() + 60_000), id]);
+    await query(`update sales set sale_date = $1 where public_id = $2::uuid`, [new Date(start.getTime() + 60_000), id]);
     expect((await dash(s.t)).sales.today.count).toBe(1);
     // the end of the day is exclusive
     const end = startOfDay(nextDay(dayKey(new Date(), TZ, false)), TZ);
-    await query(`update sales set sale_date = $1 where id = $2`, [end, id]);
+    await query(`update sales set sale_date = $1 where public_id = $2::uuid`, [end, id]);
     expect((await dash(s.t)).sales.today.count).toBe(0);
   });
 
@@ -121,7 +121,7 @@ describe("dashboard", () => {
   it("reads timestamps correctly even when the database's own time zone is not UTC", async () => {
     const s = await seedPhoneShop();
     const r = await post("/sales", s.t, { amountPaid: 1200, paymentMethod: "cash", items: [{ productId: s.charger.id, quantity: 1, unitPrice: 1200 }] });
-    await query(`update sales set sale_date = '2026-03-01T21:30:00Z' where id = $1`, [r.body.data.id]);
+    await query(`update sales set sale_date = '2026-03-01T21:30:00Z' where public_id = $1::uuid`, [r.body.data.id]);
     const db = (await query<{ db: string }>(`select current_database() as db`))[0]!.db;
     const tz = (await query<{ tz: string }>(`select current_setting('TimeZone') as tz`))[0]!.tz;
     const cfg = loadTestConfig();

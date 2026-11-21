@@ -27,3 +27,17 @@ export async function productIdFromPublic(client: ProductReader, businessId: big
   if (!row) throw new AppError(404, "Product not found");
   return row.id;
 }
+
+type SaleReader = {
+  sale: {
+    findFirst(args: { where: { publicId: string; businessId: bigint }; select: { id: true } }): Promise<{ id: bigint } | null>;
+  };
+};
+
+/** The internal sale id for a public id, within one business. 400 if it is not a UUID, 404 if it isn't this business's. */
+export async function saleIdFromPublic(client: SaleReader, businessId: bigint, value: unknown): Promise<bigint> {
+  const publicId = requirePublicId(value, "A valid sale ID is required");
+  const row = await client.sale.findFirst({ where: { publicId, businessId }, select: { id: true } });
+  if (!row) throw new AppError(404, "Sale not found");
+  return row.id;
+}

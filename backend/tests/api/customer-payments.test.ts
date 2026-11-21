@@ -139,8 +139,8 @@ describe("debt on the reports", () => {
     const c = await createCustomer(t, "Mama Debt");
     const sale = await post("/sales", t, { items: [line(p.id, 5)], customerId: c.id, paymentMethod: "cash", amountPaid: 100 });
     expect(sale.status).toBe(201); // owes 400
-    await query(`update sales set sale_date = now() - interval '45 days' where id = ${sale.body.data.id}`);
-    await query(`update payments set payment_date = now() - interval '45 days' where sale_id = ${sale.body.data.id}`);
+    await query(`update sales set sale_date = now() - interval '45 days' where public_id = '${sale.body.data.id}'`);
+    await query(`update payments set payment_date = now() - interval '45 days' where sale_id = (select id from sales where public_id = '${sale.body.data.id}')`);
     await post("/sales", t, { items: [line(p.id, 1)], customerId: c.id, paymentMethod: "cash", amountPaid: 0 }); // owes 100 today
 
     const wide = "startDate=2020-01-01&endDate=2030-01-01";

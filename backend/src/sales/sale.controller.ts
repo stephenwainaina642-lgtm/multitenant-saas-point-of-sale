@@ -77,6 +77,9 @@ export async function getSaleByIdController(
       data: sale,
     });
   } catch (error) {
+    if (error instanceof AppError) {
+      return res.status(error.status).json({ success: false, message: error.message });
+    }
     console.error("Get sale error:", error);
 
     if (

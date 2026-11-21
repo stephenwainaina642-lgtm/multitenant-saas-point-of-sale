@@ -228,7 +228,7 @@ export async function employeeProfile(businessId: string, idText: string) {
     prisma.sale.findMany({ where, select: { total: true, amountPaid: true, balanceDue: true, saleDate: true } }),
     prisma.sale.findMany({
       where, orderBy: { saleDate: "desc" }, take: 10,
-      select: { id: true, receiptNumber: true, saleDate: true, total: true, paymentStatus: true, customer: { select: { name: true } } },
+      select: { publicId: true, receiptNumber: true, saleDate: true, total: true, paymentStatus: true, customer: { select: { name: true } } },
     }),
   ]);
   const monthAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000);
@@ -249,7 +249,7 @@ export async function employeeProfile(businessId: string, idText: string) {
       lastSaleAt: recent[0]?.saleDate ?? null,
     },
     recentSales: recent.map((r) => ({
-      id: r.id.toString(), receiptNumber: r.receiptNumber, saleDate: r.saleDate,
+      id: r.publicId, receiptNumber: r.receiptNumber, saleDate: r.saleDate,
       customerName: r.customer?.name ?? null, total: out(decimalToCents(r.total as unknown as string)), paymentStatus: r.paymentStatus,
     })),
   };

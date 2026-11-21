@@ -70,8 +70,8 @@ describe("VAT summary report", () => {
     const a = await post("/sales", s.t, { amountPaid: 1160, paymentMethod: "cash", items: [line(s.std.id, 1, 1000)] });
     const b = await post("/sales", s.t, { amountPaid: 1160, paymentMethod: "cash", items: [line(s.std.id, 1, 1000)] });
     // 22:30 UTC on 31 Oct is already 1 Nov in Nairobi (UTC+3)
-    await query(`update sales set sale_date='2026-10-31 22:30:00+00' where id=$1`, [a.body.data.id]);
-    await query(`update sales set sale_date='2026-10-15 09:00:00+00' where id=$1`, [b.body.data.id]);
+    await query(`update sales set sale_date='2026-10-31 22:30:00+00' where public_id=$1::uuid`, [a.body.data.id]);
+    await query(`update sales set sale_date='2026-10-15 09:00:00+00' where public_id=$1::uuid`, [b.body.data.id]);
     const r = await report(s.t);
     expect(r.byMonth.map((m: any) => [m.month, m.sales.outputVat])).toEqual([["2026-10", 160], ["2026-11", 160]]);
     const nov = (await get(`/reports/vat?startDate=2026-11-01&endDate=2026-11-30`, s.t)).body.data;

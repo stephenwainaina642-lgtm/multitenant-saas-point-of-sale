@@ -64,7 +64,7 @@ describe("roles and permissions (enforced in the backend)", () => {
       expect((await post("/payments", sales, { saleId: own.body.data.id, amount: 200, method: "cash" })).status).toBe(201);
       const denied = await post("/payments", sales, { saleId: others.body.data.id, amount: 200, method: "cash" });
       expect(denied.status).toBe(404);
-      const [row] = await query(`select amount_paid from sales where id = $1`, [others.body.data.id]);
+      const [row] = await query(`select amount_paid from sales where public_id = $1::uuid`, [others.body.data.id]);
       expect(Number(row!.amount_paid)).toBe(0);
     });
 

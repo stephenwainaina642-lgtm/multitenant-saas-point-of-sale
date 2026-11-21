@@ -25,9 +25,9 @@ describe("sales, stock and payments", () => {
       expect(sale.paymentStatus).toBe("paid");
       expect(await stockOf(s.iphone.id)).toBe(before - 2);
 
-      const mv = await query(`select type, quantity from inventory_movements where reference = $1`, [`SALE-${sale.id}`]);
+      const mv = await query(`select type, quantity from inventory_movements where reference = 'SALE-' || (select id from sales where public_id = $1::uuid)::text`, [sale.id]);
       expect(mv).toEqual([{ type: "OUT", quantity: "2.000" }]);
-      const pay = await query(`select amount, method from payments where sale_id = $1`, [sale.id]);
+      const pay = await query(`select amount, method from payments where sale_id = (select id from sales where public_id = $1::uuid)`, [sale.id]);
       expect(pay).toEqual([{ amount: "224000.00", method: "cash" }]);
       expect(await ledgerViolations()).toEqual([]);
     });
@@ -141,7 +141,7 @@ describe("sales, stock and payments", () => {
         amountPaid: 1200, paymentMethod: "cash",
         items: [{ productId: s.charger.id, quantity: 1, unitPrice: 1200 }],
       });
-      const [row] = await query(`select salesperson_id::text as sp from sales where id = $1`, [res.body.data.id]);
+      const [row] = await query(`select salesperson_id::text as sp from sales where public_id = $1::uuid`, [res.body.data.id]);
       expect(row!.sp).toBe(s.t.userId);
     });
   });
@@ -282,7 +282,8 @@ describe("sales, stock and payments", () => {
       expect(r2.status).toBe(201);
       expect(r2.body.data.idempotentReplay).toBe(true);
       expect(Number(r2.body.data.sale.amountPaid)).toBe(5000);
-      const other = await api("POST", "/payments", { session: s.t, body: { ...body, saleId: "999999" }, headers: h });
+      const second = await post("/sales", s.t, { customerId: s.customer.id, items: [{ productId: s.galaxy.id, quantity: 1, unitPrice: 21500 }] });
+      const other = await api("POST", "/payments", { session: s.t, body: { ...body, saleId: second.body.data.id }, headers: h });
       expect(other.status).toBe(409);
       expect(await ledgerViolations()).toEqual([]);
     });

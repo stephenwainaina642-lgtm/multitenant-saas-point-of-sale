@@ -1,4 +1,5 @@
 import prisma from "../lib/prisma.js";
+import { saleIdFromPublic } from "../lib/public-id.js";
 import { checkedPaymentReference, isMpesaClash, MPESA_CLASH_MESSAGE } from "../lib/mpesa.js";
 import { AppError } from "../lib/errors.js";
 import { centsToString, decimalToCents, parseMoney } from "../lib/money.js";
@@ -22,7 +23,7 @@ export async function getBusinessPayments(
     include: {
       sale: {
         select: {
-          id: true,
+          publicId: true,
           receiptNumber: true,
           customer: {
             select: {
@@ -40,7 +41,7 @@ export async function getBusinessPayments(
 
   return payments.map((payment) => ({
     id: payment.id.toString(),
-    saleId: payment.saleId.toString(),
+    saleId: payment.sale.publicId,
     receiptNumber: payment.sale.receiptNumber,
     customerId: payment.sale.customer?.publicId ?? null,
     customerName: payment.sale.customer?.name || null,
@@ -64,7 +65,7 @@ function formatPayment(
     notes: string | null;
   },
   sale: {
-    id: bigint;
+    publicId: string;
     receiptNumber: string;
     total: unknown;
     amountPaid: unknown;
@@ -77,7 +78,7 @@ function formatPayment(
     idempotentReplay,
     payment: {
       id: payment.id.toString(),
-      saleId: payment.saleId.toString(),
+      saleId: sale.publicId,
       amount: payment.amount,
       method: payment.method,
       reference: payment.reference,
@@ -85,7 +86,7 @@ function formatPayment(
       notes: payment.notes,
     },
     sale: {
-      id: sale.id.toString(),
+      id: sale.publicId,
       receiptNumber: sale.receiptNumber,
       total: sale.total,
       amountPaid: sale.amountPaid,
@@ -116,7 +117,7 @@ export async function createBusinessPayment(
   if (key && key.length > 100) {
     throw new AppError(400, "Idempotency-Key must not exceed 100 characters");
   }
-  const saleId = BigInt(data.saleId);
+  const saleId = await saleIdFromPublic(prisma, bizId, data.saleId);
 
   try {
     return await prisma.$transaction(async (tx) => {

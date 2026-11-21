@@ -1,6 +1,6 @@
 import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
-import { requirePublicId } from "../lib/public-id.js";
+import { requirePublicId, saleIdFromPublic } from "../lib/public-id.js";
 import { centsToString, decimalToCents } from "../lib/money.js";
 import { enteredSaleDiscount, priceSale, type RawSaleItem } from "../sales/sale-calc.js";
 import { createBusinessSale } from "../sales/sale.service.js";
@@ -15,7 +15,7 @@ export type QuotationData = {
 
 const include = {
   customer: { select: { publicId: true, name: true, phone: true, email: true, address: true } },
-  convertedSale: { select: { id: true, receiptNumber: true } },
+  convertedSale: { select: { id: true, publicId: true, receiptNumber: true } },
   items: {
     orderBy: { id: "asc" as const },
     include: { product: { select: { id: true, publicId: true, name: true, sku: true, unitOfMeasure: true } } },
@@ -46,7 +46,7 @@ function present(q: any) {
     status: effectiveStatus(q),
     storedStatus: q.status,
     notes: q.notes,
-    convertedSaleId: q.convertedSale?.id.toString() ?? null,
+    convertedSaleId: q.convertedSale?.publicId ?? null,
     convertedReceiptNumber: q.convertedSale?.receiptNumber ?? null,
     items: q.items.map((item: any) => ({
       id: item.id.toString(), productId: item.product.publicId, productName: item.product.name,
@@ -311,15 +311,17 @@ export async function convertQuotationToSale(
     throw e;
   }
 
+  // createBusinessSale returns the sale's public id; the link and audit trail use the internal one.
+  const saleInternalId = await saleIdFromPublic(prisma, bizId, sale.id);
   await prisma.$transaction(async (tx) => {
     await tx.quotation.updateMany({
       where: { id: q.id, businessId: bizId, convertedSaleId: null },
-      data: { status: "converted", convertedSaleId: BigInt(sale.id), updatedAt: new Date() },
+      data: { status: "converted", convertedSaleId: saleInternalId, updatedAt: new Date() },
     });
     await tx.auditLog.create({
       data: {
         businessId: bizId, userId: BigInt(actor.userId), action: "quotation.convert",
-        entity: "quotation", entityId: q.id, details: { saleId: sale.id, receiptNumber: sale.receiptNumber },
+        entity: "quotation", entityId: q.id, details: { saleId: saleInternalId.toString(), receiptNumber: sale.receiptNumber },
       },
     });
   });

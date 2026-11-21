@@ -5,19 +5,19 @@ import { requirePublicId } from "../lib/public-id.js";
 import { centsToString, decimalToCents, parseMoney } from "../lib/money.js";
 
 type Actor = { userId: string; onlyOwnSales: boolean };
-type UnpaidRow = { id: bigint; receipt_number: string; sale_date: Date; total: string; balance_due: string };
+type UnpaidRow = { id: bigint; public_id: string; receipt_number: string; sale_date: Date; total: string; balance_due: string };
 
 async function unpaidSales(tx: Pick<typeof prisma, "$queryRaw">, businessId: bigint, customerId: bigint, actor: Actor, lock: boolean) {
   // Oldest first, so a payment always clears the oldest debt first.
   const own = actor.onlyOwnSales ? BigInt(actor.userId) : null;
   const rows = lock
     ? await tx.$queryRaw<UnpaidRow[]>`
-        select id, receipt_number, sale_date, total::text, balance_due::text from sales
+        select id, public_id::text as public_id, receipt_number, sale_date, total::text, balance_due::text from sales
          where business_id = ${businessId} and customer_id = ${customerId} and status = 'completed' and balance_due > 0
            and (${own}::bigint is null or salesperson_id = ${own}::bigint)
          order by sale_date asc, id asc for update`
     : await tx.$queryRaw<UnpaidRow[]>`
-        select id, receipt_number, sale_date, total::text, balance_due::text from sales
+        select id, public_id::text as public_id, receipt_number, sale_date, total::text, balance_due::text from sales
          where business_id = ${businessId} and customer_id = ${customerId} and status = 'completed' and balance_due > 0
            and (${own}::bigint is null or salesperson_id = ${own}::bigint)
          order by sale_date asc, id asc`;
@@ -39,7 +39,7 @@ export async function customerUnpaidSales(businessId: string, idText: string, ac
   return {
     customer: { id: c.publicId, name: c.name },
     totalOwed: centsToString(owed),
-    sales: rows.map((r) => ({ id: r.id.toString(), receiptNumber: r.receipt_number, saleDate: r.sale_date, total: r.total, balanceDue: r.balance_due })),
+    sales: rows.map((r) => ({ id: r.public_id, receiptNumber: r.receipt_number, saleDate: r.sale_date, total: r.total, balanceDue: r.balance_due })),
   };
 }
 
@@ -67,7 +67,7 @@ export async function receiveCustomerPayment(businessId: string, idText: string,
         const earlier = await tx.payment.findMany({ where: { businessId: biz, idempotencyKey: { startsWith: `${key}#` } }, include: { sale: true }, orderBy: { id: "asc" } });
         if (earlier.length > 0) {
           if (earlier[0]!.sale.customerId !== customer.id) throw new AppError(409, "This Idempotency-Key was already used for a different customer");
-          return result(tx, customer, earlier.map((p) => ({ saleId: p.saleId, receiptNumber: p.sale.receiptNumber, paid: decimalToCents(p.amount), balanceAfter: decimalToCents(p.sale.balanceDue), status: p.sale.paymentStatus })), true);
+          return result(tx, customer, earlier.map((p) => ({ saleId: p.sale.publicId, receiptNumber: p.sale.receiptNumber, paid: decimalToCents(p.amount), balanceAfter: decimalToCents(p.sale.balanceDue), status: p.sale.paymentStatus })), true);
         }
       }
 
@@ -102,7 +102,7 @@ export async function receiveCustomerPayment(businessId: string, idText: string,
           where: { id: row.id },
           data: { amountPaid: centsToString(newPaid), balanceDue: centsToString(newDue), paymentStatus: newDue === 0n ? "paid" : "partial" },
         });
-        allocations.push({ saleId: row.id, receiptNumber: row.receipt_number, paid: pay, balanceAfter: newDue, status: updated.paymentStatus });
+        allocations.push({ saleId: row.id, salePublicId: row.public_id, receiptNumber: row.receipt_number, paid: pay, balanceAfter: newDue, status: updated.paymentStatus });
         left -= pay;
       }
       // Same rule as a single-sale payment: the running balance never goes below zero.
@@ -120,7 +120,7 @@ export async function receiveCustomerPayment(businessId: string, idText: string,
   }
 }
 
-type Alloc = { saleId: bigint; receiptNumber: string; paid: bigint; balanceAfter: bigint; status: string };
+type Alloc = { saleId: bigint | string; salePublicId?: string; receiptNumber: string; paid: bigint; balanceAfter: bigint; status: string };
 
 async function result(db: Pick<typeof prisma, "customer">, customer: { id: bigint; publicId: string; name: string }, allocations: Alloc[], replay: boolean) {
   // Read through the same transaction, so the balance returned is the one just written.
@@ -130,6 +130,6 @@ async function result(db: Pick<typeof prisma, "customer">, customer: { id: bigin
     customer: { id: customer.publicId, name: customer.name, balance: centsToString(decimalToCents(fresh?.balance ?? 0)) },
     amount: centsToString(total),
     idempotentReplay: replay,
-    allocations: allocations.map((a) => ({ saleId: a.saleId.toString(), receiptNumber: a.receiptNumber, paid: centsToString(a.paid), balanceAfter: centsToString(a.balanceAfter), status: a.status })),
+    allocations: allocations.map((a) => ({ saleId: a.salePublicId ?? String(a.saleId), receiptNumber: a.receiptNumber, paid: centsToString(a.paid), balanceAfter: centsToString(a.balanceAfter), status: a.status })),
   };
 }

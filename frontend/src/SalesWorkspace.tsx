@@ -328,7 +328,7 @@ export default function SalesWorkspace() {
                           className="sales-receipt-link"
                           onClick={() => void openSale(sale)}
                         >
-                          {sale.receiptNumber || `Sale #${sale.id}`}
+                          {sale.receiptNumber || `Sale ${sale.id.slice(0, 8).toUpperCase()}`}
                         </button>
                       </td>
                       <td>{sale.customerName || "Walk-in customer"}</td>

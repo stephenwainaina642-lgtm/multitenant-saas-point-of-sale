@@ -90,7 +90,7 @@ describe("branches with their own stock", () => {
     expect(tooMany.body.message).toMatch(/Insufficient stock/);
     expect(await total(item.id)).toBe(16);
     // The sale remembers its branch.
-    const row = await query<{ name: string }>(`select b.name from sales s join branches b on b.id = s.branch_id where s.id = $1`, [sale.body.data.id]);
+    const row = await query<{ name: string }>(`select b.name from sales s join branches b on b.id = s.branch_id where s.public_id = $1::uuid`, [sale.body.data.id]);
     expect(row[0]!.name).toBe("Westlands");
   });
 
@@ -126,7 +126,7 @@ describe("branches with their own stock", () => {
     expect(list[0].id).toBe(westlands);
     const sale = await inBranch(clerk, main, "POST", "/sales", { items: [line(item.id, 1, 150)], paymentMethod: "cash", amountPaid: 150 });
     expect(sale.status, JSON.stringify(sale.body)).toBe(201);
-    const row = await query<{ name: string }>(`select b.name from sales s join branches b on b.id = s.branch_id where s.id = $1`, [sale.body.data.id]);
+    const row = await query<{ name: string }>(`select b.name from sales s join branches b on b.id = s.branch_id where s.public_id = $1::uuid`, [sale.body.data.id]);
     expect(row[0]!.name).toBe("Westlands");
     expect((await inBranch(clerk, main, "POST", "/branches/transfers", { fromBranchId: main, toBranchId: westlands, items: [{ productId: item.id, quantity: 1 }] })).status).toBe(403);
     await expect(query(`update products set stock_quantity = 999 where public_id = $1`, [item.id])).rejects.toThrow(/total of branch_stock/);

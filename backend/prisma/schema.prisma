@@ -373,6 +373,7 @@ model PurchaseItem {
 
 model Sale {
   id               BigInt   @id @default(autoincrement())
+  publicId         String   @unique @default(dbgenerated("gen_random_uuid()")) @map("public_id") @db.Uuid
   businessId       BigInt   @map("business_id")
   branchId         BigInt   @map("branch_id")
   customerId       BigInt?  @map("customer_id")

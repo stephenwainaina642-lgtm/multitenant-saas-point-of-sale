@@ -1,4 +1,5 @@
 import prisma from "../lib/prisma.js";
+import { requirePublicId } from "../lib/public-id.js";
 import { AppError } from "../lib/errors.js";
 import { decimalToCents } from "../lib/money.js";
 
@@ -33,7 +34,7 @@ function present(invoice: any, sale: any) {
   return {
     id: invoice.id.toString(),
     invoiceNumber: invoice.invoiceNumber,
-    saleId: sale.id.toString(),
+    saleId: sale.publicId,
     receiptNumber: sale.receiptNumber,
     customerId: sale.customer?.publicId ?? null,
     customerName: sale.customer?.name ?? null,
@@ -93,8 +94,7 @@ function parseDate(value: unknown, field: string): Date | null {
 
 export async function createBusinessInvoice(businessId: string, data: CreateInvoiceData, actorUserId?: string) {
   const bizId = BigInt(businessId);
-  const saleIdText = typeof data.saleId === "string" || typeof data.saleId === "number" ? String(data.saleId).trim() : "";
-  if (!/^[1-9]\d*$/.test(saleIdText)) throw new AppError(400, "A valid sale is required");
+  const salePublicId = requirePublicId(typeof data.saleId === "string" ? data.saleId.trim() : data.saleId, "A valid sale is required");
 
   let manualNumber: string | null = null;
   if (data.invoiceNumber !== undefined && data.invoiceNumber !== null && data.invoiceNumber !== "") {
@@ -115,7 +115,7 @@ export async function createBusinessInvoice(businessId: string, data: CreateInvo
 
   const created = await prisma.$transaction(async (tx) => {
     const sale = await tx.sale.findFirst({
-      where: { id: BigInt(saleIdText), businessId: bizId },
+      where: { publicId: salePublicId, businessId: bizId },
       include: { ...saleInclude, invoice: { select: { id: true } } },
     });
     if (!sale) throw new AppError(404, "Sale not found");

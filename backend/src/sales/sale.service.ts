@@ -92,7 +92,7 @@ export async function getBusinessSales(
   });
 
   return sales.map((sale) => ({
-    id: sale.id.toString(),
+    id: sale.publicId,
     customerId: sale.customer?.publicId ?? null,
     customerName: sale.customer?.name || null,
     salespersonId: sale.salesperson?.id.toString() || null,
@@ -137,7 +137,7 @@ export async function getBusinessSaleById(
 ) {
   const sale = await prisma.sale.findFirst({
     where: {
-      id: BigInt(saleId),
+      publicId: requirePublicId(saleId, "A valid sale ID is required"),
       businessId: BigInt(businessId),
       ...(!canViewAll && {
         salespersonId: BigInt(userId),
@@ -190,7 +190,7 @@ export async function getBusinessSaleById(
   }
 
   return {
-    id: sale.id.toString(),
+    id: sale.publicId,
     customerId: sale.customer?.publicId ?? null,
     customerName: sale.customer?.name || null,
     salespersonId: sale.salesperson?.id.toString() || null,
@@ -254,6 +254,7 @@ type CreateSaleOptions = {
 
 type SaleRecord = {
   id: bigint;
+  publicId: string;
   customerId: bigint | null;
   receiptNumber: string;
   saleDate: Date;
@@ -287,7 +288,7 @@ function formatCreatedSale(
   idempotentReplay: boolean
 ) {
   return {
-    id: sale.id.toString(),
+    id: sale.publicId,
     customerId: customer?.publicId ?? null,
     customerName: customer?.name ?? null,
     receiptNumber: sale.receiptNumber,

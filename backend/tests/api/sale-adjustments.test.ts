@@ -46,7 +46,7 @@ describe("sale edit, void and refund", () => {
       expect(res.body.data.paymentStatus).toBe("partial");
       expect(await stockOf(s.charger.id)).toBe(stock - 1);
       expect(await customerBalance()).toBe(balance + 1200);
-      const mv = await query(`select type, quantity from inventory_movements where reference = $1`, [`SALE-EDIT-${id}`]);
+      const mv = await query(`select type, quantity from inventory_movements where reference = 'SALE-EDIT-' || (select id from sales where public_id = $1::uuid)::text`, [id]);
       expect(mv).toEqual([{ type: "OUT", quantity: "1.000" }]);
       expect(await ledgerViolations()).toEqual([]);
     });
@@ -77,9 +77,9 @@ describe("sale edit, void and refund", () => {
     it("preserves payment history exactly", async () => {
       const { id } = await creditSale(2, 1000);
       await post("/payments", s.t, { saleId: id, amount: 400, method: "mpesa", reference: mpesaCode() });
-      const before = await query(`select id, amount, method, reference from payments where sale_id = $1 order by id`, [id]);
+      const before = await query(`select id, amount, method, reference from payments where sale_id = (select id from sales where public_id = $1::uuid) order by id`, [id]);
       await put(`/sales/${id}`, s.t, { items: [item(s.charger.id, 2, 1200, { discount: 100 })], notes: "edited" });
-      const after = await query(`select id, amount, method, reference from payments where sale_id = $1 order by id`, [id]);
+      const after = await query(`select id, amount, method, reference from payments where sale_id = (select id from sales where public_id = $1::uuid) order by id`, [id]);
       expect(after).toEqual(before);
       const d = await sale(id);
       expect(N(d.amountPaid)).toBe(1400);
@@ -148,7 +148,7 @@ describe("sale edit, void and refund", () => {
     it("records a before/after snapshot in the audit log", async () => {
       const { id } = await creditSale(2, 1000);
       await put(`/sales/${id}`, s.t, { items: [item(s.charger.id, 1, 1200)] });
-      const rows = await query(`select action, details, user_id::text as uid from audit_logs where entity = 'sale' and entity_id = $1`, [id]);
+      const rows = await query(`select action, details, user_id::text as uid from audit_logs where entity = 'sale' and entity_id = (select id from sales where public_id = $1::uuid)`, [id]);
       expect(rows).toHaveLength(1);
       expect(rows[0]!.action).toBe("sale.edit");
       expect(rows[0]!.uid).toBe(s.t.userId);
@@ -169,8 +169,9 @@ describe("sale edit, void and refund", () => {
       const { id } = await creditSale(1, 500);
       expect((await put(`/sales/${id}`, cashier, { items: [item(s.charger.id, 1, 1200)] })).status).toBe(403);
       expect((await put(`/sales/${id}`, manager, { items: [item(s.charger.id, 1, 1200)] })).status).toBe(200);
-      expect((await put(`/sales/999999`, s.t, { items: [item(s.charger.id, 1, 1200)] })).status).toBe(404);
-      expect((await put(`/sales/abc`, s.t, { items: [item(s.charger.id, 1, 1200)] })).status).toBe(404);
+      expect((await put(`/sales/3f2b1c1e-9d4a-4c55-8a1e-0b9f6d7e1a42`, s.t, { items: [item(s.charger.id, 1, 1200)] })).status).toBe(404);
+      expect((await put(`/sales/999999`, s.t, { items: [item(s.charger.id, 1, 1200)] })).status).toBe(400);
+      expect((await put(`/sales/abc`, s.t, { items: [item(s.charger.id, 1, 1200)] })).status).toBe(400);
     });
 
     it("an employee with sales.edit but no view-all can only edit their own sales", async () => {
@@ -194,7 +195,7 @@ describe("sale edit, void and refund", () => {
       expect(res.body.data.refund).toBeNull();
       expect(await stockOf(s.charger.id)).toBe(stock + 2);
       expect(await customerBalance()).toBe(balance - 2400);
-      const mv = await query(`select type, quantity from inventory_movements where reference = $1`, [`SALE-VOID-${id}`]);
+      const mv = await query(`select type, quantity from inventory_movements where reference = 'SALE-VOID-' || (select id from sales where public_id = $1::uuid)::text`, [id]);
       expect(mv).toEqual([{ type: "IN", quantity: "2.000" }]);
       expect(await ledgerViolations()).toEqual([]);
     });
@@ -236,7 +237,7 @@ describe("sale edit, void and refund", () => {
     it("writes a void audit entry with the reason and refund", async () => {
       const made = await post("/sales", s.t, { amountPaid: 1200, paymentMethod: "cash", items: [item(s.charger.id, 1, 1200)] });
       await post(`/sales/${made.body.data.id}/void`, s.t, { reason: "Wrong item", refundMethod: "cash" });
-      const [row] = await query(`select action, details from audit_logs where entity = 'sale' and entity_id = $1`, [made.body.data.id]);
+      const [row] = await query(`select action, details from audit_logs where entity = 'sale' and entity_id = (select id from sales where public_id = $1::uuid)`, [made.body.data.id]);
       expect(row!.action).toBe("sale.void");
       expect(row!.details).toMatchObject({ reason: "Wrong item", refunded: "1200", refundMethod: "cash" });
     });

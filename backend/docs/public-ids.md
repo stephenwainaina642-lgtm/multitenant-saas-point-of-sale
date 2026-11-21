@@ -23,12 +23,19 @@ working on the migrated database (the column is only added), so there is no brok
 | products | DONE (migration `20261203090000_add_public_id_products`): own routes, sales (create/list/detail/edit/preview), purchases and payments, quotations, invoices, inventory movements, branch stock and transfers, dashboard low-stock, reports (best sellers) |
 | expenses | DONE (migration `20261204090000_add_public_id_expenses`) |
 | quotations | DONE (migration `20261204090100_add_public_id_quotations`): own routes. `convertedSaleId` still shows the sale's numeric id until sales are converted |
-| sales, purchases, invoices, branches, roles, employees/users, payments, stock transfers, businesses | not yet |
+| sales | DONE (migration `20261205090000_add_public_id_sales`): own routes (read, edit, void), payments (`saleId`), invoices (`saleId`), customer debt and settle-debt allocations, quotation `convertedSaleId` and conversion, reports, dashboard recent sales, employee profile recent sales |
+| purchases, invoices, branches, roles, employees/users, payments, stock transfers, businesses | not yet |
 
 ## Products: one thing to do before deploying
 A sale saved on a device while offline keeps the product ids it was made with. After this change those ids must be the new
 random ones, so a sale still waiting to sync from BEFORE the update would be refused (the screen shows an error toast and
 keeps it). Make sure every till shows no "sales waiting to sync" badge before you deploy.
+
+## Sales: notes
+- Queued offline sales are unaffected: they carry product and customer ids (already random), never a sale id.
+- `GET /sales/:id` used to answer 500 for a junk id; it now answers 400/404 like the other routes.
+- Receipt numbers (RCT-000120) are sequential on purpose (they are the accounting document number), and stock-movement and
+  payment references such as `SALE-<internal id>` still contain the internal number. These are not treated as secret.
 
 ## Known gaps until every table is converted
 - `GET /api/audit-logs` still returns the numeric `entityId` for every entity type. It is mapped to public ids as the last step.

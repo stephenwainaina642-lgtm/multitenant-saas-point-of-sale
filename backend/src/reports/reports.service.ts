@@ -353,7 +353,7 @@ export async function getBusinessReports(
       truncated:
         sales.length > RECORD_LIMIT || purchases.length > RECORD_LIMIT || expenses.length > RECORD_LIMIT,
       sales: [...sales].reverse().slice(0, RECORD_LIMIT).map((sale) => ({
-        id: sale.id.toString(),
+        id: sale.publicId,
         receiptNumber: sale.receiptNumber,
         customerName: sale.customer?.name ?? null,
         saleDate: sale.saleDate,

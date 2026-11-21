@@ -1,6 +1,6 @@
 import { addBranchStock, takeBranchStockOrFail } from "../branches/branch-stock.js";
 import prisma from "../lib/prisma.js";
-import { requirePublicId } from "../lib/public-id.js";
+import { requirePublicId, saleIdFromPublic } from "../lib/public-id.js";
 import { AppError } from "../lib/errors.js";
 import {
   centsToString,
@@ -51,11 +51,9 @@ async function lockSale(tx: Tx, businessId: bigint, saleId: bigint, actor: Actor
   });
 }
 
-function parseSaleId(id: string): bigint {
-  if (!/^[1-9]\d*$/.test(id)) {
-    throw new AppError(404, "Sale not found");
-  }
-  return BigInt(id);
+/** The internal id for the public sale id in the URL (400 if not a UUID, 404 if not this business's). */
+async function parseSaleId(businessId: bigint, id: string): Promise<bigint> {
+  return saleIdFromPublic(prisma, businessId, id);
 }
 
 async function releaseCustomerBalance(
@@ -142,7 +140,7 @@ export async function editBusinessSale(
   }
 
   const bizId = BigInt(businessId);
-  const saleId = parseSaleId(saleIdText);
+  const saleId = await parseSaleId(bizId, saleIdText);
 
   return prisma.$transaction(async (tx) => {
     const sale = await lockSale(tx, bizId, saleId, actor);
@@ -301,7 +299,7 @@ export async function editBusinessSale(
     });
 
     return {
-      id: updated.id.toString(),
+      id: updated.publicId,
       receiptNumber: updated.receiptNumber,
       customerId: customer?.publicId ?? null,
       subtotal: updated.subtotal,
@@ -350,7 +348,7 @@ export async function voidBusinessSale(
   }
 
   const bizId = BigInt(businessId);
-  const saleId = parseSaleId(saleIdText);
+  const saleId = await parseSaleId(bizId, saleIdText);
 
   return prisma.$transaction(async (tx) => {
     const sale = await lockSale(tx, bizId, saleId, actor);
@@ -440,7 +438,7 @@ export async function voidBusinessSale(
     });
 
     return {
-      id: updated.id.toString(),
+      id: updated.publicId,
       receiptNumber: updated.receiptNumber,
       status: updated.status,
       paymentStatus: updated.paymentStatus,

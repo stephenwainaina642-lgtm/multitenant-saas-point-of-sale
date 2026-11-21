@@ -80,7 +80,8 @@ describe("invoices", () => {
     const v = await sale(0, 1);
     await post(`/sales/${v.id}/void`, s.t, { reason: "x" });
     expect((await invoice(v.id)).status).toBe(409);
-    expect((await invoice("999999")).status).toBe(404);
+    expect((await invoice("3f2b1c1e-9d4a-4c55-8a1e-0b9f6d7e1a42")).status).toBe(404);
+    expect((await invoice("999999")).status).toBe(400); // a sequential id is refused
     const sl = await sale();
     for (const bad of [
       { saleId: "abc" }, { saleId: "" }, { invoiceNumber: "x".repeat(101) }, { invoiceDate: "nope" },

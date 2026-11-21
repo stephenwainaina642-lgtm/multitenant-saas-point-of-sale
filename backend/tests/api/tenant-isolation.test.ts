@@ -118,7 +118,7 @@ describe("tenant isolation (direct API requests)", () => {
   it("B cannot record a payment against A's sale", async () => {
     const res = await post("/payments", b.t, { saleId: saleA.id, amount: 100, method: "cash" });
     expect(res.status).toBe(404);
-    const [row] = await query(`select amount_paid from sales where id = $1`, [saleA.id]);
+    const [row] = await query(`select amount_paid from sales where public_id = $1::uuid`, [saleA.id]);
     expect(Number(row!.amount_paid)).toBe(1000);
   });
 
