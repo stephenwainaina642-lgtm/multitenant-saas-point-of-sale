@@ -410,6 +410,8 @@ export default function PointOfSaleWorkspace() {
     const sold = new Map(cart.map((item) => [item.product.id, item.quantity]));
     setProducts((current) => current.map((p) => (sold.has(p.id) ? { ...p, stockQuantity: Number(p.stockQuantity) - sold.get(p.id)! } : p)));
     setCart([]);
+    setProductSearch("");
+    searchRef.current?.focus();
     setDiscount("0");
     setTax("0");
     setNotes("");
