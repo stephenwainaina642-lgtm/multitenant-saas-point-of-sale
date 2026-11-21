@@ -83,3 +83,16 @@
   .sale-receipt-header p.sale-receipt-brand, .receipt-heading p.sale-receipt-brand { font-size: 24pt !important; color: #000 !important; }
   .sale-receipt-header p.sale-receipt-number { font-size: 13pt !important; }
 }
+
+/* Shift report + payment receipt: they carry inline sizes/greys, so override explicitly */
+.receipt-print-area > p:not(.sale-receipt-brand):not(.sale-receipt-contact),
+.sale-receipt-print-area > p:not(.sale-receipt-brand):not(.sale-receipt-contact):not(.print-doc-number):not(.print-doc-notes) { font-size: 15px !important; color: #111 !important; }
+.receipt-print-area table, .receipt-print-area td { font-size: 15px !important; }
+.receipt-print-area h3, .sale-receipt-print-area > h1 { font-size: 22px !important; font-weight: 800; letter-spacing: .04em; }
+.receipt-print-area tr { border-color: #111 !important; }
+@media print {
+  .receipt-print-area > p:not(.sale-receipt-brand):not(.sale-receipt-contact),
+  .sale-receipt-print-area > p:not(.sale-receipt-brand):not(.sale-receipt-contact):not(.print-doc-number):not(.print-doc-notes) { font-size: 12pt !important; }
+  .receipt-print-area table, .receipt-print-area td { font-size: 12pt !important; }
+  .receipt-print-area h3, .sale-receipt-print-area > h1 { font-size: 18pt !important; }
+}
