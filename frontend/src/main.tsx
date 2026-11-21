@@ -5,6 +5,7 @@ import App from "./App.tsx";
 import AuthGate from "./AuthGate";
 import PlatformAdmin from "./PlatformAdmin";
 import AppToaster from "./AppToaster";
+import "./receipt-premium.css";
 import "./mobile.css"; // last, so the phone layout wins over the desktop styles
 
 const DEMO = import.meta.env.VITE_DEMO_MODE === "true";

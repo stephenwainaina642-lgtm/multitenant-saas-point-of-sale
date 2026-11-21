@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
 import { useNotify } from "./useNotify";
 import { money } from "./money";
+import PrintDocument from "./PrintDocument";
 
 type Item = { id: string; productId: string; productName: string; quantity: string | number; unitPrice: string | number; discount: string | number; tax: string | number; total: string | number };
 type Quotation = {
@@ -23,7 +24,6 @@ const emptyLine: Line = { productId: "", quantity: "1", discount: "0" };
 export default function QuotationsWorkspace() {
   const token = sessionStorage.getItem("pos_token") ?? "";
   const businessId = sessionStorage.getItem("pos_business_id") ?? "";
-  const businessName = sessionStorage.getItem("pos_business_name") || "Business";
   const [quotes, setQuotes] = useState<Quotation[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -197,20 +197,25 @@ export default function QuotationsWorkspace() {
 
       {selected && (
         <article className="panel" style={{ padding: 24 }}>
-          <div className="sale-receipt-print-area">
-            <p className="sale-receipt-brand">{businessName}</p>
-            <h2>Quotation {selected.quotationNumber}</h2>
-            <p>Date {day(selected.quotationDate)}{selected.expiryDate ? ` · Valid until ${day(selected.expiryDate)}` : ""}</p>
-            <p><strong>For:</strong> {selected.customer?.name ?? "Customer"}{selected.customer?.phone ? ` · ${selected.customer.phone}` : ""}</p>
-            <table>
-              <thead><tr><th>ITEM</th><th>QTY</th><th>PRICE</th><th>DISCOUNT</th><th>TOTAL</th></tr></thead>
-              <tbody>{selected.items.map((it) => <tr key={it.id}><td>{it.productName}</td><td>{Number(it.quantity)}</td><td>{money(it.unitPrice)}</td><td>{money(it.discount)}</td><td>{money(it.total)}</td></tr>)}</tbody>
-            </table>
-            <p>Subtotal {money(selected.subtotal)} · Discount {money(selected.discount)} · {selected.pricesIncludeVat ? "VAT (included in total)" : "Tax"} {money(selected.tax)}</p>
-            <p><strong>Total {money(selected.total)}</strong></p>
-            <p>Prices are the shop's prices on the quotation date and may change.</p>
-            {selected.notes && <p>{selected.notes}</p>}
-          </div>
+          <PrintDocument
+            title="QUOTATION"
+            number={selected.quotationNumber}
+            partyLabel="Prepared for"
+            party={{ name: selected.customer?.name ?? "Customer", lines: [selected.customer?.phone].filter((v): v is string => Boolean(v)) }}
+            meta={[
+              { label: "Date", value: day(selected.quotationDate) },
+              ...(selected.expiryDate ? [{ label: "Valid until", value: day(selected.expiryDate) }] : []),
+            ]}
+            rows={selected.items.map((it) => ({ name: it.productName, qty: it.quantity, unitPrice: it.unitPrice, discount: it.discount, total: it.total }))}
+            totals={[
+              { label: "Subtotal", value: Number(selected.subtotal) },
+              { label: "Discount", value: Number(selected.discount) },
+              { label: selected.pricesIncludeVat ? "VAT (included in total)" : "Tax", value: Number(selected.tax) },
+              { label: "Total", value: Number(selected.total), strong: true, emphasis: true },
+            ]}
+            notes={selected.notes}
+            footer="Prices are the shop's prices on the quotation date and may change."
+          />
           <div className="customer-actions no-print">
             <button type="button" className="button-primary" onClick={() => window.print()}>Print</button>
             <button type="button" className="button-secondary" onClick={() => setSelected(null)}>Close</button>

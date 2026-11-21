@@ -1,0 +1,85 @@
+/* Premium, printer-safe receipts, invoices and quotations.
+   Pure dark text, no light greys, no white-on-colour (basic printers drop backgrounds). */
+.sale-receipt-print-area, .receipt-print-area {
+  color: #111; font-size: 14px; line-height: 1.45; padding: 32px;
+  border-top: 6px solid #1f6b43; background: #fff;
+}
+.sale-receipt-print-area *, .receipt-print-area * { color: #111; }
+.sale-receipt-brand { font-size: 26px !important; font-weight: 800; letter-spacing: .01em; color: #14532d !important; margin: 0 0 4px; }
+.sale-receipt-contact { font-size: 14px !important; color: #222 !important; margin: 0 0 4px !important; }
+.sale-receipt-print-area h2, .receipt-print-area h2 { font-size: 24px; font-weight: 800; letter-spacing: .08em; margin: 0; color: #111; }
+.sale-receipt-print-area p, .receipt-print-area p { font-size: 14px; }
+.sale-receipt-customer span, .receipt-sku { font-size: 13px !important; color: #222 !important; }
+.receipt-items-table, .receipt-payment-table, .sale-items-table, .print-doc-table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 14px 0; }
+.receipt-items-table th, .receipt-payment-table th, .sale-items-table th, .print-doc-table th {
+  font-size: 12.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: #111 !important;
+  background: transparent !important; border-top: 2px solid #111; border-bottom: 2px solid #111; padding: 8px 6px; text-align: right;
+}
+.receipt-items-table td, .receipt-payment-table td, .sale-items-table td, .print-doc-table td { color:#111; padding: 9px 6px; border-bottom: 1px solid #555; text-align: right; font-size: 14px; }
+.receipt-items-table th:first-child, .receipt-items-table td:first-child, .receipt-payment-table th, .receipt-payment-table td, .sale-items-table th, .sale-items-table td, .print-doc-table .left { text-align: left; }
+.print-doc-table .strong { font-weight: 800; }
+.sale-receipt-totals, .sale-receipt-totals * { font-size: 15px !important; }
+.sale-receipt-grand-total { font-size: 20px !important; font-weight: 800; border-top: 2px solid #111; border-bottom: 2px solid #111; padding: 8px 0; margin-top: 6px; }
+
+.receipt-heading p, .sale-receipt-header p { font-size: 14px; color: #111; }
+.sale-receipt-header { border-bottom: 2px solid #111; }
+.sale-receipt-header h1, .receipt-heading h1 { font-size: 24px; }
+.sale-receipt-customer { border-bottom: 1px solid #555; }
+.sale-receipt-customer span, .receipt-customer span { font-size: 13px !important; font-weight: 600; }
+.sale-receipt-customer strong, .receipt-customer strong { font-size: 15px !important; }
+.sale-section-title, .receipt-payments h3 { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+.sale-item-sku { font-size: 12px !important; color: #222 !important; }
+.sale-receipt-notes, .receipt-notes { background: transparent; border: 1px solid #555; font-size: 14px; color: #111; }
+.sale-receipt-footer, .receipt-footer { border-top: 1px solid #555; font-size: 13px; color: #111; }
+.sale-receipt-footer p { font-size: 16px; color: #111; } .sale-receipt-footer small { font-size: 12px; color: #222; }
+.sale-receipt-totals .sale-receipt-grand-total, .receipt-grand-total { border-color: #111; color: #111; }
+.sale-receipt-totals .sale-receipt-grand-total strong { font-size: 20px; color: #111; }
+.receipt-balance, .sale-receipt-totals .sale-receipt-balance { color: #111; font-weight: 800; }
+
+.print-doc-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; padding-bottom: 14px; border-bottom: 2px solid #111; }
+.print-doc-title { text-align: right; }
+.print-doc-number { font-size: 16px !important; font-weight: 700; margin: 4px 0 0; }
+.print-doc-badge { display: inline-block; margin-top: 8px; padding: 3px 12px; border: 2px solid #111; font-weight: 800; letter-spacing: .12em; font-size: 13px; }
+.print-doc-info { display: flex; justify-content: space-between; gap: 24px; margin: 18px 0 6px; }
+.print-doc-info > div { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
+.print-doc-label { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+.print-doc-party { font-size: 17px; }
+.print-doc-info dl { margin: 0; min-width: 220px; }
+.print-doc-info dl > div { display: flex; justify-content: space-between; gap: 18px; padding: 3px 0; font-size: 14px; }
+.print-doc-info dt { font-weight: 700; } .print-doc-info dd { margin: 0; }
+.print-doc-totals { margin: 6px 0 0 auto; width: min(100%, 340px); }
+.print-doc-totals > div { display: flex; justify-content: space-between; padding: 5px 0; font-size: 15px; }
+.print-doc-totals .is-strong { font-size: 18px; font-weight: 800; border-top: 2px solid #111; padding-top: 8px; margin-top: 4px; }
+.print-doc-totals .is-emphasis { font-size: 20px; font-weight: 800; border-top: 2px solid #111; border-bottom: 3px double #111; padding: 8px 0; margin-top: 4px; }
+.print-doc-notes { margin-top: 18px; font-size: 14px; } .print-doc-notes strong { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+.print-doc-footer { margin-top: 26px; padding-top: 10px; border-top: 1px solid #555; text-align: center; font-size: 13px; font-weight: 600; }
+
+@media print {
+  .sale-receipt-header p, .receipt-heading p, .sale-receipt-customer span, .receipt-customer span, .sale-item-sku, .sale-receipt-notes { font-size: 11pt !important; }
+  .sale-receipt-customer strong { font-size: 12pt !important; }
+  .sale-receipt-header { border-color:#000; } .sale-receipt-footer p { font-size: 13pt; } .sale-receipt-footer small { font-size: 10pt; }
+  .sale-items-table th, .receipt-payment-table th { background: transparent !important; border-color:#000; }
+  .sale-items-table td, .receipt-payment-table td { border-bottom: .75pt solid #000; }
+  .sale-receipt-print-area, .receipt-print-area { font-size: 12pt; padding: 0; border-top: 3pt solid #000; }
+  .sale-receipt-print-area *, .receipt-print-area * { color: #000 !important; }
+  .sale-receipt-brand { font-size: 24pt !important; }
+  .sale-receipt-print-area h2, .receipt-print-area h2 { font-size: 20pt; }
+  .receipt-items-table, .print-doc-table, .receipt-items-table td, .print-doc-table td { font-size: 11.5pt; }
+  .receipt-items-table th, .receipt-payment-table th, .sale-items-table th, .print-doc-table th { font-size: 10.5pt; border-color: #000; }
+  .receipt-items-table td, .print-doc-table td { border-bottom: .75pt solid #000; }
+  .sale-receipt-totals, .sale-receipt-totals * { font-size: 12pt !important; }
+  .sale-receipt-grand-total { font-size: 16pt !important; }
+  .print-doc-totals > div { font-size: 12pt; } .print-doc-totals .is-strong { font-size: 14pt; } .print-doc-totals .is-emphasis { font-size: 16pt; }
+  .print-doc-party { font-size: 14pt; } .print-doc-info > div, .print-doc-info dl > div { font-size: 11.5pt; }
+  .print-doc-label, .print-doc-notes strong { font-size: 10pt; } .print-doc-footer, .print-doc-notes { font-size: 11pt; }
+  .print-doc-head, .print-doc-footer { border-color: #000; }
+  .print-doc-table tr, .print-doc-totals { break-inside: avoid; }
+}
+
+/* keep the business name large wherever it sits (beats the generic header <p> rules) */
+.sale-receipt-header p.sale-receipt-brand, .receipt-heading p.sale-receipt-brand { font-size: 26px !important; font-weight: 800; color: #14532d !important; margin: 0 0 6px; }
+.sale-receipt-header p.sale-receipt-number { font-size: 16px; font-weight: 800; }
+@media print {
+  .sale-receipt-header p.sale-receipt-brand, .receipt-heading p.sale-receipt-brand { font-size: 24pt !important; color: #000 !important; }
+  .sale-receipt-header p.sale-receipt-number { font-size: 13pt !important; }
+}

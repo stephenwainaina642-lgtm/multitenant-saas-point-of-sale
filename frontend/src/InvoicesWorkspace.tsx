@@ -1,9 +1,9 @@
 import { can } from "./permissions";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
-import Letterhead from "./Letterhead";
 import { useNotify } from "./useNotify";
 import { money } from "./money";
+import PrintDocument from "./PrintDocument";
 
 type InvoiceItem = { id: string; productName: string; quantity: string | number; unitPrice: string | number; discount: string | number; tax: string | number; total: string | number };
 type Invoice = {
@@ -121,23 +121,32 @@ export default function InvoicesWorkspace() {
 
       {selected && (
         <article className="panel" style={{ padding: 24 }}>
-          <div className="sale-receipt-print-area">
-            <Letterhead />
-            <h2>Invoice {selected.invoiceNumber}{selected.status === "void" ? " (VOID)" : ""}</h2>
-            <p>Date {day(selected.invoiceDate)}{selected.dueDate ? ` · Due ${day(selected.dueDate)}` : ""} · Sale {selected.receiptNumber}</p>
-            <p><strong>Bill to:</strong> {selected.customer?.name ?? "Walk-in customer"}{selected.customer?.phone ? ` · ${selected.customer.phone}` : ""}{selected.customer?.address ? ` · ${selected.customer.address}` : ""}</p>
-            <table>
-              <thead><tr><th>ITEM</th><th>QTY</th><th>PRICE</th><th>DISCOUNT</th><th>TAX</th><th>TOTAL</th></tr></thead>
-              <tbody>
-                {selected.items.map((it) => (
-                  <tr key={it.id}><td>{it.productName}</td><td>{Number(it.quantity)}</td><td>{money(it.unitPrice)}</td><td>{money(it.discount)}</td><td>{money(it.tax)}</td><td>{money(it.total)}</td></tr>
-                ))}
-              </tbody>
-            </table>
-            <p>Subtotal {money(selected.subtotal)} · Discount {money(selected.discount)} · {selected.pricesIncludeVat ? "VAT (included in total)" : "Tax"} {money(selected.tax)}</p>
-            <p><strong>Total {money(selected.total)}</strong> · Paid {money(selected.amountPaid)} · <strong>Balance due {money(selected.balanceDue)}</strong> · Status: {selected.status}</p>
-            {selected.notes && <p>{selected.notes}</p>}
-          </div>
+          <PrintDocument
+            title="INVOICE"
+            number={selected.invoiceNumber}
+            badge={selected.status === "void" ? "VOID" : Number(selected.balanceDue) <= 0 ? "PAID" : undefined}
+            partyLabel="Bill to"
+            party={{
+              name: selected.customer?.name ?? "Walk-in customer",
+              lines: [selected.customer?.phone, selected.customer?.address].filter((v): v is string => Boolean(v)),
+            }}
+            meta={[
+              { label: "Date", value: day(selected.invoiceDate) },
+              ...(selected.dueDate ? [{ label: "Due", value: day(selected.dueDate) }] : []),
+              { label: "Sale", value: selected.receiptNumber },
+            ]}
+            rows={selected.items.map((it) => ({ name: it.productName, qty: it.quantity, unitPrice: it.unitPrice, discount: it.discount, tax: it.tax, total: it.total }))}
+            showTax
+            totals={[
+              { label: "Subtotal", value: Number(selected.subtotal) },
+              { label: "Discount", value: Number(selected.discount) },
+              { label: selected.pricesIncludeVat ? "VAT (included in total)" : "Tax", value: Number(selected.tax) },
+              { label: "Total", value: Number(selected.total), strong: true },
+              { label: "Paid", value: Number(selected.amountPaid) },
+              { label: "Balance due", value: Number(selected.balanceDue), emphasis: true },
+            ]}
+            notes={selected.notes}
+          />
           <div className="customer-actions no-print">
             <button type="button" className="button-primary" onClick={() => window.print()}>Print</button>
             <button type="button" className="button-secondary" onClick={() => setSelected(null)}>Close</button>
