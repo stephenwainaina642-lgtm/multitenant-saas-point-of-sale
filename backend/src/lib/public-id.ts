@@ -13,3 +13,17 @@ export function requirePublicId(v: unknown, message: string): string {
   if (!isPublicId(v)) throw new AppError(400, message);
   return v.toLowerCase();
 }
+
+type ProductReader = {
+  product: {
+    findFirst(args: { where: { publicId: string; businessId: bigint }; select: { id: true } }): Promise<{ id: bigint } | null>;
+  };
+};
+
+/** The internal product id for a public id, within one business. 400 if it is not a UUID, 404 if it isn't this business's. */
+export async function productIdFromPublic(client: ProductReader, businessId: bigint, value: unknown): Promise<bigint> {
+  const publicId = requirePublicId(value, "A valid product ID is required");
+  const row = await client.product.findFirst({ where: { publicId, businessId }, select: { id: true } });
+  if (!row) throw new AppError(404, "Product not found");
+  return row.id;
+}

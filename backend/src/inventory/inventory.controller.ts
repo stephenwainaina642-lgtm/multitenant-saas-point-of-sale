@@ -1,3 +1,4 @@
+import { isPublicId } from "../lib/public-id.js";
 import type { Response } from "express";
 import type { BusinessRequest } from "../auth/business.middleware.js";
 import {
@@ -61,6 +62,13 @@ export async function createInventoryController(
       return res.status(400).json({
         success: false,
         message: "Product ID is required",
+      });
+    }
+
+    if (!isPublicId(productId)) {
+      return res.status(400).json({
+        success: false,
+        message: "A valid product ID is required",
       });
     }
 

@@ -1,4 +1,5 @@
 import type { Response } from "express";
+import { isPublicId } from "../lib/public-id.js";
 import { assertKnownTaxClass } from "../tax/tax.service.js";
 import type { BusinessRequest } from "../auth/business.middleware.js";
 import { AppError } from "../lib/errors.js";
@@ -275,7 +276,7 @@ export async function updateProductController(
 
     const { id } = req.params;
 
-    if (!id || Array.isArray(id) || !/^\d+$/.test(id) || id === "0") {
+    if (!id || Array.isArray(id) || !isPublicId(id)) {
       return res.status(400).json({
         success: false,
         message: "A valid product ID is required",
@@ -448,7 +449,7 @@ export async function deleteProductController(
 
     const { id } = req.params;
 
-    if (!id || Array.isArray(id) || !/^\d+$/.test(id) || id === "0") {
+    if (!id || Array.isArray(id) || !isPublicId(id)) {
       return res.status(400).json({
         success: false,
         message: "A valid product ID is required",

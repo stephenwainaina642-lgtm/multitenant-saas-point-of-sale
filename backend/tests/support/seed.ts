@@ -104,7 +104,7 @@ export async function createSupplier(t: Session, name: string) {
 
 export async function stockOf(productId: string): Promise<number> {
   const [row] = await query<{ stock_quantity: string }>(
-    `select stock_quantity from products where id = $1`,
+    `select stock_quantity from products where public_id = $1`,
     [productId]
   );
   return Number(row!.stock_quantity);

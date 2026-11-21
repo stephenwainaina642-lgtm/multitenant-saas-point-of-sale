@@ -42,6 +42,7 @@ export async function getBusinessReports(
             product: {
               select: {
                 id: true,
+                publicId: true,
                 name: true,
                 sku: true,
                 category: { select: { publicId: true, name: true } },
@@ -178,7 +179,7 @@ export async function getBusinessReports(
     for (const item of sale.items) {
       const productId = item.productId.toString();
       const current = productMap.get(productId) || {
-        productId,
+        productId: item.product.publicId,
         productName: item.product.name,
         sku: item.product.sku,
         quantitySold: 0n,

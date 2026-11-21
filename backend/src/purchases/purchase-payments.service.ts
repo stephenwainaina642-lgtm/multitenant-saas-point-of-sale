@@ -33,7 +33,7 @@ export async function getBusinessPurchase(businessId: string, idText: string) {
     include: {
       supplier: { select: { publicId: true, name: true } },
       payments: { orderBy: { id: "asc" } },
-      items: { include: { product: { select: { name: true, sku: true, unitOfMeasure: true } } } },
+      items: { include: { product: { select: { publicId: true, name: true, sku: true, unitOfMeasure: true } } } },
     },
   });
   if (!p) throw new AppError(404, "Purchase not found");
@@ -49,7 +49,7 @@ export async function getBusinessPurchase(businessId: string, idText: string) {
     paymentStatus: purchaseStatus(p.status, decimalToCents(p.total), decimalToCents(p.amountPaid)),
     notes: p.notes,
     items: p.items.map((i) => ({
-      id: i.id.toString(), productId: i.productId.toString(), productName: i.product.name,
+      id: i.id.toString(), productId: i.product.publicId, productName: i.product.name,
       sku: i.product.sku, unitOfMeasure: i.product.unitOfMeasure,
       quantity: i.quantity, unitCost: i.unitCost, discount: i.discount, tax: i.tax, total: i.total,
     })),

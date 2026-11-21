@@ -77,6 +77,7 @@ export async function getBusinessSales(
           product: {
             select: {
               id: true,
+              publicId: true,
               name: true,
               sku: true,
               unitOfMeasure: true,
@@ -114,7 +115,7 @@ export async function getBusinessSales(
     createdAt: sale.createdAt,
     items: sale.items.map((item) => ({
       id: item.id.toString(),
-      productId: item.productId.toString(),
+      productId: item.product.publicId,
       productName: item.product.name,
       sku: item.product.sku,
       unitOfMeasure: item.product.unitOfMeasure,
@@ -163,6 +164,7 @@ export async function getBusinessSaleById(
           product: {
             select: {
               id: true,
+              publicId: true,
               name: true,
               sku: true,
               unitOfMeasure: true,
@@ -213,7 +215,7 @@ export async function getBusinessSaleById(
     updatedAt: sale.updatedAt,
     items: sale.items.map((item) => ({
       id: item.id.toString(),
-      productId: item.productId.toString(),
+      productId: item.product.publicId,
       productName: item.product.name,
       sku: item.product.sku,
       unitOfMeasure: item.product.unitOfMeasure,
@@ -270,6 +272,7 @@ type SaleRecord = {
   items: {
     id: bigint;
     productId: bigint;
+    product: { publicId: string };
     quantity: unknown;
     costPrice: unknown;
     discount: unknown;
@@ -304,7 +307,7 @@ function formatCreatedSale(
     idempotentReplay,
     items: sale.items.map((item) => ({
       id: item.id.toString(),
-      productId: item.productId.toString(),
+      productId: item.product.publicId,
       quantity: item.quantity,
       costPrice: item.costPrice,
       discount: item.discount,
@@ -343,7 +346,7 @@ export async function createBusinessSale(
       if (idempotencyKey) {
         const existing = await tx.sale.findFirst({
           where: { businessId: bizId, idempotencyKey },
-          include: { items: true, customer: { select: { publicId: true, name: true } } },
+          include: { items: { include: { product: { select: { publicId: true } } } }, customer: { select: { publicId: true, name: true } } },
         });
         if (existing) {
           return formatCreatedSale(existing, existing.customer ?? null, true);
@@ -475,7 +478,7 @@ export async function createBusinessSale(
             })),
           },
         },
-        include: { items: true },
+        include: { items: { include: { product: { select: { publicId: true } } } } },
       });
 
       if (amountPaid > 0n) {
@@ -519,7 +522,7 @@ export async function createBusinessSale(
     ) {
       const existing = await prisma.sale.findFirst({
         where: { businessId: bizId, idempotencyKey },
-        include: { items: true, customer: { select: { publicId: true, name: true } } },
+        include: { items: { include: { product: { select: { publicId: true } } } }, customer: { select: { publicId: true, name: true } } },
       });
       if (existing) {
         return formatCreatedSale(existing, existing.customer ?? null, true);
@@ -549,7 +552,7 @@ export async function previewBusinessSale(
       tax: centsToString(totals.tax),
       total: centsToString(totals.total),
       items: lines.map((l) => ({
-        productId: l.productId.toString(),
+        productId: l.productPublicId,
         productName: l.productName,
         taxClass: l.taxClass,
         discount: centsToString(l.discount),

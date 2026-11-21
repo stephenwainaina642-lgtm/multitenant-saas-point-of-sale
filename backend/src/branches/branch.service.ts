@@ -1,4 +1,5 @@
 import prisma from "../lib/prisma.js";
+import { productIdFromPublic } from "../lib/public-id.js";
 import { AppError } from "../lib/errors.js";
 import { addBranchStock, takeBranchStockOrFail } from "./branch-stock.js";
 import { milliToString, parseQuantity } from "../lib/money.js";
@@ -107,9 +108,9 @@ export async function assignStaff(businessId: bigint, actorId: string, userIdTex
 export async function stockByBranch(businessId: bigint, actor: Actor) {
   const rows = await prisma.branchStock.findMany({
     where: { businessId, ...(actor.canSeeAll ? {} : { branchId: actor.branchId }) },
-    select: { branchId: true, productId: true, quantity: true },
+    select: { branchId: true, quantity: true, product: { select: { publicId: true } } },
   });
-  return rows.map((r) => ({ branchId: r.branchId.toString(), productId: r.productId.toString(), quantity: r.quantity }));
+  return rows.map((r) => ({ branchId: r.branchId.toString(), productId: r.product.publicId, quantity: r.quantity }));
 }
 
 type TransferBody = { fromBranchId?: unknown; toBranchId?: unknown; items?: unknown; notes?: unknown; reference?: unknown };
@@ -127,7 +128,7 @@ export async function createTransfer(businessId: bigint, actor: Actor, body: Tra
 
   const merged = new Map<bigint, bigint>();
   for (const raw of body.items as Record<string, unknown>[]) {
-    const productId = idOf(raw?.productId, "product id");
+    const productId = await productIdFromPublic(prisma, businessId, raw?.productId);
     let milli: bigint;
     try {
       milli = parseQuantity(raw?.quantity, "Quantity");
@@ -204,7 +205,7 @@ type TransferRow = {
 async function formatTransfer(t: TransferRow) {
   const [branches, products] = await Promise.all([
     prisma.branch.findMany({ where: { id: { in: [t.fromBranchId, t.toBranchId] } }, select: { id: true, name: true } }),
-    prisma.product.findMany({ where: { id: { in: t.items.map((i) => i.productId) } }, select: { id: true, name: true, sku: true } }),
+    prisma.product.findMany({ where: { id: { in: t.items.map((i) => i.productId) } }, select: { id: true, publicId: true, name: true, sku: true } }),
   ]);
   const bn = new Map(branches.map((b) => [b.id, b.name]));
   const pn = new Map(products.map((p) => [p.id, p]));
@@ -213,7 +214,7 @@ async function formatTransfer(t: TransferRow) {
     fromBranchId: t.fromBranchId.toString(), fromBranchName: bn.get(t.fromBranchId) ?? "",
     toBranchId: t.toBranchId.toString(), toBranchName: bn.get(t.toBranchId) ?? "",
     reference: t.reference, notes: t.notes, createdAt: t.createdAt,
-    items: t.items.map((i) => ({ productId: i.productId.toString(), productName: pn.get(i.productId)?.name ?? "", sku: pn.get(i.productId)?.sku ?? null, quantity: String(i.quantity) })),
+    items: t.items.map((i) => ({ productId: pn.get(i.productId)?.publicId ?? "", productName: pn.get(i.productId)?.name ?? "", sku: pn.get(i.productId)?.sku ?? null, quantity: String(i.quantity) })),
   };
 }
 

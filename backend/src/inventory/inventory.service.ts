@@ -1,4 +1,5 @@
 import prisma from "../lib/prisma.js";
+import { requirePublicId } from "../lib/public-id.js";
 import { addBranchStock, takeBranchStock } from "../branches/branch-stock.js";
 
 type InventoryMovementData = {
@@ -22,6 +23,7 @@ export async function getBusinessInventoryMovements(
       product: {
         select: {
           id: true,
+          publicId: true,
           name: true,
           sku: true,
           unitOfMeasure: true,
@@ -35,7 +37,7 @@ export async function getBusinessInventoryMovements(
 
   return movements.map((movement) => ({
     id: movement.id.toString(),
-    productId: movement.productId.toString(),
+    productId: movement.product.publicId,
     productName: movement.product.name,
     sku: movement.product.sku,
     unitOfMeasure: movement.product.unitOfMeasure,
@@ -79,7 +81,7 @@ export async function createInventoryMovement(
       result = await prisma.$transaction(async (tx) => {
     const product = await tx.product.findFirst({
       where: {
-        id: BigInt(data.productId),
+        publicId: requirePublicId(data.productId, "A valid product ID is required"),
         businessId: BigInt(businessId),
         isActive: true,
       },
@@ -141,7 +143,7 @@ export async function createInventoryMovement(
     return {
       movement: {
         id: movement.id.toString(),
-        productId: movement.productId.toString(),
+        productId: product.publicId,
         type: movement.type,
         quantity: movement.quantity,
         reference: movement.reference,
@@ -149,7 +151,7 @@ export async function createInventoryMovement(
         createdAt: movement.createdAt,
       },
       product: {
-        id: updatedProduct.id.toString(),
+        id: updatedProduct.publicId,
         stockQuantity: updatedProduct.stockQuantity,
         branchQuantity: newStock,
       },

@@ -30,7 +30,7 @@ describe("products, customers, suppliers", () => {
 
     it("opening stock creates exactly one IN movement and the stock is explained by movements", async () => {
       const r = await post("/products", s.t, prod({ name: "Opening", stockQuantity: 7 }));
-      const mv = await query(`select type, quantity from inventory_movements where product_id = $1`, [r.body.data.id]);
+      const mv = await query(`select type, quantity from inventory_movements where product_id = (select id from products where public_id = $1)`, [r.body.data.id]);
       expect(mv).toEqual([{ type: "IN", quantity: "7.000" }]);
     });
 
@@ -41,7 +41,7 @@ describe("products, customers, suppliers", () => {
       expect(u.status).toBe(200);
       expect(Number(u.body.data.sellingPrice)).toBe(250);
       expect(await stockOf(id)).toBe(4);
-      const [row] = await query(`select is_active, business_id::text as b from products where id = $1`, [id]);
+      const [row] = await query(`select is_active, business_id::text as b from products where public_id = $1`, [id]);
       expect(row).toEqual({ is_active: true, b: s.t.businessId });
     });
 
@@ -69,7 +69,8 @@ describe("products, customers, suppliers", () => {
       const mine = (await post("/products", s.t, prod({ name: "Private" }))).body.data.id;
       expect((await put(`/products/${mine}`, other, { name: "Stolen" })).status).toBe(404);
       expect((await del(`/products/${mine}`, other)).status).toBe(404);
-      expect((await put(`/products/999999`, s.t, { name: "x" })).status).toBe(404);
+      expect((await put(`/products/999999`, s.t, { name: "x" })).status).toBe(400); // numeric ids are no longer accepted
+      expect((await put(`/products/00000000-0000-4000-8000-000000000000`, s.t, { name: "x" })).status).toBe(404);
       expect((await put(`/products/abc`, s.t, { name: "x" })).status).toBe(400);
       expect((await get("/products", other)).body.data.map((p: any) => p.id)).not.toContain(mine);
     });

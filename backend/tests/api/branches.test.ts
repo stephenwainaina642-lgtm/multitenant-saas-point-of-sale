@@ -8,8 +8,8 @@ const inBranch = (t: { token: string; businessId: string }, branchId: string, me
   api(method, path, { session: t, body, headers: { "x-branch-id": branchId, ...extra } });
 const stockRows = (productId: string) =>
   query<{ name: string; quantity: string }>(
-    `select b.name, bs.quantity::text from branch_stock bs join branches b on b.id = bs.branch_id where bs.product_id = $1 order by b.is_main desc, b.name`, [productId]);
-const total = async (productId: string) => Number((await query<{ s: string }>(`select stock_quantity::text s from products where id = $1`, [productId]))[0]!.s);
+    `select b.name, bs.quantity::text from branch_stock bs join branches b on b.id = bs.branch_id where bs.product_id = (select id from products where public_id = $1) order by b.is_main desc, b.name`, [productId]);
+const total = async (productId: string) => Number((await query<{ s: string }>(`select stock_quantity::text s from products where public_id = $1`, [productId]))[0]!.s);
 async function totalsMatch() {
   const bad = await query(
     `select p.id from products p where p.stock_quantity <> coalesce((select sum(quantity) from branch_stock where product_id = p.id), 0)`);
@@ -129,7 +129,7 @@ describe("branches with their own stock", () => {
     const row = await query<{ name: string }>(`select b.name from sales s join branches b on b.id = s.branch_id where s.id = $1`, [sale.body.data.id]);
     expect(row[0]!.name).toBe("Westlands");
     expect((await inBranch(clerk, main, "POST", "/branches/transfers", { fromBranchId: main, toBranchId: westlands, items: [{ productId: item.id, quantity: 1 }] })).status).toBe(403);
-    await expect(query(`update products set stock_quantity = 999 where id = $1`, [item.id])).rejects.toThrow(/total of branch_stock/);
+    await expect(query(`update products set stock_quantity = 999 where public_id = $1`, [item.id])).rejects.toThrow(/total of branch_stock/);
   });
 
   it("lists stock for every branch, or only the branch being worked in", async () => {

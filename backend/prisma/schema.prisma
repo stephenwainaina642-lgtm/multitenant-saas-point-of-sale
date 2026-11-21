@@ -215,6 +215,7 @@ model Category {
 
 model Product {
   id             BigInt   @id @default(autoincrement())
+  publicId       String   @unique @default(dbgenerated("gen_random_uuid()")) @map("public_id") @db.Uuid
   businessId     BigInt   @map("business_id")
   categoryId     BigInt?  @map("category_id")
   name           String   @db.VarChar(255)

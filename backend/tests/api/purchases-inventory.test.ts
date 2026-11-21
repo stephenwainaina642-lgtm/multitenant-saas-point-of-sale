@@ -19,7 +19,7 @@ describe("purchases and inventory", () => {
     expect(await stockOf(s.oud6.id)).toBe(before + 50);
     const mv = await query(`select type, quantity from inventory_movements where reference = $1`, [`PURCHASE-${res.body.data.id}`]);
     expect(mv).toEqual([{ type: "IN", quantity: "50.000" }]);
-    const [p] = await query(`select cost_price from products where id = $1`, [s.oud6.id]);
+    const [p] = await query(`select cost_price from products where public_id = $1`, [s.oud6.id]);
     expect(Number(p!.cost_price)).toBe(470);
   });
 
@@ -70,7 +70,7 @@ describe("purchases and inventory", () => {
     expect(adj.status).toBe(201);
     expect(await stockOf(id)).toBe(20);
     // IN:25 is the opening-stock movement recorded when the product was created.
-    const mv = await query(`select type, quantity from inventory_movements where product_id = $1 order by id`, [id]);
+    const mv = await query(`select type, quantity from inventory_movements where product_id = (select id from products where public_id = $1) order by id`, [id]);
     expect(mv.map((m) => `${m.type}:${Number(m.quantity)}`)).toEqual(["IN:25", "IN:5", "OUT:4", "ADJUSTMENT:-6"]);
   });
 
@@ -92,7 +92,7 @@ describe("purchases and inventory", () => {
     const s = await seedPerfumeBusiness();
     const p = await createProduct(s.t, { name: "New Line", costPrice: 10, sellingPrice: 20, stockQuantity: 7 });
     expect(await stockOf(p.id)).toBe(7);
-    const mv = await query(`select type, quantity from inventory_movements where product_id = $1`, [p.id]);
+    const mv = await query(`select type, quantity from inventory_movements where product_id = (select id from products where public_id = $1)`, [p.id]);
     expect(mv).toEqual([{ type: "IN", quantity: "7.000" }]);
   });
 

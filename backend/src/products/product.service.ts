@@ -1,5 +1,6 @@
 import { addBranchStock } from "../branches/branch-stock.js";
 import prisma from "../lib/prisma.js";
+import { requirePublicId } from "../lib/public-id.js";
 
 export async function getBusinessProducts(businessId: string) {
   const products = await prisma.product.findMany({
@@ -14,7 +15,7 @@ export async function getBusinessProducts(businessId: string) {
   });
 
   return products.map((product) => ({
-    id: product.id.toString(),
+    id: product.publicId,
     name: product.name,
     sku: product.sku,
     barcode: product.barcode,
@@ -86,7 +87,7 @@ export async function createBusinessProduct(
 
     const stocked = await tx.product.findUniqueOrThrow({ where: { id: product.id }, include: { category: { select: { publicId: true } } } });
     return {
-      id: product.id.toString(),
+      id: product.publicId,
       name: product.name,
       sku: product.sku,
       barcode: product.barcode,
@@ -121,7 +122,7 @@ export async function updateBusinessProduct(
 ) {
   const product = await prisma.product.findFirst({
     where: {
-      id: BigInt(productId),
+      publicId: requirePublicId(productId, "A valid product ID is required"),
       businessId: BigInt(businessId),
       isActive: true,
     },
@@ -133,14 +134,14 @@ export async function updateBusinessProduct(
 
   const updatedProduct = await prisma.product.update({
     where: {
-      id: BigInt(productId),
+      id: product.id,
     },
     data,
     include: { category: { select: { publicId: true } } },
   });
 
   return {
-    id: updatedProduct.id.toString(),
+    id: updatedProduct.publicId,
     name: updatedProduct.name,
     sku: updatedProduct.sku,
     barcode: updatedProduct.barcode,
@@ -162,7 +163,7 @@ export async function deleteBusinessProduct(
 ) {
   const product = await prisma.product.findFirst({
     where: {
-      id: BigInt(productId),
+      publicId: requirePublicId(productId, "A valid product ID is required"),
       businessId: BigInt(businessId),
       isActive: true,
     },
@@ -174,7 +175,7 @@ export async function deleteBusinessProduct(
 
   const deletedProduct = await prisma.product.update({
     where: {
-      id: BigInt(productId),
+      id: product.id,
     },
     data: {
       isActive: false,
@@ -182,7 +183,7 @@ export async function deleteBusinessProduct(
   });
 
   return {
-    id: deletedProduct.id.toString(),
+    id: deletedProduct.publicId,
     name: deletedProduct.name,
     isActive: deletedProduct.isActive,
   };

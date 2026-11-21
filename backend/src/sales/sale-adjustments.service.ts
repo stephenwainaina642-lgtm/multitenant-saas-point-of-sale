@@ -47,7 +47,7 @@ async function lockSale(tx: Tx, businessId: bigint, saleId: bigint, actor: Actor
 
   return tx.sale.findUniqueOrThrow({
     where: { id: saleId },
-    include: { items: true },
+    include: { items: { include: { product: { select: { publicId: true } } } } },
   });
 }
 
@@ -286,7 +286,7 @@ export async function editBusinessSale(
           })),
         },
       },
-      include: { items: true },
+      include: { items: { include: { product: { select: { publicId: true } } } } },
     });
 
     await tx.auditLog.create({
@@ -315,7 +315,7 @@ export async function editBusinessSale(
       notes: updated.notes,
       items: updated.items.map((item) => ({
         id: item.id.toString(),
-        productId: item.productId.toString(),
+        productId: item.product.publicId,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         discount: item.discount,

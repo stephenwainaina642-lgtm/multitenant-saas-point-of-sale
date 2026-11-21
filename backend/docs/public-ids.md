@@ -20,7 +20,13 @@ working on the migrated database (the column is only added), so there is no brok
 |---|---|
 | categories | DONE (migration `20261128090000_add_public_id_categories`) |
 | customers, suppliers | DONE (migration `20261129090000_add_public_id_customers_suppliers`): own routes, sales (create/list/detail/edit), purchases, purchase payments, quotations, invoices, payments list, customer debt and receive-payment, reports |
-| products, sales, purchases, expenses, quotations, invoices, branches, roles, employees/users, payments, stock transfers, businesses | not yet |
+| products | DONE (migration `20261203090000_add_public_id_products`): own routes, sales (create/list/detail/edit/preview), purchases and payments, quotations, invoices, inventory movements, branch stock and transfers, dashboard low-stock, reports (best sellers) |
+| sales, purchases, expenses, quotations, invoices, branches, roles, employees/users, payments, stock transfers, businesses | not yet |
+
+## Products: one thing to do before deploying
+A sale saved on a device while offline keeps the product ids it was made with. After this change those ids must be the new
+random ones, so a sale still waiting to sync from BEFORE the update would be refused (the screen shows an error toast and
+keeps it). Make sure every till shows no "sales waiting to sync" badge before you deploy.
 
 ## Known gaps until every table is converted
 - `GET /api/audit-logs` still returns the numeric `entityId` for every entity type. It is mapped to public ids as the last step.

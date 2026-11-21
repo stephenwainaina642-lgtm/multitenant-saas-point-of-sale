@@ -116,7 +116,8 @@ describe("sales, stock and payments", () => {
       expect((await post("/sales", s.t, { items: [item], discount: -1 })).status).toBe(400);
       expect((await post("/sales", s.t, { items: [item], amountPaid: 5000, paymentMethod: "cash" })).status).toBe(400);
       expect((await post("/sales", s.t, { items: [item], amountPaid: 100 })).status).toBe(400);
-      expect((await post("/sales", s.t, { items: [{ ...item, productId: "999999" }] })).status).toBe(404);
+      expect((await post("/sales", s.t, { items: [{ ...item, productId: "999999" }] })).status).toBe(400);
+      expect((await post("/sales", s.t, { items: [{ ...item, productId: "00000000-0000-4000-8000-000000000000" }] })).status).toBe(404);
       // a balance cannot be left on an anonymous (walk-in) sale
       const walkIn = await post("/sales", s.t, { items: [item] });
       expect(walkIn.status).toBe(400);

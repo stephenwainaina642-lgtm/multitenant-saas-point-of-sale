@@ -128,7 +128,7 @@ describe("VAT (exclusive pricing, calculated by the server)", () => {
     await expect(query(`update businesses set vat_rate = 150 where id = $1`, [t.businessId])).rejects.toThrow(/vat_rate_range/);
     await expect(query(`update products set tax_class = 'luxury' where business_id = $1`, [t.businessId])).resolves.toBeDefined(); // no rows to update yet
     const p = await createProduct(t, { name: "X", costPrice: 1, sellingPrice: 2 });
-    await expect(query(`update products set tax_class = 'luxury' where id = $1`, [p.id])).rejects.toThrow(/tax_class_valid/);
+    await expect(query(`update products set tax_class = 'luxury' where public_id = $1`, [p.id])).rejects.toThrow(/tax_class_valid/);
     expect((await post("/products", t, { name: "Y", costPrice: 1, sellingPrice: 2, taxClass: "luxury" })).status).toBe(400);
   });
 

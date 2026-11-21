@@ -115,7 +115,7 @@ export async function getDashboard(scope: DashboardScope) {
     scope.seeStock
       ? prisma.product.findMany({
           where: { businessId: bid, isActive: true },
-          select: { id: true, name: true, sku: true, unitOfMeasure: true, stockQuantity: true, minimumStock: true, costPrice: true },
+          select: { id: true, publicId: true, name: true, sku: true, unitOfMeasure: true, stockQuantity: true, minimumStock: true, costPrice: true },
           orderBy: { name: "asc" },
         })
       : Promise.resolve([]),
@@ -208,7 +208,7 @@ export async function getDashboard(scope: DashboardScope) {
         .sort((a, c) => (milli(a.stockQuantity) - milli(c.stockQuantity) > 0n ? 1 : -1))
         .slice(0, 20)
         .map((p) => ({
-          id: p.id.toString(), name: p.name, sku: p.sku, unitOfMeasure: p.unitOfMeasure,
+          id: p.publicId, name: p.name, sku: p.sku, unitOfMeasure: p.unitOfMeasure,
           stockQuantity: qty(milli(p.stockQuantity)), minimumStock: qty(milli(p.minimumStock)),
         })),
     };

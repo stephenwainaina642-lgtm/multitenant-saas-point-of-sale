@@ -89,12 +89,12 @@ describe("tenant isolation (direct API requests)", () => {
   });
 
   it("B cannot modify or delete A's product", async () => {
-    const before = await query(`select name, selling_price, is_active from products where id = $1`, [a.iphone.id]);
+    const before = await query(`select name, selling_price, is_active from products where public_id = $1`, [a.iphone.id]);
     const upd = await put(`/products/${a.iphone.id}`, b.t, { name: "Hacked", sellingPrice: 1 });
     const del_ = await del(`/products/${a.iphone.id}`, b.t);
     expect(upd.status).toBeGreaterThanOrEqual(400);
     expect(del_.status).toBeGreaterThanOrEqual(400);
-    const after = await query(`select name, selling_price, is_active from products where id = $1`, [a.iphone.id]);
+    const after = await query(`select name, selling_price, is_active from products where public_id = $1`, [a.iphone.id]);
     expect(after).toEqual(before);
   });
 

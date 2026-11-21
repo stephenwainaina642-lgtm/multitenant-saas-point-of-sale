@@ -18,7 +18,7 @@ const include = {
   convertedSale: { select: { id: true, receiptNumber: true } },
   items: {
     orderBy: { id: "asc" as const },
-    include: { product: { select: { id: true, name: true, sku: true, unitOfMeasure: true } } },
+    include: { product: { select: { id: true, publicId: true, name: true, sku: true, unitOfMeasure: true } } },
   },
 };
 
@@ -49,7 +49,7 @@ function present(q: any) {
     convertedSaleId: q.convertedSale?.id.toString() ?? null,
     convertedReceiptNumber: q.convertedSale?.receiptNumber ?? null,
     items: q.items.map((item: any) => ({
-      id: item.id.toString(), productId: item.productId.toString(), productName: item.product.name,
+      id: item.id.toString(), productId: item.product.publicId, productName: item.product.name,
       sku: item.product.sku, unitOfMeasure: item.product.unitOfMeasure, quantity: item.quantity,
       unitPrice: item.unitPrice, discount: item.discount, tax: item.tax, total: item.total,
     })),
@@ -298,7 +298,7 @@ export async function convertQuotationToSale(
         ...(typeof data.paymentReference === "string" && { paymentReference: data.paymentReference }),
         notes: `From quotation ${q.quotationNumber}`,
         items: q.items.map((i) => ({
-          productId: i.productId.toString(), quantity: Number(i.quantity), unitPrice: Number(i.unitPrice),
+          productId: i.product.publicId, quantity: Number(i.quantity), unitPrice: Number(i.unitPrice),
           discount: Number(i.discount), tax: Number(i.tax),
         })),
       },

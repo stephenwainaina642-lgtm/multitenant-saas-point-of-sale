@@ -56,6 +56,7 @@ export async function getBusinessPurchases(
           product: {
             select: {
               id: true,
+              publicId: true,
               name: true,
               sku: true,
               unitOfMeasure: true,
@@ -87,7 +88,7 @@ export async function getBusinessPurchases(
     createdAt: purchase.createdAt,
     items: purchase.items.map((item) => ({
       id: item.id.toString(),
-      productId: item.productId.toString(),
+      productId: item.product.publicId,
       productName: item.product.name,
       sku: item.product.sku,
       unitOfMeasure: item.product.unitOfMeasure,
@@ -156,7 +157,7 @@ export async function createBusinessPurchase(
 
       const product = await tx.product.findFirst({
         where: {
-          id: BigInt(item.productId),
+          publicId: requirePublicId(item.productId, "Each item needs a valid product ID"),
           businessId: bizId,
           isActive: true,
         },
@@ -253,7 +254,7 @@ export async function createBusinessPurchase(
           })),
         },
       },
-      include: { items: true },
+      include: { items: { include: { product: { select: { publicId: true } } } } },
     });
 
     if (amountPaid > 0n) {
@@ -322,7 +323,7 @@ export async function createBusinessPurchase(
       createdAt: purchase.createdAt,
       items: purchase.items.map((item) => ({
         id: item.id.toString(),
-        productId: item.productId.toString(),
+        productId: item.product.publicId,
         quantity: item.quantity,
         unitCost: item.unitCost,
         discount: item.discount,

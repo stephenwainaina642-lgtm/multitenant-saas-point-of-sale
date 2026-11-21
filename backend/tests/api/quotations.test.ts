@@ -114,11 +114,11 @@ describe("quotations", () => {
 
     const p = await quote({ items: [line(s.charger.id, 1, 1200)] });
     await accept(p.id);
-    await query(`update products set selling_price = 1300 where id = $1`, [s.charger.id]);
+    await query(`update products set selling_price = 1300 where public_id = $1`, [s.charger.id]);
     const changed = await post(`/quotations/${p.id}/convert`, s.t, {});
     expect(changed.status).toBe(409);
     expect(changed.body.message).toMatch(/Prices changed/);
-    await query(`update products set selling_price = 1200 where id = $1`, [s.charger.id]);
+    await query(`update products set selling_price = 1200 where public_id = $1`, [s.charger.id]);
     expect((await post(`/quotations/${p.id}/convert`, s.t, {})).status).toBe(201);
   });
 

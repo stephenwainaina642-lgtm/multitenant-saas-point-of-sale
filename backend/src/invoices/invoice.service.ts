@@ -12,7 +12,7 @@ const saleInclude = {
   customer: { select: { publicId: true, name: true, phone: true, email: true, address: true } },
   items: {
     orderBy: { id: "asc" as const },
-    include: { product: { select: { id: true, name: true, sku: true, unitOfMeasure: true } } },
+    include: { product: { select: { id: true, publicId: true, name: true, sku: true, unitOfMeasure: true } } },
   },
 };
 
@@ -53,7 +53,7 @@ function present(invoice: any, sale: any) {
     saleStatus: sale.status,
     notes: invoice.notes,
     items: sale.items.map((item: any) => ({
-      id: item.id.toString(), productId: item.productId.toString(), productName: item.product.name,
+      id: item.id.toString(), productId: item.product.publicId, productName: item.product.name,
       sku: item.product.sku, unitOfMeasure: item.product.unitOfMeasure, quantity: item.quantity,
       unitPrice: item.unitPrice, discount: item.discount, tax: item.tax, total: item.total,
     })),

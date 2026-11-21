@@ -1,5 +1,6 @@
 import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
+import { isPublicId } from "../lib/public-id.js";
 import {
   decimalToCents,
   lineAmount,
@@ -19,6 +20,8 @@ export type RawSaleItem = {
 
 export type SaleLine = {
   productId: bigint;
+  /** The id the API shows for this product. */
+  productPublicId: string;
   productName: string;
   quantity: bigint; // thousandths
   unitPrice: bigint; // cents
@@ -68,26 +71,19 @@ export async function buildSaleLines(
       throw new AppError(400, "Tax cannot be negative");
     }
 
-    let productId: bigint;
-    try {
-      productId = BigInt(item.productId);
-    } catch {
-      throw new AppError(404, `Product not found: ${item.productId}`);
+    if (!isPublicId(item.productId)) {
+      throw new AppError(400, "Each item needs a valid product ID");
     }
-
-    const keptFromSale = options.existing?.has(productId) ?? false;
-
-    const product = await tx.product.findFirst({
-      where: {
-        id: productId,
-        businessId,
-        ...(!keptFromSale && { isActive: true }),
-      },
+    const found = await tx.product.findFirst({
+      where: { publicId: item.productId.toLowerCase(), businessId },
     });
+    // Archived products stay valid only for a sale that already contains them (editing).
+    const product = found && (found.isActive || (options.existing?.has(found.id) ?? false)) ? found : null;
 
     if (!product) {
       throw new AppError(404, `Product not found: ${item.productId}`);
     }
+    const productId = product.id;
 
     const catalogueOk = unitPrice === decimalToCents(product.sellingPrice);
     const originalOk = options.existing?.get(productId)?.has(unitPrice) ?? false;
@@ -107,6 +103,7 @@ export async function buildSaleLines(
 
     lines.push({
       productId: product.id,
+      productPublicId: product.publicId,
       productName: product.name,
       quantity,
       unitPrice,

@@ -138,7 +138,7 @@ describe("sale edit, void and refund", () => {
     it("an unchanged line keeps its original price and archived product after the catalogue changes", async () => {
       const p = await createProduct(s.t, { name: "Screen Guard", costPrice: 100, sellingPrice: 500, stockQuantity: 20 });
       const made = await post("/sales", s.t, { customerId: s.customer.id, amountPaid: 500, paymentMethod: "cash", items: [item(p.id, 1, 500)] });
-      await query(`update products set selling_price = 650, is_active = false where id = $1`, [p.id]);
+      await query(`update products set selling_price = 650, is_active = false where public_id = $1`, [p.id]);
       const same = await put(`/sales/${made.body.data.id}`, s.t, { items: [item(p.id, 2, 500)] });
       expect(same.status).toBe(200);
       const wrong = await put(`/sales/${made.body.data.id}`, s.t, { items: [item(p.id, 2, 550)] });

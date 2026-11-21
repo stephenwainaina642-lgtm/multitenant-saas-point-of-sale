@@ -89,7 +89,7 @@ describe("roles and permissions (enforced in the backend)", () => {
         ["edit settings", (await put("/businesses/current", sales, { name: "Renamed" })).status],
       ];
       for (const [what, status] of checks) expect(status, what).toBe(403);
-      const [still] = await query(`select is_active, name from products where id = $1`, [p.id]);
+      const [still] = await query(`select is_active, name from products where public_id = $1`, [p.id]);
       expect(still).toEqual({ is_active: true, name: "Protected" });
     });
   });
