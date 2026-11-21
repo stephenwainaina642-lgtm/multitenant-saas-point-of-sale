@@ -2,6 +2,7 @@
 import { apiRequest } from "./api/client";
 import VatReportPanel from "./VatReportPanel";
 import { can } from "./permissions";
+import { useNotify } from "./useNotify";
 
 type Sale = {
   id: string;
@@ -213,6 +214,7 @@ export default function ReportsWorkspace() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  useNotify(error, undefined);
 
   const businessName =
     sessionStorage.getItem("pos_business_name") || "Business";
@@ -547,9 +549,6 @@ export default function ReportsWorkspace() {
           </button>
         </div>
 
-        {error && (
-          <p role="alert" className="supplier-notice supplier-error">{error}</p>
-        )}
 
         {startDate > endDate && (
           <p role="alert" className="supplier-notice supplier-error">

@@ -25,4 +25,4 @@ export function checkPhone(v: string, required = false): string | null {
   if (!d) return required ? "Enter a 10-digit phone number." : null;
   return /^\d{10}$/.test(d) ? null : "Phone number must be exactly 10 digits (for example 0712345678).";
 }
-export const PHONE_PROPS = { inputMode: "numeric" as const, maxLength: 10, pattern: "[0-9]{10}", placeholder: "0712345678", autoComplete: "tel" };
+export const PHONE_PROPS = { inputMode: "numeric" as const, maxLength: 10, placeholder: "0712345678", autoComplete: "tel" };

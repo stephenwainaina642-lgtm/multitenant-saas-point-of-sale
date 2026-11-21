@@ -1,6 +1,7 @@
 import { can } from "./permissions";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
+import { useNotify } from "./useNotify";
 
 type Item = { id: string; productId: string; productName: string; quantity: string | number; unitPrice: string | number; discount: string | number; tax: string | number; total: string | number };
 type Quotation = {
@@ -29,6 +30,7 @@ export default function QuotationsWorkspace() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  useNotify(error, message);
   const [showForm, setShowForm] = useState(false);
   const [customerId, setCustomerId] = useState("");
   const [expiryDate, setExpiryDate] = useState("");
@@ -131,8 +133,6 @@ export default function QuotationsWorkspace() {
           <div><h2>Quotations</h2><p>Quote, get acceptance, then turn it into a sale in one click</p></div>
           {can("quotations.manage") && <button type="button" className="button-primary" onClick={() => setShowForm((v) => !v)}>{showForm ? "Close form" : "New quotation"}</button>}
         </div>
-        {error && <p className="customer-notice" role="alert">{error}</p>}
-        {message && <p className="customer-notice" role="status">{message}</p>}
 
         {showForm && (
           <form onSubmit={create} style={{ display: "grid", gap: 12, margin: "16px 0" }}>

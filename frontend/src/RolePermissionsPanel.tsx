@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiRequest } from "./api/client";
+import { useNotify } from "./useNotify";
 
 export type Role = { id: string; name: string; description: string | null; permissions: string[] };
 type Catalog = { permissions: { key: string; label: string }[] };
@@ -24,6 +25,7 @@ export default function RolePermissionsPanel({ onChanged }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  useNotify(error, notice);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -89,8 +91,6 @@ export default function RolePermissionsPanel({ onChanged }: Props) {
         </div>
         <button type="button" className="button-primary" onClick={() => start("new")}>New role</button>
       </div>
-      {error && <p className="customer-notice" role="alert">{error}</p>}
-      {notice && <p className="customer-notice" role="status">{notice}</p>}
 
       <div className="table-scroll" style={{ marginTop: 12 }}>
         <table>

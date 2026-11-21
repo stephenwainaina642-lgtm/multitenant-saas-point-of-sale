@@ -1,6 +1,7 @@
 import { can } from "./permissions";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
+import { useNotify } from "./useNotify";
 
 type Expense = {
   id: string;
@@ -65,6 +66,7 @@ export default function ExpensesWorkspace() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  useNotify(error, message);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState(emptyForm);
 
@@ -282,17 +284,7 @@ export default function ExpensesWorkspace() {
           </div>
         </div>
 
-        {error && (
-          <p role="alert" className="supplier-notice supplier-error">
-            {error}
-          </p>
-        )}
 
-        {message && (
-          <p role="status" className="supplier-notice supplier-success">
-            {message}
-          </p>
-        )}
 
         <label style={labelStyle} htmlFor="expense-search">
           Search expense history

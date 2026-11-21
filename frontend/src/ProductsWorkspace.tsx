@@ -4,6 +4,7 @@ import CategoriesPanel, { type Category, type Starter } from "./CategoriesPanel"
 import { useCallback, useEffect, useState } from "react";
 import { apiRequest } from "./api/client";
 import { TaxClassOptions, useTaxRates } from "./taxRates";
+import { useNotify } from "./useNotify";
 
 type Product = {
   id: string;
@@ -39,6 +40,7 @@ export default function ProductsWorkspace() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  useNotify(error, message);
   const [search, setSearch] = useState("");
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
@@ -416,16 +418,6 @@ export default function ProductsWorkspace() {
           ))}
         </select>
 
-        {error && (
-          <p role="alert" style={{ color: "#a1352a", background: "#fff5f3", padding: 12, borderRadius: 8 }}>
-            {error}
-          </p>
-        )}
-        {message && (
-          <p role="status" style={{ color: "#176b50", background: "#edf8f1", padding: 12, borderRadius: 8 }}>
-            {message}
-          </p>
-        )}
 
         <div className="table-scroll" style={{ marginTop: 18 }}>
           <table>

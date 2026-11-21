@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiRequest } from "./api/client";
 import { can } from "./permissions";
+import { useNotify } from "./useNotify";
 
 type Branch = { id: string; name: string; address: string | null; phone: string | null; isMain: boolean; isActive: boolean; current: boolean };
 type Product = { id: string; name: string; sku: string | null; stockQuantity: number | string; isActive: boolean };
@@ -30,6 +31,7 @@ export default function BranchesWorkspace() {
   const [staff, setStaff] = useState<Employee[]>([]);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  useNotify(error, notice);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ name: "", address: "", phone: "" });
   const [from, setFrom] = useState("");
@@ -93,8 +95,6 @@ export default function BranchesWorkspace() {
       <div>
         <p style={{ margin: 0, color: "#59665d" }}>Each branch has its own stock. Products, prices and customers are shared. Choose the branch you are working in from the sidebar.</p>
       </div>
-      {error && <p role="alert" style={{ margin: 0, padding: 10, borderRadius: 8, background: "#fff5f3", color: "#a1352a" }}>{error}</p>}
-      {notice && <p role="status" style={{ margin: 0, padding: 10, borderRadius: 8, background: "#eef8f2", color: "#176b4d" }}>{notice}</p>}
 
       <article style={panel}>
         <h2 style={{ marginTop: 0 }}>Your branches</h2>

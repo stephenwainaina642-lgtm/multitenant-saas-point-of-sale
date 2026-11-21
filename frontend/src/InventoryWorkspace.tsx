@@ -1,6 +1,7 @@
 import { can } from "./permissions";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
+import { useNotify } from "./useNotify";
 
 type Product = {
   id: string;
@@ -35,6 +36,7 @@ export default function InventoryWorkspace() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  useNotify(error, message);
   const [search, setSearch] = useState("");
   const [productId, setProductId] = useState("");
   const [type, setType] = useState<"IN" | "OUT" | "ADJUSTMENT">("IN");
@@ -183,8 +185,6 @@ export default function InventoryWorkspace() {
         @media (max-width: 700px) { .inventory-summary { grid-template-columns: 1fr; } .inventory-form { grid-template-columns: 1fr; } .inventory-wide { grid-column: auto; } .inventory-stat strong { font-size: 22px; } }
       `}</style>
 
-      {error && <div className="inventory-alert inventory-error">{error}</div>}
-      {message && <div className="inventory-alert inventory-success">{message}</div>}
 
       <section className="inventory-summary">
         <div className="inventory-stat">

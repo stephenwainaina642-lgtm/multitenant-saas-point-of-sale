@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiRequest } from "./api/client";
 import { can } from "./permissions";
 import Letterhead from "./Letterhead";
+import { useNotify } from "./useNotify";
 
 type Live = { totalsByMethod: Record<string, string>; cashReceived: string; cashRefunded: string; cashSupplier: string; expectedCash: string };
 type Shift = {
@@ -33,6 +34,7 @@ export default function ShiftsWorkspace() {
   const [history, setHistory] = useState<Shift[]>([]);
   const [viewing, setViewing] = useState<Shift | null>(null);
   const [error, setError] = useState("");
+  useNotify(error, undefined);
   const [busy, setBusy] = useState(false);
   const [openFloat, setOpenFloat] = useState("");
   const [counted, setCounted] = useState("");
@@ -71,7 +73,6 @@ export default function ShiftsWorkspace() {
 
   return (
     <div className="workspace-content" style={{ display: "grid", gap: 20 }}>
-      {error && <p style={{ margin: 0, color: "#b3412f" }}>{error}</p>}
 
       {canUse && !current && (
         <section style={panel} className="no-print">

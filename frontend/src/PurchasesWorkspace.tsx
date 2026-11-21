@@ -1,6 +1,7 @@
 import { can } from "./permissions";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
+import { useNotify } from "./useNotify";
 
 type Supplier = {
   id: string;
@@ -96,6 +97,7 @@ export default function PurchasesWorkspace() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  useNotify(error, message);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState(emptyForm);
   const [lines, setLines] = useState<PurchaseLine[]>([{ ...emptyLine }]);
@@ -397,17 +399,7 @@ export default function PurchasesWorkspace() {
           </div>
         </div>
 
-        {error && (
-          <p role="alert" className="supplier-notice supplier-error">
-            {error}
-          </p>
-        )}
 
-        {message && (
-          <p role="status" className="supplier-notice supplier-success">
-            {message}
-          </p>
-        )}
 
         <label style={labelStyle} htmlFor="purchase-search">
           Search purchase history

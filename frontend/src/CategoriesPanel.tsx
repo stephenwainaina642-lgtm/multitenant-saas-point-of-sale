@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { apiRequest } from "./api/client";
 import { can } from "./permissions";
+import { useNotify } from "./useNotify";
 
 export type Category = { id: string; name: string; description: string | null; productCount: number };
 
@@ -15,6 +16,7 @@ export default function CategoriesPanel({ categories, starter, onChanged }: Prop
   const [editName, setEditName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  useNotify(error, undefined);
   const token = sessionStorage.getItem("pos_token") ?? "";
   const businessId = sessionStorage.getItem("pos_business_id") ?? "";
   const manage = can("products.manage");
@@ -75,7 +77,6 @@ export default function CategoriesPanel({ categories, starter, onChanged }: Prop
 
       {open && (
         <>
-          {error && <p role="alert" style={{ color: "#a1352a", background: "#fff5f3", padding: 12, borderRadius: 8, margin: 0 }}>{error}</p>}
           {manage && (
             <form onSubmit={add} style={{ display: "flex", gap: 8 }}>
               <input

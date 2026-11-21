@@ -4,6 +4,7 @@ import SettleDebtModal from "./SettleDebtModal";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
 import { checkName, checkPhone, cleanName, cleanPhone, PHONE_PROPS } from "./validation";
+import { useNotify } from "./useNotify";
 
 type Customer = {
   id: string;
@@ -35,6 +36,7 @@ export default function CustomersWorkspace() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  useNotify(error, message);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState<CustomerForm>(emptyForm);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
@@ -284,17 +286,7 @@ export default function CustomersWorkspace() {
           placeholder="Search by name, phone, email or address"
         />
 
-        {error && (
-          <p role="alert" className="customer-notice customer-error">
-            {error}
-          </p>
-        )}
 
-        {message && (
-          <p role="status" className="customer-notice customer-success">
-            {message}
-          </p>
-        )}
 
         <div className="table-scroll" style={{ marginTop: 18 }}>
           <table>

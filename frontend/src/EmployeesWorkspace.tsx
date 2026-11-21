@@ -3,6 +3,7 @@ import { apiRequest } from "./api/client";
 import RolePermissionsPanel, { type Role } from "./RolePermissionsPanel";
 import EmployeeProfile from "./EmployeeProfile";
 import { checkName, checkPhone, cleanName, cleanPhone, PHONE_PROPS } from "./validation";
+import { useNotify } from "./useNotify";
 
 type Employee = {
   id: string; userId: string; name: string; email: string; phone: string | null;
@@ -30,6 +31,7 @@ export default function EmployeesWorkspace({ salespersonPerformance = [] }: { sa
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  useNotify(error, notice);
   const [secret, setSecret] = useState<{ who: string; password: string } | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
@@ -139,8 +141,6 @@ export default function EmployeesWorkspace({ salespersonPerformance = [] }: { sa
           <div><span className="customer-summary-label">Deactivated</span><strong>{employees.length - active}</strong></div>
         </div>
 
-        {error && <p className="customer-notice" role="alert">{error}</p>}
-        {notice && <p className="customer-notice" role="status">{notice}</p>}
         {secret && (
           <p className="customer-notice" role="status">
             Temporary password for <strong>{secret.who}</strong>: <code>{secret.password}</code> — shown once. Share it privately; there is no email invitation yet.

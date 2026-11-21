@@ -3,6 +3,7 @@ import { BUSINESS_TYPE_OPTIONS } from "./businessTypes";
 import { apiRequest } from "./api/client";
 import "./BusinessSettingsWorkspace.css";
 import { TaxRatesPanel } from "./taxRates";
+import { useNotify } from "./useNotify";
 
 type BusinessProfile = {
   id: string;
@@ -42,6 +43,7 @@ export default function BusinessSettingsWorkspace() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  useNotify(error, success);
 
   const isOwner =
     sessionStorage.getItem("pos_business_role")?.toLowerCase() === "owner";
@@ -197,10 +199,6 @@ export default function BusinessSettingsWorkspace() {
         </div>
       </div>
 
-      {error && <div className="settings-message settings-error">{error}</div>}
-      {success && (
-        <div className="settings-message settings-success">{success}</div>
-      )}
 
       <form onSubmit={saveSettings}>
         <section className="settings-section">

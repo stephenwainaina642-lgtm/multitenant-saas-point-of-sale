@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
 import RecordPaymentForm from "./RecordPaymentForm";
 import Letterhead from "./Letterhead";
+import { useNotify } from "./useNotify";
 
 type Sale = {
   id: string;
@@ -82,6 +83,7 @@ export default function SalesWorkspace() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  useNotify(error, undefined);
   const [search, setSearch] = useState("");
   const [selectedSale, setSelectedSale] = useState<SaleDetails | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
@@ -284,12 +286,6 @@ export default function SalesWorkspace() {
           />
         </div>
 
-        {error && (
-          <div className="sales-error" role="alert">
-            <span>{error}</span>
-            <button type="button" onClick={() => void loadSales()}>Try again</button>
-          </div>
-        )}
 
         <div className="table-wrap">
           <table className="sales-history-table">

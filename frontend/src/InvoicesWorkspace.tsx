@@ -2,6 +2,7 @@ import { can } from "./permissions";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
 import Letterhead from "./Letterhead";
+import { useNotify } from "./useNotify";
 
 type InvoiceItem = { id: string; productName: string; quantity: string | number; unitPrice: string | number; discount: string | number; tax: string | number; total: string | number };
 type Invoice = {
@@ -25,6 +26,7 @@ export default function InvoicesWorkspace() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  useNotify(error, message);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ saleId: "", dueDate: "", notes: "" });
   const [saving, setSaving] = useState(false);
@@ -78,8 +80,6 @@ export default function InvoicesWorkspace() {
           <div><span className="customer-summary-label">Outstanding</span><strong>{money(outstanding)}</strong></div>
           <div><span className="customer-summary-label">Sales without an invoice</span><strong>{available.length}</strong></div>
         </div>
-        {error && <p className="customer-notice" role="alert">{error}</p>}
-        {message && <p className="customer-notice" role="status">{message}</p>}
 
         {showForm && (
           <form onSubmit={create} style={{ display: "grid", gap: 12, margin: "16px 0", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>

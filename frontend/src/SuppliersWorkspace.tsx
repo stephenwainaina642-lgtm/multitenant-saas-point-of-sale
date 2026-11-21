@@ -2,6 +2,7 @@ import { can } from "./permissions";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
 import { checkBusinessName, checkPhone, cleanBusinessName, cleanPhone, PHONE_PROPS } from "./validation";
+import { useNotify } from "./useNotify";
 
 type Supplier = {
   id: string;
@@ -31,6 +32,7 @@ export default function SuppliersWorkspace() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  useNotify(error, message);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState<SupplierForm>(emptyForm);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
@@ -276,17 +278,7 @@ export default function SuppliersWorkspace() {
           placeholder="Search by name, phone, email or address"
         />
 
-        {error && (
-          <p role="alert" className="supplier-notice supplier-error">
-            {error}
-          </p>
-        )}
 
-        {message && (
-          <p role="status" className="supplier-notice supplier-success">
-            {message}
-          </p>
-        )}
 
         <div className="table-scroll" style={{ marginTop: 18 }}>
           <table>
