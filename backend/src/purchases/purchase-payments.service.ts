@@ -3,13 +3,10 @@ import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
 import { centsToString, decimalToCents, milliToString, decimalToMilli, parseMoney } from "../lib/money.js";
 import { purchaseStatus } from "./purchase.service.js";
+import { purchaseIdFromPublic, requirePublicId } from "../lib/public-id.js";
 
 type Actor = { userId: string };
 
-function parseId(text: string): bigint {
-  if (!/^[1-9]\d*$/.test(text)) throw new AppError(404, "Purchase not found");
-  return BigInt(text);
-}
 
 async function lockPurchase(tx: any, businessId: bigint, id: bigint) {
   const rows = await tx.$queryRaw<{ id: bigint }[]>`
@@ -27,9 +24,9 @@ async function reduceSupplierBalance(tx: any, businessId: bigint, supplierId: bi
 }
 
 export async function getBusinessPurchase(businessId: string, idText: string) {
-  const id = parseId(idText);
+  const publicId = requirePublicId(idText, "A valid purchase ID is required");
   const p = await prisma.purchase.findFirst({
-    where: { id, businessId: BigInt(businessId) },
+    where: { publicId, businessId: BigInt(businessId) },
     include: {
       supplier: { select: { publicId: true, name: true } },
       payments: { orderBy: { id: "asc" } },
@@ -38,7 +35,7 @@ export async function getBusinessPurchase(businessId: string, idText: string) {
   });
   if (!p) throw new AppError(404, "Purchase not found");
   return {
-    id: p.id.toString(),
+    id: p.publicId,
     supplierId: p.supplier.publicId,
     supplierName: p.supplier.name,
     invoiceNumber: p.invoiceNumber,
@@ -54,7 +51,7 @@ export async function getBusinessPurchase(businessId: string, idText: string) {
       quantity: i.quantity, unitCost: i.unitCost, discount: i.discount, tax: i.tax, total: i.total,
     })),
     payments: p.payments.map((x) => ({
-      id: x.id.toString(), amount: x.amount, method: x.method, reference: x.reference,
+      id: x.publicId, amount: x.amount, method: x.method, reference: x.reference,
       notes: x.notes, paymentDate: x.paymentDate,
     })),
   };
@@ -66,8 +63,8 @@ export async function recordSupplierPayment(
   data: { amount?: unknown; method?: unknown; reference?: unknown; notes?: unknown },
   actor: Actor
 ) {
-  const id = parseId(idText);
   const bizId = BigInt(businessId);
+  const id = await purchaseIdFromPublic(prisma, bizId, idText);
   const amount = parseMoney(data.amount, "Payment amount");
   if (amount <= 0n) throw new AppError(400, "Payment amount must be greater than zero");
   const method = typeof data.method === "string" ? data.method.trim() : "";
@@ -107,8 +104,8 @@ export async function voidBusinessPurchase(
   data: { reason?: unknown },
   actor: Actor
 ) {
-  const id = parseId(idText);
   const bizId = BigInt(businessId);
+  const id = await purchaseIdFromPublic(prisma, bizId, idText);
   const reason = typeof data.reason === "string" ? data.reason.trim() : "";
   if (!reason) throw new AppError(400, "A reason is required to void a purchase");
   if (reason.length > 500) throw new AppError(400, "Reason must not exceed 500 characters");

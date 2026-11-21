@@ -32,7 +32,7 @@ function present(invoice: any, sale: any) {
   else status = paid > 0n ? "partial" : "unpaid";
 
   return {
-    id: invoice.id.toString(),
+    id: invoice.publicId,
     invoiceNumber: invoice.invoiceNumber,
     saleId: sale.publicId,
     receiptNumber: sale.receiptNumber,
@@ -73,9 +73,9 @@ export async function getBusinessInvoices(businessId: string) {
 }
 
 export async function getBusinessInvoiceById(businessId: string, idText: string) {
-  if (!/^[1-9]\d*$/.test(idText)) throw new AppError(404, "Invoice not found");
+  const publicId = requirePublicId(idText, "A valid invoice ID is required");
   const invoice = await prisma.invoice.findFirst({
-    where: { id: BigInt(idText), businessId: BigInt(businessId) },
+    where: { publicId, businessId: BigInt(businessId) },
     include: { sale: { include: saleInclude } },
   });
   if (!invoice) throw new AppError(404, "Invoice not found");
@@ -175,5 +175,5 @@ export async function createBusinessInvoice(businessId: string, data: CreateInvo
     throw e;
   });
 
-  return getBusinessInvoiceById(businessId, created.id.toString());
+  return getBusinessInvoiceById(businessId, created.publicId);
 }

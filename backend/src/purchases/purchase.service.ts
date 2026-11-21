@@ -71,7 +71,7 @@ export async function getBusinessPurchases(
   });
 
   return purchases.map((purchase) => ({
-    id: purchase.id.toString(),
+    id: purchase.publicId,
     supplierId: purchase.supplier.publicId,
     supplierName: purchase.supplier.name,
     invoiceNumber: purchase.invoiceNumber,
@@ -306,7 +306,7 @@ export async function createBusinessPurchase(
     }
 
     return {
-      id: purchase.id.toString(),
+      id: purchase.publicId,
       supplierId: supplier.publicId,
       supplierName: supplier.name,
       invoiceNumber: purchase.invoiceNumber,

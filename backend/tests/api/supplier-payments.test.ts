@@ -80,7 +80,7 @@ describe("purchases on credit, supplier payments and voiding", () => {
     expect(await supplierBalance()).toBe(owed);
     expect((await post(`/purchases/${p.id}/void`, s.t, { reason: "again" })).status).toBe(409);
     expect((await post(`/purchases/${p.id}/payments`, s.t, { amount: 10, method: "cash" })).status).toBe(409);
-    const [a] = await query(`select action from audit_logs where entity = 'purchase' and entity_id = $1`, [p.id]);
+    const [a] = await query(`select action from audit_logs where entity = 'purchase' and entity_id = (select id from purchases where public_id = $1::uuid)`, [p.id]);
     expect(a!.action).toBe("purchase.void");
     expect(await ledgerViolations()).toEqual([]);
   });
@@ -119,6 +119,8 @@ describe("purchases on credit, supplier payments and voiding", () => {
     expect((await get(`/purchases/${p.id}`, other)).status).toBe(404);
     expect((await post(`/purchases/${p.id}/payments`, other, { amount: 10, method: "cash" })).status).toBe(404);
     expect((await post(`/purchases/${p.id}/void`, other, { reason: "x" })).status).toBe(404);
-    expect((await get(`/purchases/abc`, s.t)).status).toBe(404);
+    expect((await get(`/purchases/abc`, s.t)).status).toBe(400);
+    expect((await get(`/purchases/1`, s.t)).status).toBe(400); // a sequential id is refused
+    expect((await get(`/purchases/3f2b1c1e-9d4a-4c55-8a1e-0b9f6d7e1a42`, s.t)).status).toBe(404);
   });
 });

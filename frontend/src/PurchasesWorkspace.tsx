@@ -113,7 +113,7 @@ export default function PurchasesWorkspace() {
   }
 
   async function voidPurchase(purchase: Purchase) {
-    const reason = window.prompt(`Void PO-${purchase.id}? The stock it added is removed again. Reason:`);
+    const reason = window.prompt(`Void purchase ${purchase.invoiceNumber || purchase.id.slice(0, 8).toUpperCase()}? The stock it added is removed again. Reason:`);
     if (!reason) return;
     setError(""); setMessage("");
     try {

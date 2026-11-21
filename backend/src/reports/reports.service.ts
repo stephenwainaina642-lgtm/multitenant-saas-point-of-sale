@@ -364,7 +364,7 @@ export async function getBusinessReports(
         status: sale.status,
       })),
       purchases: [...purchases].reverse().slice(0, RECORD_LIMIT).map((purchase) => ({
-        id: purchase.id.toString(),
+        id: purchase.publicId,
         supplierName: purchase.supplier.name,
         invoiceNumber: purchase.invoiceNumber,
         purchaseDate: purchase.purchaseDate,

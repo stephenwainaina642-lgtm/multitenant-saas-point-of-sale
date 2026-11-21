@@ -98,7 +98,9 @@ describe("invoices", () => {
     expect((await get(`/invoices/${inv.id}`, other)).status).toBe(404);
     expect((await get("/invoices", other)).body.data.map((x: any) => x.id)).not.toContain(inv.id);
     expect((await post("/invoices", other, { saleId: (await sale()).id })).status).toBe(404);
-    expect((await get("/invoices/abc", s.t)).status).toBe(404);
+    expect((await get("/invoices/abc", s.t)).status).toBe(400);
+    expect((await get("/invoices/1", s.t)).status).toBe(400); // a sequential id is refused
+    expect((await get("/invoices/3f2b1c1e-9d4a-4c55-8a1e-0b9f6d7e1a42", s.t)).status).toBe(404);
     const csh = await addEmployee(s.t, "Cashier");
     const mgr = await addEmployee(s.t, "Manager");
     expect((await get("/invoices", csh)).status).toBe(403);

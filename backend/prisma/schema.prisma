@@ -324,6 +324,7 @@ model Supplier {
 
 model Purchase {
   id            BigInt   @id @default(autoincrement())
+  publicId      String   @unique @default(dbgenerated("gen_random_uuid()")) @map("public_id") @db.Uuid
   businessId    BigInt   @map("business_id")
   branchId      BigInt   @map("branch_id")
   supplierId    BigInt   @map("supplier_id")
@@ -439,6 +440,7 @@ model SaleItem {
 
 model SupplierPayment {
   id          BigInt   @id @default(autoincrement())
+  publicId      String   @unique @default(dbgenerated("gen_random_uuid()")) @map("public_id") @db.Uuid
   businessId  BigInt   @map("business_id")
   purchaseId  BigInt   @map("purchase_id")
   amount      Decimal  @db.Decimal(12, 2)
@@ -460,6 +462,7 @@ model SupplierPayment {
 
 model Payment {
   id             BigInt   @id @default(autoincrement())
+  publicId      String   @unique @default(dbgenerated("gen_random_uuid()")) @map("public_id") @db.Uuid
   businessId     BigInt   @map("business_id")
   saleId         BigInt   @map("sale_id")
   amount         Decimal  @db.Decimal(12, 2)
@@ -559,6 +562,7 @@ model QuotationItem {
 
 model Invoice {
   id            BigInt    @id @default(autoincrement())
+  publicId      String   @unique @default(dbgenerated("gen_random_uuid()")) @map("public_id") @db.Uuid
   businessId    BigInt    @map("business_id")
   customerId    BigInt?   @map("customer_id")
   saleId        BigInt    @unique @map("sale_id")

@@ -40,7 +40,7 @@ export async function getBusinessPayments(
   });
 
   return payments.map((payment) => ({
-    id: payment.id.toString(),
+    id: payment.publicId,
     saleId: payment.sale.publicId,
     receiptNumber: payment.sale.receiptNumber,
     customerId: payment.sale.customer?.publicId ?? null,
@@ -57,6 +57,7 @@ export async function getBusinessPayments(
 function formatPayment(
   payment: {
     id: bigint;
+    publicId: string;
     saleId: bigint;
     amount: unknown;
     method: string;
@@ -77,7 +78,7 @@ function formatPayment(
   return {
     idempotentReplay,
     payment: {
-      id: payment.id.toString(),
+      id: payment.publicId,
       saleId: sale.publicId,
       amount: payment.amount,
       method: payment.method,

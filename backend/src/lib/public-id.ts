@@ -41,3 +41,15 @@ export async function saleIdFromPublic(client: SaleReader, businessId: bigint, v
   if (!row) throw new AppError(404, "Sale not found");
   return row.id;
 }
+
+/** The internal purchase id for a public id, within one business (400 if not a UUID, 404 if not this business's). */
+export async function purchaseIdFromPublic(
+  client: { purchase: { findFirst(args: { where: { publicId: string; businessId: bigint }; select: { id: true } }): Promise<{ id: bigint } | null> } },
+  businessId: bigint,
+  value: unknown,
+): Promise<bigint> {
+  const publicId = requirePublicId(value, "A valid purchase ID is required");
+  const row = await client.purchase.findFirst({ where: { publicId, businessId }, select: { id: true } });
+  if (!row) throw new AppError(404, "Purchase not found");
+  return row.id;
+}

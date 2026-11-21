@@ -17,7 +17,7 @@ describe("purchases and inventory", () => {
     expect(Number(res.body.data.total)).toBe(23500);
     expect(Number(res.body.data.balanceDue)).toBe(3500);
     expect(await stockOf(s.oud6.id)).toBe(before + 50);
-    const mv = await query(`select type, quantity from inventory_movements where reference = $1`, [`PURCHASE-${res.body.data.id}`]);
+    const mv = await query(`select type, quantity from inventory_movements where reference = 'PURCHASE-' || (select id from purchases where public_id = $1::uuid)::text`, [res.body.data.id]);
     expect(mv).toEqual([{ type: "IN", quantity: "50.000" }]);
     const [p] = await query(`select cost_price from products where public_id = $1`, [s.oud6.id]);
     expect(Number(p!.cost_price)).toBe(470);
