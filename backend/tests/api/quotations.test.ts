@@ -67,7 +67,7 @@ describe("quotations", () => {
     await accept(q.id);
     const locked = await put(`/quotations/${q.id}`, s.t, { items: [line(s.charger.id, 1, 1200)] });
     expect(locked.status).toBe(409);
-    const [a] = await query(`select count(*)::int as n from audit_logs where entity = 'quotation' and entity_id = $1 and action = 'quotation.update'`, [q.id]);
+    const [a] = await query(`select count(*)::int as n from audit_logs where entity = 'quotation' and entity_id = (select id from quotations where public_id = $1) and action = 'quotation.update'`, [q.id]);
     expect(a!.n).toBe(2);
   });
 
@@ -143,7 +143,9 @@ describe("quotations", () => {
     expect((await put(`/quotations/${q.id}`, other, { items: [line(s.charger.id, 1, 1200)] })).status).toBe(404);
     expect((await post(`/quotations/${q.id}/status`, other, { status: "sent" })).status).toBe(404);
     expect((await post(`/quotations/${q.id}/convert`, other, {})).status).toBe(404);
-    expect((await get("/quotations/abc", s.t)).status).toBe(404);
+    expect((await get("/quotations/abc", s.t)).status).toBe(400);
+    expect((await get("/quotations/1", s.t)).status).toBe(400); // a sequential id is refused
+    expect((await get("/quotations/3f2b1c1e-9d4a-4c55-8a1e-0b9f6d7e1a42", s.t)).status).toBe(404);
 
     const csh = await addEmployee(s.t, "Cashier");
     expect((await get("/quotations", csh)).status).toBe(403);

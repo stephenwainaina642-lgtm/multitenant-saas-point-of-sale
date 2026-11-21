@@ -1,6 +1,7 @@
 import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
 import { centsToString, parseMoney } from "../lib/money.js";
+import { requirePublicId } from "../lib/public-id.js";
 
 const MAX_CENTS = 999_999_999_999n;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -49,22 +50,22 @@ function parse(data: ExpenseData, partial: boolean) {
 }
 
 type Row = {
-  id: bigint; category: string; description: string | null; amount: { toFixed(d: number): string };
+  id: bigint; publicId: string; category: string; description: string | null; amount: { toFixed(d: number): string };
   expenseDate: Date; paymentMethod: string | null; reference: string | null; notes: string | null;
   createdAt: Date; updatedAt: Date;
 };
 
 function format(e: Row) {
   return {
-    id: e.id.toString(), category: e.category, description: e.description,
+    id: e.publicId, category: e.category, description: e.description,
     amount: e.amount.toFixed(2), expenseDate: e.expenseDate, paymentMethod: e.paymentMethod,
     reference: e.reference, notes: e.notes, createdAt: e.createdAt, updatedAt: e.updatedAt,
   };
 }
 
 async function findOwn(businessId: string, idText: string) {
-  if (!/^[1-9]\d*$/.test(idText)) throw new AppError(404, "Expense not found");
-  const row = await prisma.expense.findFirst({ where: { id: BigInt(idText), businessId: BigInt(businessId) } });
+  const publicId = requirePublicId(idText, "A valid expense ID is required");
+  const row = await prisma.expense.findFirst({ where: { publicId, businessId: BigInt(businessId) } });
   if (!row) throw new AppError(404, "Expense not found");
   return row;
 }
@@ -129,5 +130,5 @@ export async function deleteBusinessExpense(businessId: string, idText: string, 
       },
     });
   });
-  return { id: before.id.toString() };
+  return { id: before.publicId };
 }

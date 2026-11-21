@@ -309,7 +309,7 @@ export default function ExpensesWorkspace() {
                 filteredExpenses.map((expense) => (
                   <tr key={expense.id}>
                     <td>
-                      <strong>{expense.reference || `EXP-${expense.id}`}</strong>
+                      <strong>{expense.reference || `EXP-${expense.id.slice(0, 8).toUpperCase()}`}</strong>
                     </td>
                     <td>{expense.category}</td>
                     <td>{expense.description || "—"}</td>

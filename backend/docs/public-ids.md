@@ -21,7 +21,9 @@ working on the migrated database (the column is only added), so there is no brok
 | categories | DONE (migration `20261128090000_add_public_id_categories`) |
 | customers, suppliers | DONE (migration `20261129090000_add_public_id_customers_suppliers`): own routes, sales (create/list/detail/edit), purchases, purchase payments, quotations, invoices, payments list, customer debt and receive-payment, reports |
 | products | DONE (migration `20261203090000_add_public_id_products`): own routes, sales (create/list/detail/edit/preview), purchases and payments, quotations, invoices, inventory movements, branch stock and transfers, dashboard low-stock, reports (best sellers) |
-| sales, purchases, expenses, quotations, invoices, branches, roles, employees/users, payments, stock transfers, businesses | not yet |
+| expenses | DONE (migration `20261204090000_add_public_id_expenses`) |
+| quotations | DONE (migration `20261204090100_add_public_id_quotations`): own routes. `convertedSaleId` still shows the sale's numeric id until sales are converted |
+| sales, purchases, invoices, branches, roles, employees/users, payments, stock transfers, businesses | not yet |
 
 ## Products: one thing to do before deploying
 A sale saved on a device while offline keeps the product ids it was made with. After this change those ids must be the new

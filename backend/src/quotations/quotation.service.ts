@@ -32,7 +32,7 @@ function effectiveStatus(q: { status: string; expiryDate: Date | null }) {
 
 function present(q: any) {
   return {
-    id: q.id.toString(),
+    id: q.publicId,
     quotationNumber: q.quotationNumber,
     customerId: q.customer?.publicId ?? null,
     customerName: q.customer?.name ?? null,
@@ -114,8 +114,8 @@ function checkDates(date: Date, expiry: Date | null) {
 }
 
 async function findOwn(businessId: string, idText: string) {
-  if (!/^[1-9]\d*$/.test(idText)) throw new AppError(404, "Quotation not found");
-  const q = await prisma.quotation.findFirst({ where: { id: BigInt(idText), businessId: BigInt(businessId) }, include });
+  const publicId = requirePublicId(idText, "A valid quotation ID is required");
+  const q = await prisma.quotation.findFirst({ where: { publicId, businessId: BigInt(businessId) }, include });
   if (!q) throw new AppError(404, "Quotation not found");
   return q;
 }
@@ -186,7 +186,7 @@ export async function createBusinessQuotation(businessId: string, data: Quotatio
     throw e;
   });
 
-  return getBusinessQuotationById(businessId, created.id.toString());
+  return getBusinessQuotationById(businessId, created.publicId);
 }
 
 /** Draft and sent quotations can be edited; anything decided or converted is history. */

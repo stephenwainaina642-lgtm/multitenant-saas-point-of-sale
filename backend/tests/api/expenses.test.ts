@@ -15,7 +15,7 @@ describe("expenses", () => {
     const r = await post("/expenses", s.t, { category: " Electricity ", amount: 1234.5, paymentMethod: "M-Pesa", reference: "KPLC-1" });
     expect(r.status).toBe(201);
     expect(r.body.data).toMatchObject({ category: "Electricity", amount: "1234.50", paymentMethod: "m-pesa", reference: "KPLC-1" });
-    const [a] = await query(`select action from audit_logs where entity = 'expense' and entity_id = $1`, [r.body.data.id]);
+    const [a] = await query(`select action from audit_logs where entity = 'expense' and entity_id = (select id from expenses where public_id = $1)`, [r.body.data.id]);
     expect(a!.action).toBe("expense.create");
   });
 
@@ -37,18 +37,19 @@ describe("expenses", () => {
     const u = await put(`/expenses/${e.id}`, s.t, { amount: 16000, notes: "Raised" });
     expect(u.status).toBe(200);
     expect(u.body.data).toMatchObject({ category: "Rent", amount: "16000.00", notes: "Raised" });
-    const [a] = await query(`select details from audit_logs where entity = 'expense' and entity_id = $1 and action = 'expense.update'`, [e.id]);
+    const [a] = await query(`select details from audit_logs where entity = 'expense' and entity_id = (select id from expenses where public_id = $1) and action = 'expense.update'`, [e.id]);
     expect(a!.details.before.amount).toBe("15000.00");
     expect(a!.details.after.amount).toBe("16000.00");
   });
 
   it("deleting needs a reason and leaves a snapshot behind", async () => {
     const e = await mk({ category: "Mistake", amount: 777 });
+    const [{ id: internalId }] = await query<{ id: string }>(`select id from expenses where public_id = $1`, [e.id]);
     expect((await del(`/expenses/${e.id}`, s.t, {})).status).toBe(400);
     expect((await del(`/expenses/${e.id}`, s.t, { reason: "Entered twice" })).status).toBe(200);
     expect((await get(`/expenses/${e.id}`, s.t)).status).toBe(404);
     expect((await get("/expenses", s.t)).body.data.map((x: any) => x.id)).not.toContain(e.id);
-    const [a] = await query(`select details from audit_logs where entity = 'expense' and entity_id = $1 and action = 'expense.delete'`, [e.id]);
+    const [a] = await query(`select details from audit_logs where entity = 'expense' and entity_id = $1 and action = 'expense.delete'`, [internalId]);
     expect(a!.details.reason).toBe("Entered twice");
     expect(a!.details.snapshot.amount).toBe("777.00");
   });
@@ -70,7 +71,9 @@ describe("expenses", () => {
     expect((await put(`/expenses/${e.id}`, other, { amount: 1 })).status).toBe(404);
     expect((await del(`/expenses/${e.id}`, other, { reason: "x" })).status).toBe(404);
     expect((await get("/expenses", other)).body.data.map((x: any) => x.id)).not.toContain(e.id);
-    expect((await get("/expenses/abc", s.t)).status).toBe(404);
+    expect((await get("/expenses/abc", s.t)).status).toBe(400);
+    expect((await get("/expenses/1", s.t)).status).toBe(400); // a sequential id is refused
+    expect((await get("/expenses/3f2b1c1e-9d4a-4c55-8a1e-0b9f6d7e1a42", s.t)).status).toBe(404); // a random UUID that isn't ours
     const csh = await addEmployee(s.t, "Cashier");
     const acct = await addEmployee(s.t, "Accountant");
     expect((await get("/expenses", csh)).status).toBe(403);
