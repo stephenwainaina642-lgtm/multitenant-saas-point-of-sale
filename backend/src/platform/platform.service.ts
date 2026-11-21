@@ -32,6 +32,17 @@ export async function reenrollTotp(email: string) {
   return { secret, uri: otpauthUri(secret, admin.email) };
 }
 
+/** Forgotten or mistyped password: set a new one and cut off existing sessions. The authenticator is unchanged. */
+export async function resetAdminPassword(email: string, password: string) {
+  const admin = await prisma.platformAdmin.findFirst({ where: { email: { equals: email.trim(), mode: "insensitive" } } });
+  if (!admin) throw new Error("No platform admin with that e-mail");
+  if (password.length < 12 || Buffer.byteLength(password) > 72) throw new Error("Password must be 12 to 72 characters");
+  await prisma.platformAdmin.update({
+    where: { id: admin.id },
+    data: { passwordHash: await bcrypt.hash(password, 12), sessionsValidAfter: new Date() },
+  });
+}
+
 type Row = Record<string, string | number | boolean | Date | null>;
 
 /** Counts, dates and sale totals only: no customer names, no individual sales, no prices. */

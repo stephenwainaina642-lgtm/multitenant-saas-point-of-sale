@@ -1,10 +1,11 @@
 // Creates (or re-enrolls 2FA for) a platform super admin. Run on your own computer against the database:
 //   npx tsx scripts/create-platform-admin.ts            -> create a new admin
 //   npx tsx scripts/create-platform-admin.ts reset-2fa  -> new authenticator secret for an existing admin
+//   npx tsx scripts/create-platform-admin.ts reset-password -> new password for an existing admin
 // Needs DATABASE_URL and JWT_SECRET (the same JWT_SECRET the live API uses, because it protects the 2FA secret).
 import "dotenv/config";
 import readline from "node:readline";
-import { createPlatformAdmin, reenrollTotp } from "../src/platform/platform.service.js";
+import { createPlatformAdmin, reenrollTotp, resetAdminPassword } from "../src/platform/platform.service.js";
 import prisma from "../src/lib/prisma.js";
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
@@ -22,7 +23,15 @@ try {
   if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is not set (put it in backend/.env or the environment)");
   const mode = process.argv[2];
   let result;
-  if (mode === "reset-2fa") {
+  if (mode === "reset-password") {
+    const email = await ask("Admin e-mail: ");
+    const p1 = await askHidden("New password (12+ characters, typing is hidden): ");
+    const p2 = await askHidden("Type it again: ");
+    if (p1 !== p2) throw new Error("The two passwords do not match");
+    await resetAdminPassword(email, p1);
+    console.log("\nPassword changed. Your authenticator app is unchanged. Sign in at <your site>/#platform.");
+    process.exit(0);
+  } else if (mode === "reset-2fa") {
     result = await reenrollTotp(await ask("Admin e-mail: "));
   } else {
     const name = await ask("Name: ");
