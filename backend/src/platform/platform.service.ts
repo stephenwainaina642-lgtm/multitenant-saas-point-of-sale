@@ -37,7 +37,7 @@ type Row = Record<string, string | number | boolean | Date | null>;
 /** Counts, dates and sale totals only: no customer names, no individual sales, no prices. */
 export async function overview() {
   const rows = await prisma.$queryRaw<Row[]>`
-    select b.id::text as id, b.name, b.business_type, b.is_active, b.created_at, b.vat_registered,
+    select b.id::text as id, b.name, b.business_type, b.is_active, b.approval_status, b.created_at, b.vat_registered,
            o.name as owner_name, o.email as owner_email,
            (select count(*) from business_users bu where bu.business_id = b.id and bu.is_active)::int as users,
            (select count(*) from products p where p.business_id = b.id)::int as products,
@@ -55,7 +55,7 @@ export async function overview() {
     order by b.created_at desc
     limit 500`;
   const businesses = rows.map((r) => ({
-    id: r.id, name: r.name, businessType: r.business_type, isActive: r.is_active, createdAt: r.created_at,
+    id: r.id, name: r.name, businessType: r.business_type, isActive: r.is_active, approvalStatus: r.approval_status, createdAt: r.created_at,
     vatRegistered: r.vat_registered, ownerName: r.owner_name, ownerEmail: r.owner_email,
     users: r.users, products: r.products, salesCount: r.sales_count, salesTotal: r.sales_total,
     sales30dCount: r.sales_30d_count, sales30dTotal: r.sales_30d_total, lastSaleAt: r.last_sale,
@@ -64,7 +64,7 @@ export async function overview() {
   const [userRow] = await prisma.$queryRaw<{ users: number }[]>`select count(*)::int as users from users`;
   const users = userRow?.users ?? 0;
   return {
-    totals: { businesses: businesses.length, suspended: businesses.filter((b) => !b.isActive).length, activeLast30Days: active30, users },
+    totals: { businesses: businesses.length, pending: businesses.filter((b) => b.approvalStatus === "pending").length, suspended: businesses.filter((b) => !b.isActive).length, activeLast30Days: active30, users },
     businesses,
   };
 }
@@ -91,6 +91,18 @@ export async function setBusinessActive(adminId: bigint, idText: string, active:
     prisma.platformAuditLog.create({ data: { adminId, action: active ? "business.reactivate" : "business.suspend", businessId: b.id, reason, details: { name: b.name } } }),
   ]);
   return { id: b.id.toString(), isActive: active };
+}
+
+export async function setBusinessApproval(adminId: bigint, idText: string, approve: boolean, reasonIn: unknown) {
+  const reason = cleanReason(reasonIn);
+  const b = await business(idText);
+  const next = approve ? "approved" : "rejected";
+  if (b.approvalStatus === next) throw new AppError(409, approve ? "This business is already approved" : "This business is already rejected");
+  await prisma.$transaction([
+    prisma.business.update({ where: { id: b.id }, data: { approvalStatus: next } }),
+    prisma.platformAuditLog.create({ data: { adminId, action: approve ? "business.approve" : "business.reject", businessId: b.id, reason, details: { name: b.name, was: b.approvalStatus } } }),
+  ]);
+  return { id: b.id.toString(), approvalStatus: next };
 }
 
 export async function resetOwnerAccess(adminId: bigint, idText: string, reasonIn: unknown) {

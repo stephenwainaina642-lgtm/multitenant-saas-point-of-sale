@@ -13,6 +13,8 @@ export type AppConfig = {
   trustProxy: number;
   loginRateLimitMax: number;
   registerRateLimitMax: number;
+  /** Anyone may open a business (OPEN_REGISTRATION=1). Off by default: sign-up is by invitation only. */
+  openRegistration: boolean;
   /** Failed sign-ins allowed per email address per 15 minutes, from any network. */
   accountLoginFailuresMax: number;
   /** Public address of the web app, used in password-reset links. */
@@ -59,6 +61,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     trustProxy: /^[1-9]$/.test((env.TRUST_PROXY ?? "").trim()) ? Number(env.TRUST_PROXY) : 0,
     loginRateLimitMax: Number(env.LOGIN_RATE_LIMIT_MAX) || 10,
     registerRateLimitMax: Number(env.REGISTER_RATE_LIMIT_MAX) || 10,
+    openRegistration: env.OPEN_REGISTRATION === "1",
     accountLoginFailuresMax: Number(env.ACCOUNT_LOGIN_FAILURES_MAX) || 10,
     appUrl: appUrl || null,
     smtp: smtpHost && mailFrom && appUrl

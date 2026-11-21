@@ -2,7 +2,8 @@ import { Router } from "express";
 import type { Response, NextFunction } from "express";
 import { clearSessionCookie, issueSession, PLATFORM_COOKIE, PLATFORM_COOKIE_PATH } from "../lib/session-cookie.js";
 import { requirePlatformAdmin, platformLogin, type PlatformRequest } from "./platform.auth.js";
-import { auditTrail, overview, resetOwnerAccess, setBusinessActive } from "./platform.service.js";
+import { createInvite, listInvites, revokeInvite } from "./invites.js";
+import { auditTrail, overview, resetOwnerAccess, setBusinessActive, setBusinessApproval } from "./platform.service.js";
 
 const router = Router();
 const wrap = (fn: (req: PlatformRequest, res: Response) => Promise<unknown>) => (req: PlatformRequest, res: Response, next: NextFunction) => { fn(req, res).catch(next); };
@@ -25,6 +26,15 @@ router.post("/businesses/:id/suspend", wrap(async (req, res) => {
 router.post("/businesses/:id/reactivate", wrap(async (req, res) => {
   res.json({ success: true, message: "Business reactivated", data: await setBusinessActive(req.admin!.id, idParam(req), true, req.body?.reason) });
 }));
+router.post("/businesses/:id/approve", wrap(async (req, res) => {
+  res.json({ success: true, message: "Business approved", data: await setBusinessApproval(req.admin!.id, idParam(req), true, req.body?.reason) });
+}));
+router.post("/businesses/:id/reject", wrap(async (req, res) => {
+  res.json({ success: true, message: "Business rejected", data: await setBusinessApproval(req.admin!.id, idParam(req), false, req.body?.reason) });
+}));
+router.get("/invites", wrap(async (_req, res) => { res.json({ success: true, data: await listInvites() }); }));
+router.post("/invites", wrap(async (req, res) => { res.status(201).json({ success: true, message: "Invitation created", data: await createInvite(req.admin!.id, req.body ?? {}) }); }));
+router.post("/invites/:id/revoke", wrap(async (req, res) => { await revokeInvite(req.admin!.id, idParam(req), req.body?.reason); res.json({ success: true, message: "Invitation cancelled" }); }));
 router.post("/businesses/:id/reset-owner", wrap(async (req, res) => {
   res.json({ success: true, message: "Owner access reset", data: await resetOwnerAccess(req.admin!.id, idParam(req), req.body?.reason) });
 }));

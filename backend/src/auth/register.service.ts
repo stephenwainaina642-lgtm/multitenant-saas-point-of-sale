@@ -3,6 +3,7 @@ import { starterRoleRows } from "./permissions.js";
 import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
 import { signToken } from "../lib/token.js";
+import { checkInvite, consumeInvite } from "../platform/invites.js";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -14,6 +15,10 @@ type RegisterInput = {
   password: string;
   businessName: string;
   businessType?: string;
+  /** Sign-up by invitation: the link token and the PIN given separately. */
+  invite?: { token: unknown; pin: unknown };
+  /** Whether anyone may sign up without an invitation (OPEN_REGISTRATION=1). */
+  openRegistration?: boolean;
 };
 
 export async function registerUser(input: RegisterInput) {
@@ -23,6 +28,8 @@ export async function registerUser(input: RegisterInput) {
     password,
     businessName,
     businessType = "retail",
+    invite: inviteInput,
+    openRegistration = false,
   } = input;
 
   if (
@@ -53,6 +60,11 @@ export async function registerUser(input: RegisterInput) {
     throw new AppError(400, "Password must be at most 72 bytes long");
   }
 
+  if (!inviteInput?.token && !openRegistration) {
+    throw new AppError(403, "Sign-up is by invitation only. Ask us for an invitation link.");
+  }
+  const invite = inviteInput?.token ? await checkInvite(inviteInput.token, inviteInput.pin, normalizedEmail) : null;
+
   const existingUser = await prisma.user.findUnique({
     where: { email: normalizedEmail },
   });
@@ -79,8 +91,11 @@ export async function registerUser(input: RegisterInput) {
         name: businessName.trim(),
         businessType,
         ownerUserId: user.id,
+        // An invitation can say "approve on sign-up"; otherwise the business waits for the platform team.
+        approvalStatus: invite && !invite.autoApprove ? "pending" : "approved",
       },
     });
+    if (invite) await consumeInvite(tx, invite.id, business.id);
 
     const ownerRole = await tx.role.create({
       data: {

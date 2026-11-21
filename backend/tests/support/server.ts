@@ -34,6 +34,8 @@ export function startServer(
       // the rate-limit tests start their own server with low limits.
       LOGIN_RATE_LIMIT_MAX: "100000",
       REGISTER_RATE_LIMIT_MAX: "100000",
+      // The suite registers many throwaway businesses; the invitation tests start their own server with this off.
+      OPEN_REGISTRATION: "1",
       ...extraEnv,
     },
     stdio: ["ignore", "pipe", "pipe"],

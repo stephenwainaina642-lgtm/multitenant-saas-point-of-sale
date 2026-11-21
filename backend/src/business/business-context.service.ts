@@ -9,7 +9,17 @@ export async function denialMessage(userId: bigint, businessId: bigint): Promise
     where: { userId, businessId, isActive: true, business: { isActive: false } },
     select: { id: true },
   });
-  return suspended ? SUSPENDED_MESSAGE : "You do not have access to this business";
+  if (suspended) return SUSPENDED_MESSAGE;
+  const waiting = await prisma.businessUser.findFirst({
+    where: { userId, businessId, isActive: true, business: { isActive: true, approvalStatus: { not: "approved" } } },
+    select: { business: { select: { approvalStatus: true } } },
+  });
+  if (waiting) {
+    return waiting.business.approvalStatus === "rejected"
+      ? "This business was not approved. Contact support."
+      : "This business is waiting for approval. You will be able to use it as soon as it is approved.";
+  }
+  return "You do not have access to this business";
 }
 
 export async function verifyBusinessAccess(
@@ -23,6 +33,7 @@ export async function verifyBusinessAccess(
       isActive: true,
       business: {
         isActive: true,
+        approvalStatus: "approved",
       },
     },
     include: {
