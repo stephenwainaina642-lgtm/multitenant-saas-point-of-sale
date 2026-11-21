@@ -14,6 +14,15 @@ type Dialog = { kind: "suspend" | "reactivate" | "reset" | "approve" | "reject";
 type Created = { email: string; link: string; pin: string; expiresAt: string };
 
 const KEY = "platform_token";
+/** "today", "3 days ago", "2 months ago": how long since a business registered. */
+const ago = (iso: string) => {
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (days < 1) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 30) return `${days} days ago`;
+  const months = Math.floor(days / 30);
+  return months < 12 ? `${months} month${months === 1 ? "" : "s"} ago` : `${Math.floor(months / 12)} year${months >= 24 ? "s" : ""} ago`;
+};
 const kes = (v: string) => `KSh ${Number(v).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const day = (v: string | null) => (v ? new Date(v).toLocaleDateString("en-KE", { day: "2-digit", month: "short", year: "numeric" }) : "never");
 const when = (v: string) => new Date(v).toLocaleString("en-KE", { dateStyle: "medium", timeStyle: "short" });
@@ -136,13 +145,13 @@ export default function PlatformAdmin() {
       {tab === "businesses" ? (
         <div style={{ ...card, padding: 0, overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead><tr style={{ textAlign: "left", background: "#f4f8f5" }}>{["Business", "Owner", "Created", "Users", "Products", "Sales", "Sales total", "Last 30 days", "Last sale", "Status", ""].map((h) => <th key={h} style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+            <thead><tr style={{ textAlign: "left", background: "#f4f8f5" }}>{["Business", "Owner", "Registered", "Users", "Products", "Sales", "Sales total", "Last 30 days", "Last sale", "Status", ""].map((h) => <th key={h} style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
             <tbody>
               {rows.map((b) => (
                 <tr key={b.id} style={{ borderTop: "1px solid #e8eee9" }}>
                   <td style={{ padding: "10px 12px" }}><strong>{b.name}</strong><br /><small style={{ color: "#6b7a70" }}>{b.businessType}</small></td>
                   <td style={{ padding: "10px 12px" }}>{b.ownerName}<br /><small style={{ color: "#6b7a70" }}>{b.ownerEmail}</small></td>
-                  <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{day(b.createdAt)}</td>
+                  <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{when(b.createdAt)}<br /><small style={{ color: "#6b7a70" }}>{ago(b.createdAt)}</small></td>
                   <td style={{ padding: "10px 12px" }}>{b.users}</td><td style={{ padding: "10px 12px" }}>{b.products}</td><td style={{ padding: "10px 12px" }}>{b.salesCount}</td>
                   <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{kes(b.salesTotal)}</td>
                   <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{kes(b.sales30dTotal)}<br /><small style={{ color: "#6b7a70" }}>{b.sales30dCount} sales</small></td>
