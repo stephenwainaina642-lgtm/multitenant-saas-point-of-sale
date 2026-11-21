@@ -32,6 +32,8 @@ export async function apiRequest<T>(
     businessId?: string;
     body?: unknown;
     idempotencyKey?: string;
+    /** Overrides the branch this device is working in (a queued sale must go to the branch it was rung up in). */
+    branchId?: string;
   } = {}
 ): Promise<ApiResponse<T>> {
   const headers: Record<string, string> = {
@@ -52,7 +54,7 @@ export async function apiRequest<T>(
 
   // Which branch this device is working in (chosen in the sidebar; the server checks it is allowed).
   try {
-    const branch = options.businessId ? sessionStorage.getItem(`pos_branch_${options.businessId}`) : null;
+    const branch = options.branchId ?? (options.businessId ? sessionStorage.getItem(`pos_branch_${options.businessId}`) : null);
     if (branch) headers["X-Branch-ID"] = branch;
   } catch {
     /* storage unavailable: the server falls back to the main branch */

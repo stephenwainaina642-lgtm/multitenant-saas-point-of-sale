@@ -22,6 +22,8 @@ import { apiRequest } from "./api/client";
 import { notify } from "./toast";
 import { AlertTriangle, Bell, BarChart3, Banknote, Boxes, Clock, FileSpreadsheet, FileText, LayoutDashboard, Package, Receipt, Settings, ShoppingBag, ShoppingCart, Store, Truck, UserCog, Users, Wallet, ClipboardList } from "lucide-react";
 import { can, storePermissions } from "./permissions";
+import SyncBadge from "./SyncBadge";
+import { flushOutbox, unsyncedCount } from "./salesOutbox";
 
 /** The permission a member needs to see each screen (the server enforces the same rules). */
 const navigationPermissions: Record<string, string[]> = {
@@ -83,6 +85,9 @@ const money = (amount: number) =>
 
 function App() {
   // A link like /#employees/12 opens that employee's profile directly.
+  // Sales left on this device (closed tab, lost connection) are sent as soon as the app is open again.
+  useEffect(() => { void flushOutbox(); }, []);
+
   const [activePage, setActivePage] = useState(() => (/^#employees\/\d+$/.test(window.location.hash) ? "Employees" : "Dashboard"));
   const [menuOpen, setMenuOpen] = useState(false); // phone/tablet: the sidebar is a slide-in drawer
   const [search, setSearch] = useState("");
@@ -185,6 +190,11 @@ function App() {
   const businessTimeZone = dashboard?.timeZone ?? "Africa/Nairobi";
 
   async function signOut() {
+    // Sales still on this device would be lost (or sent under someone else's name) if the session ended now.
+    if (unsyncedCount() > 0) {
+      notify.error("Some sales haven't been sent to the server yet. Wait for them to sync (or discard them) before signing out.");
+      return;
+    }
     try {
       await apiRequest("/auth/logout", { method: "POST" }); // clears the session cookie
     } catch {
@@ -264,6 +274,7 @@ function App() {
             <span>Workspace</span><span className="crumb-separator">/</span><strong>{activePage}</strong>
           </div>
           <div className="topbar-actions">
+            <SyncBadge />
             <button type="button" className="topbar-signout" onClick={signOut}>Sign out</button>
             <div className="system-status"><span style={dashboardError ? { background: "#d9534f" } : undefined}></span> {dashboardError ? "Connection problem" : "Connected"}</div>
             <button className="icon-button notification-button" aria-label="Notifications" onClick={() => (lowStockCount > 0 ? notify.info(`${lowStockCount} product${lowStockCount === 1 ? "" : "s"} need restocking.`) : notify.success("Nothing needs restocking."))}><Bell size={17} /></button>

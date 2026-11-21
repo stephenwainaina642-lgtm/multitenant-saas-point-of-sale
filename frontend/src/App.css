@@ -2196,3 +2196,11 @@ tbody tr:hover { background: #f7faf7; }
 .employee-link:hover{text-decoration:underline}
 .tax-rate-form{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .tax-rate-form input{flex:1 1 140px;min-width:0}
+.sync-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid #fcd34d;background:#fffbeb;color:#92400e;border-radius:999px;font-size:13px;cursor:pointer}
+.sync-badge-failed{border-color:#fca5a5;background:#fef2f2;color:#991b1b}
+.sync-list{list-style:none;margin:10px 0;padding:0;display:grid;gap:8px}
+.sync-list li{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 10px;border:1px solid #e2e8f0;border-radius:10px}
+.sync-actions{display:flex;gap:8px;flex-wrap:wrap}
+.pos-search-field > label{display:block;margin-bottom:6px}
+.pos-adjustments .pos-total-row{margin-bottom:10px}
+.pos-adjustments label{display:block;margin-top:6px}

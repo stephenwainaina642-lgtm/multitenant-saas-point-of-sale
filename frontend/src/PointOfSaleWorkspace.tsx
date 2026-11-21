@@ -3,6 +3,7 @@ import { mpesaCodeError, normalizeMpesaCode } from "./mpesa";
 import { apiRequest } from "./api/client";
 import { can } from "./permissions";
 import { notify } from "./toast";
+import { enqueueSale, setSyncedHandler } from "./salesOutbox";
 import ReceiptModal, { type ReceiptData } from "./ReceiptModal";
 import { Plus, Printer, ReceiptText, Search } from "lucide-react";
 import { checkName, checkPhone, cleanName, cleanPhone, PHONE_PROPS } from "./validation";
@@ -25,19 +26,6 @@ type CartItem = {
   quantity: number;
 };
 
-type CreatedSale = {
-  id: string;
-  receiptNumber: string;
-  customerName?: string | null;
-  subtotal?: number | string;
-  discount?: number | string;
-  tax?: number | string;
-  pricesIncludeVat?: boolean;
-  total: number | string;
-  amountPaid: number | string;
-  balanceDue: number | string;
-  paymentStatus: string;
-};
 
 const money = (value: number) =>
   `KSh ${new Intl.NumberFormat("en-KE", {
@@ -68,12 +56,12 @@ export default function PointOfSaleWorkspace() {
   const [notes, setNotes] = useState("");
   const [channel, setChannel] = useState("walk_in");
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const saving = false; // saving happens in the background now (salesOutbox); the till never waits
   // VAT is worked out by the server, so the cashier sees exactly what will be recorded.
   const [vat, setVat] = useState<{ registered: boolean; rate: string; inclusive: boolean } | null>(null);
   const [vatPreview, setVatPreview] = useState<{ tax: number; total: number } | null>(null);
   const [previewing, setPreviewing] = useState(false);
-  const saleKeyRef = useRef<{ fingerprint: string; key: string } | null>(null);
+  const lastKeyRef = useRef<string | null>(null);
   // Messages are floating toasts, not elements in the page. An empty string means "clear", so old call sites still read naturally.
   const setError = (text: string) => { if (text) notify.error(text); };
   const setMessage = (text: string) => { if (text) notify.success(text); };
@@ -166,6 +154,21 @@ export default function PointOfSaleWorkspace() {
       setCustomerBusy(false);
     }
   }
+
+  // When the server confirms a queued sale: show its real receipt number, and refresh stock from the server
+  // (once things settle, so a busy till does not reload the catalogue after every single sale).
+  useEffect(() => {
+    let refresh: ReturnType<typeof setTimeout> | null = null;
+    setSyncedHandler((queued, sale) => {
+      if (queued.key === lastKeyRef.current) {
+        setLastReceipt((current) => (current ? { ...current, receiptNumber: sale.receiptNumber } : current));
+      }
+      if (queued.attempts > 0) notify.success(`Sale ${sale.receiptNumber} saved`);
+      if (refresh) clearTimeout(refresh);
+      refresh = setTimeout(() => { void loadProducts(); void loadCustomers(); }, 1500);
+    });
+    return () => { setSyncedHandler(null); if (refresh) clearTimeout(refresh); };
+  }, [loadProducts, loadCustomers]);
 
   const discountValue = Number(discount);
   const vatOn = vat?.registered === true;
@@ -361,74 +364,59 @@ export default function PointOfSaleWorkspace() {
       }
     }
 
-    setSaving(true);
-    try {
-      const payload = {
-        discount: discountValue,
-        tax: vatOn ? 0 : taxValue,
-        amountPaid: paid,
-        paymentMethod,
-        channel,
-        ...(customerId && { customerId }),
-        ...(paid > 0 && paymentMethod === "mpesa" && { paymentReference: normalizeMpesaCode(mpesaCode) }),
-        notes: notes.trim(),
-        items: cart.map((item) => ({
-          productId: item.product.id,
-          quantity: item.quantity,
-          unitPrice: Number(item.product.sellingPrice),
-        })),
-      };
-      // The same sale re-sent after a dropped connection or a double click carries the same key,
-      // so the server records it once. Any change to the sale gets a fresh key.
-      const fingerprint = JSON.stringify(payload);
-      if (saleKeyRef.current?.fingerprint !== fingerprint) {
-        saleKeyRef.current = { fingerprint, key: crypto.randomUUID() };
-      }
-      const response = await apiRequest<CreatedSale>("/sales", {
-        method: "POST",
-        token,
-        businessId,
-        idempotencyKey: saleKeyRef.current.key,
-        body: payload,
-      });
+    // Save on this device first; the server gets it in the background. Nothing here waits on the network,
+    // so the till is free for the next customer straight away, even on a slow or dropped connection.
+    const payload = {
+      discount: discountValue,
+      tax: vatOn ? 0 : taxValue,
+      amountPaid: paid,
+      paymentMethod,
+      channel,
+      ...(customerId && { customerId }),
+      ...(paid > 0 && paymentMethod === "mpesa" && { paymentReference: normalizeMpesaCode(mpesaCode) }),
+      notes: notes.trim(),
+      items: cart.map((item) => ({
+        productId: item.product.id,
+        quantity: item.quantity,
+        unitPrice: Number(item.product.sellingPrice),
+      })),
+    };
+    const customer = customers.find((c) => c.id === customerId);
+    const receipt: ReceiptData = {
+      receiptNumber: null,
+      date: new Date(),
+      customerName: customer?.name ?? null,
+      customerPhone: customer?.phone ?? null,
+      servedBy: sessionStorage.getItem("pos_user_name") || null,
+      items: cart.map((item) => ({
+        name: item.product.name, sku: item.product.sku, quantity: item.quantity, unit: item.product.unitOfMeasure,
+        unitPrice: Number(item.product.sellingPrice), total: Number(item.product.sellingPrice) * item.quantity,
+      })),
+      subtotal, discount: discountValue, tax: taxValue, pricesIncludeVat: vat?.inclusive, total,
+      amountPaid: paid, balanceDue: Math.max(0, total - paid),
+      paymentMethod: paid > 0 ? paymentMethod : undefined,
+      paymentReference: paid > 0 && paymentMethod === "mpesa" ? normalizeMpesaCode(mpesaCode) : null,
+      notes: notes.trim() || null,
+    };
+    const key = crypto.randomUUID();
+    enqueueSale({
+      key, businessId, branchId: sessionStorage.getItem(`pos_branch_${businessId}`),
+      userName: sessionStorage.getItem("pos_user_name"), payload, receipt,
+    });
+    lastKeyRef.current = key;
+    setLastReceipt(receipt);
 
-      if (!response.data) {
-        throw new Error("The server did not return sale details. Check Sales before retrying.");
-      }
-
-      saleKeyRef.current = null;
-      const sale = response.data;
-      const num = (v: unknown, fallback = 0) => (v === undefined || v === null || v === "" ? fallback : Number(v));
-      setLastReceipt({
-        receiptNumber: sale.receiptNumber,
-        date: new Date(),
-        customerName: sale.customerName ?? customers.find((c) => c.id === customerId)?.name ?? null,
-        customerPhone: customers.find((c) => c.id === customerId)?.phone ?? null,
-        servedBy: sessionStorage.getItem("pos_user_name") || null,
-        items: cart.map((item) => ({
-          name: item.product.name, sku: item.product.sku, quantity: item.quantity, unit: item.product.unitOfMeasure,
-          unitPrice: Number(item.product.sellingPrice), total: Number(item.product.sellingPrice) * item.quantity,
-        })),
-        subtotal: num(sale.subtotal, subtotal), discount: num(sale.discount, discountValue), tax: num(sale.tax, taxValue),
-        pricesIncludeVat: sale.pricesIncludeVat, total: num(sale.total), amountPaid: num(sale.amountPaid), balanceDue: num(sale.balanceDue),
-        paymentMethod: paid > 0 ? paymentMethod : undefined,
-        paymentReference: paid > 0 && paymentMethod === "mpesa" ? normalizeMpesaCode(mpesaCode) : null,
-        notes: notes.trim() || null,
-      });
-      notify.success(`Sale ${sale.receiptNumber} recorded`);
-      setCart([]);
-      setDiscount("0");
-      setTax("0");
-      setNotes("");
-      setMpesaCode("");
-      setCustomerId("");
-      setAmountPaidManuallyEdited(false);
-      await Promise.all([loadProducts(), loadCustomers()]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not complete the sale.");
-    } finally {
-      setSaving(false);
-    }
+    // Stock on screen drops at once so the same units cannot be sold twice from this till.
+    const sold = new Map(cart.map((item) => [item.product.id, item.quantity]));
+    setProducts((current) => current.map((p) => (sold.has(p.id) ? { ...p, stockQuantity: Number(p.stockQuantity) - sold.get(p.id)! } : p)));
+    setCart([]);
+    setDiscount("0");
+    setTax("0");
+    setNotes("");
+    setMpesaCode("");
+    setCustomerId("");
+    setAmountPaidManuallyEdited(false);
+    searchRef.current?.focus();
   }
 
   const cartCount = cart.reduce((n, item) => n + item.quantity, 0);
@@ -475,7 +463,7 @@ export default function PointOfSaleWorkspace() {
         <div className="pos-totals-bar-total"><span>Total</span><strong>{money(total)}</strong></div>
         {lastReceipt && (
           <div className="pos-last-sale">
-            <span><ReceiptText size={15} /> Last sale {lastReceipt.receiptNumber}</span>
+            <span><ReceiptText size={15} /> Last sale {lastReceipt.receiptNumber ?? "(saving…)"}</span>
             <button type="button" className="pos-secondary-button" onClick={() => setShowReceipt(true)}>View receipt</button>
             <button type="button" className="pos-primary-button" onClick={() => { setShowReceipt(true); setTimeout(() => window.print(), 250); }}><Printer size={14} style={{ verticalAlign: -2, marginRight: 5 }} />Print receipt</button>
           </div>
@@ -699,7 +687,7 @@ export default function PointOfSaleWorkspace() {
           </label>
 
           <button className="pos-primary-button pos-complete-button" type="submit" disabled={saving || loading || previewing || cart.length === 0}>
-            {saving ? "Processing sale..." : "Complete sale"}
+            Complete sale
           </button>
           <p className="inventory-muted pos-payment-note">
             Completing a sale saves it to the selected business and deducts stock. Only submit when you intend to record a real sale.
