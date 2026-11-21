@@ -27,6 +27,8 @@ export type SaleLine = {
   tax: bigint;
   total: bigint;
   taxClass: string;
+  /** The rate this line was charged at (basis points of a percent, 1600 = 16%); set when VAT is applied. */
+  rateBps?: bigint;
 };
 
 type LineOptions = {
@@ -173,7 +175,13 @@ export function aggregateByProduct(
 // ---------------------------------------------------------------------------------------------
 
 /** `inclusive`: entered prices already contain VAT (only ever true when `registered`). */
-export type Vat = { registered: boolean; rateBps: bigint; inclusive: boolean };
+export type Vat = { registered: boolean; rateBps: bigint; inclusive: boolean; custom: Map<string, bigint> };
+
+/** standard = the business rate; zero_rated and exempt = 0; any other class is one of the business's own rates. */
+export function rateFor(vat: Vat, taxClass: string): bigint {
+  if (taxClass === "standard") return vat.rateBps;
+  return vat.custom.get(taxClass) ?? 0n;
+}
 
 export async function loadVat(tx: Tx, businessId: bigint): Promise<Vat> {
   const b = await tx.business.findUnique({
@@ -181,10 +189,12 @@ export async function loadVat(tx: Tx, businessId: bigint): Promise<Vat> {
     select: { vatRegistered: true, vatRate: true, pricesIncludeVat: true },
   });
   const registered = b?.vatRegistered ?? false;
+  const extra = registered ? await tx.taxRate.findMany({ where: { businessId }, select: { code: true, rate: true } }) : [];
   return {
     registered,
     rateBps: decimalToCents(b?.vatRate ?? 0),
     inclusive: registered && (b?.pricesIncludeVat ?? false),
+    custom: new Map(extra.map((r) => [r.code, decimalToCents(r.rate)])),
   };
 }
 
@@ -219,7 +229,9 @@ export function applyVat(lines: SaleLine[], saleDiscount: bigint, vat: Vat): voi
   const shares = allocate(saleDiscount, bases);
   lines.forEach((l, i) => {
     const net = bases[i]! - shares[i]!;
-    l.tax = l.taxClass === "standard" ? (net * vat.rateBps + 5000n) / 10000n : 0n;
+    const rate = rateFor(vat, l.taxClass);
+    l.rateBps = rate;
+    l.tax = (net * rate + 5000n) / 10000n;
     l.total = lineAmount(l.quantity, l.unitPrice) - l.discount + l.tax;
   });
 }
@@ -269,13 +281,14 @@ export function applyInclusiveVat(lines: SaleLine[], saleDiscount: bigint, vat: 
   let tax = 0n;
   let total = 0n;
   lines.forEach((l, i) => {
-    const standard = l.taxClass === "standard";
+    const rate = rateFor(vat, l.taxClass);
+    l.rateBps = rate;
     const after = gross[i]! - shares[i]!;
-    const net = standard ? netOfInclusive(after, vat.rateBps) : after;
+    const net = netOfInclusive(after, rate);
     l.tax = after - net;
     l.total = gross[i]!;
     const before = lineAmount(l.quantity, l.unitPrice);
-    subtotal += standard ? netOfInclusive(before, vat.rateBps) : before;
+    subtotal += netOfInclusive(before, rate);
     tax += l.tax;
     total += after;
   });

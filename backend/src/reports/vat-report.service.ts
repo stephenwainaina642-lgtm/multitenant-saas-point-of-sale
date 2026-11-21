@@ -1,5 +1,5 @@
 import prisma from "../lib/prisma.js";
-import { decimalToCents, decimalToMilli, lineAmount } from "../lib/money.js";
+import { centsToString, decimalToCents, decimalToMilli, lineAmount } from "../lib/money.js";
 import { dayKey } from "../lib/timezone.js";
 import { allocate, enteredSaleDiscount } from "../sales/sale-calc.js";
 
@@ -73,6 +73,7 @@ export async function getVatReport(businessId: string, range: Range) {
     }),
   ]);
 
+  const byRate = new Map<string, { rate: string; net: bigint; vat: bigint }>();
   const all = blank();
   const byMonth = new Map<string, Totals>();
   const month = (d: Date) => dayKey(d, range.timeZone, true);
@@ -97,6 +98,12 @@ export async function getVatReport(businessId: string, range: Range) {
         : item.product.taxClass === "exempt" ? "exempt"
         : "noVatCharged";
       for (const t of [all, m]) { t[cls].net += net; t[cls].vat += tax; }
+      // By rate: the rate the line was actually charged at (recorded on the sale), when known.
+      if (item.taxRate !== null && item.taxRate !== undefined) {
+        const key = item.taxRate.toFixed(2);
+        const r = byRate.get(key) ?? { rate: key, net: 0n, vat: 0n };
+        r.net += net; r.vat += tax; byRate.set(key, r);
+      }
     });
     const manual = cents(sale.tax) - lineTax;
     for (const t of [all, m]) {
@@ -125,6 +132,8 @@ export async function getVatReport(businessId: string, range: Range) {
     },
     period: { timeZone: range.timeZone },
     ...present(all),
+    byRate: [...byRate.values()].sort((a, b) => Number(b.rate) - Number(a.rate))
+      .map((r) => ({ rate: r.rate, net: centsToString(r.net), vat: centsToString(r.vat) })),
     byMonth: [...byMonth.entries()].sort(([a], [b]) => (a < b ? -1 : 1)).map(([key, t]) => ({ month: key, ...present(t) })),
     notes: [
       "Based on completed sales by sale date; a sale voided later disappears from its original month (no credit-note adjustment is made).",

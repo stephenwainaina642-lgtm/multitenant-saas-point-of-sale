@@ -27,6 +27,7 @@ model Business {
 
   memberships        BusinessUser[]
   roles              Role[]
+  taxRates           TaxRate[]
   owner              User?               @relation("BusinessOwner", fields: [ownerUserId], references: [id])
   categories         Category[]
   products           Product[]
@@ -419,6 +420,9 @@ model SaleItem {
   discount  Decimal  @default(0) @db.Decimal(12, 2)
   tax       Decimal  @default(0) @db.Decimal(12, 2)
   total     Decimal  @db.Decimal(12, 2)
+  /// The tax class and rate this line was charged at, as they were at the time of sale (null on older sales).
+  taxClass  String?  @map("tax_class") @db.VarChar(20)
+  taxRate   Decimal? @map("tax_rate") @db.Decimal(5, 2)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   sale    Sale    @relation(fields: [saleId], references: [id])
@@ -722,4 +726,19 @@ model PlatformAuditLog {
   @@index([createdAt(sort: Desc)])
   @@index([businessId])
   @@map("platform_audit_logs")
+}
+
+/// Extra VAT rates a business defines itself (the standard rate, zero-rated and exempt are built in).
+model TaxRate {
+  id         BigInt   @id @default(autoincrement())
+  businessId BigInt   @map("business_id")
+  code       String   @db.VarChar(20)
+  name       String   @db.VarChar(60)
+  rate       Decimal  @db.Decimal(5, 2)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, code])
+  @@map("tax_rates")
 }

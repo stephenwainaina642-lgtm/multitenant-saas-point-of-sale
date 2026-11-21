@@ -96,6 +96,13 @@ export async function importProducts(businessId: bigint, userId: bigint, input: 
   const seen = { name: new Set<string>(), sku: new Set<string>(), barcode: new Set<string>() };
   const errors: RowError[] = [];
   const good: ProductRow[] = [];
+  // Tax classes: the three built-in ones, plus this business's own rates (matched by name or code).
+  const norm = (v: string) => v.toLowerCase().replace(/[\s-]+/g, "_");
+  const classes = new Map<string, string>([["standard", "standard"], ["zero_rated", "zero_rated"], ["exempt", "exempt"]]);
+  for (const r of await prisma.taxRate.findMany({ where: { businessId }, select: { code: true, name: true } })) {
+    classes.set(norm(r.name), r.code);
+    classes.set(norm(r.code), r.code);
+  }
 
   raw.forEach((row, i) => {
     const c = new Collector(i + 1);
@@ -106,9 +113,9 @@ export async function importProducts(businessId: bigint, userId: bigint, input: 
     const description = text(c, row, "description", "Description", 2000);
     const unit = text(c, row, "unitOfMeasure", "Unit of measure", 50) ?? "piece";
     const category = text(c, row, "category", "Category", 150);
-    const rawClass = (cell(row, "taxClass") ?? "standard").toLowerCase().replace(/[\s-]+/g, "_");
-    const taxClass = ["standard", "zero_rated", "exempt"].includes(rawClass) ? rawClass : "standard";
-    if (!["standard", "zero_rated", "exempt"].includes(rawClass)) c.fail("Tax class", "must be standard, zero_rated or exempt");
+    const rawClass = norm(cell(row, "taxClass") ?? "standard");
+    const taxClass = classes.get(rawClass) ?? "standard";
+    if (!classes.has(rawClass)) c.fail("Tax class", "must be standard, zero rated, exempt or one of your own rates");
     const costPrice = money(c, row, "costPrice", "Cost price", false) ?? "0.00";
     const sellingPrice = money(c, row, "sellingPrice", "Selling price", true);
     const stockQuantity = qty(c, row, "stockQuantity", "Opening stock") ?? "0.000";

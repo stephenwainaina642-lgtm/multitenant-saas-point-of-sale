@@ -76,3 +76,11 @@ Order matters, because the old and new versions do not understand each other:
 4. Everyone signs in once again (old tokens are no longer used by the browser). Sessions now last 12 hours (`JWT_EXPIRES_IN`).
 
 Non-browser callers (scripts, tests) send `X-Auth-Mode: bearer` to receive the token in the body and use `Authorization: Bearer`.
+
+## Roles and VAT rates (migrations `20261130090000_materialise_builtin_roles`, `20261201090000_tax_rates`)
+
+Run both migrations **before** deploying the backend (`npx prisma migrate deploy --config prisma7.config.ts`).
+
+- Only the Owner role is hardcoded. Manager, Cashier and the other starter roles are ordinary editable roles stored per business; the first migration writes their current permissions into the database so nobody's access changes.
+- A role holder can only grant permissions they hold themselves, and cannot edit the role they hold. Only the Owner is exempt.
+- The second migration adds `tax_rates` (a business's own VAT rates), records the rate on each sale line (`sale_items.tax_class` / `tax_rate`, empty on older sales) and replaces the fixed three-value check on `products.tax_class` with a trigger that accepts a built-in class or one of the business's own rates. Nothing existing is rewritten.

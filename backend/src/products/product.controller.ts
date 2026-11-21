@@ -1,4 +1,5 @@
 import type { Response } from "express";
+import { assertKnownTaxClass } from "../tax/tax.service.js";
 import type { BusinessRequest } from "../auth/business.middleware.js";
 import { AppError } from "../lib/errors.js";
 import { centsToString, milliToString, parseMoney, parseQuantity } from "../lib/money.js";
@@ -63,7 +64,6 @@ function sendProductError(
   });
 }
 
-const TAX_CLASSES: unknown[] = ["standard", "zero_rated", "exempt"];
 const MAX_CENTS = 999_999_999_999n; // numeric(12,2)
 const MAX_MILLI = 999_999_999_999n; // numeric(12,3)
 
@@ -199,12 +199,7 @@ export async function createProductController(
       });
     }
 
-    if (taxClass !== undefined && !TAX_CLASSES.includes(taxClass)) {
-      return res.status(400).json({
-        success: false,
-        message: "Tax class must be standard, zero_rated or exempt",
-      });
-    }
+    if (taxClass !== undefined) await assertKnownTaxClass(req.businessId!, taxClass);
 
     const parsedUnitOfMeasure =
       unitOfMeasure === undefined ? "piece" : String(unitOfMeasure).trim();
@@ -396,13 +391,7 @@ export async function updateProductController(
     }
 
     if (taxClass !== undefined) {
-      if (!TAX_CLASSES.includes(taxClass)) {
-        return res.status(400).json({
-          success: false,
-          message: "Tax class must be standard, zero_rated or exempt",
-        });
-      }
-      productData.taxClass = taxClass;
+      productData.taxClass = await assertKnownTaxClass(req.businessId!, taxClass);
     }
 
     if (categoryId !== undefined) {

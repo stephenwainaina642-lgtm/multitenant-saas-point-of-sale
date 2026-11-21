@@ -2,6 +2,7 @@
 import { BUSINESS_TYPE_OPTIONS } from "./businessTypes";
 import { apiRequest } from "./api/client";
 import "./BusinessSettingsWorkspace.css";
+import { TaxRatesPanel } from "./taxRates";
 
 type BusinessProfile = {
   id: string;
@@ -401,6 +402,7 @@ export default function BusinessSettingsWorkspace() {
           </p>
         )}
       </form>
+      {profile.vatRegistered && <TaxRatesPanel />}
     </div>
   );
 }

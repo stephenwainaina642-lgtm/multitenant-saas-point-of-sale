@@ -3,6 +3,7 @@ import ImportPanel from "./ImportPanel";
 import CategoriesPanel, { type Category, type Starter } from "./CategoriesPanel";
 import { useCallback, useEffect, useState } from "react";
 import { apiRequest } from "./api/client";
+import { TaxClassOptions, useTaxRates } from "./taxRates";
 
 type Product = {
   id: string;
@@ -48,6 +49,7 @@ export default function ProductsWorkspace() {
   const [stockQuantity, setStockQuantity] = useState("0");
   const [minimumStock, setMinimumStock] = useState("0");
   const [unitOfMeasure, setUnitOfMeasure] = useState("piece");
+  const { rates: taxRates } = useTaxRates();
   const [taxClass, setTaxClass] = useState("standard");
   const [editTaxClass, setEditTaxClass] = useState("standard");
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -548,9 +550,7 @@ export default function ProductsWorkspace() {
               <label style={labelStyle}>
                 VAT class
                 <select style={{ ...fieldStyle, marginTop: 6 }} value={editTaxClass} onChange={(event) => setEditTaxClass(event.target.value)}>
-                  <option value="standard">Standard rated</option>
-                  <option value="zero_rated">Zero rated</option>
-                  <option value="exempt">Exempt</option>
+                  <TaxClassOptions rates={taxRates} />
                 </select>
               </label>
               <label style={labelStyle}>
@@ -619,9 +619,7 @@ export default function ProductsWorkspace() {
               <label style={labelStyle}>
                 VAT class
                 <select style={{ ...fieldStyle, marginTop: 6 }} value={taxClass} onChange={(event) => setTaxClass(event.target.value)}>
-                  <option value="standard">Standard rated</option>
-                  <option value="zero_rated">Zero rated</option>
-                  <option value="exempt">Exempt</option>
+                  <TaxClassOptions rates={taxRates} />
                 </select>
               </label>
             <label style={labelStyle}>

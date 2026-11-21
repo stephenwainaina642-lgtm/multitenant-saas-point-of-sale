@@ -2194,3 +2194,5 @@ tbody tr:hover { background: #f7faf7; }
 .pos-search-box input[type="search"]::-webkit-search-cancel-button{-webkit-appearance:none}
 .employee-link{color:#166534;text-decoration:none}
 .employee-link:hover{text-decoration:underline}
+.tax-rate-form{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.tax-rate-form input{flex:1 1 140px;min-width:0}

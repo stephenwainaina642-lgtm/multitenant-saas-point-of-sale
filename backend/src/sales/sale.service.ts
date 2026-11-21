@@ -470,6 +470,8 @@ export async function createBusinessSale(
               discount: centsToString(l.discount),
               tax: centsToString(l.tax),
               total: centsToString(l.total),
+              taxClass: l.rateBps !== undefined ? l.taxClass : null,
+              taxRate: l.rateBps !== undefined ? centsToString(l.rateBps) : null,
             })),
           },
         },
