@@ -44,7 +44,7 @@ describe("products use random public ids everywhere they appear", () => {
       sale.body, (await get(`/sales/${saleId}`, a)).body, (await get("/sales", a)).body,
       pur.body, (await get("/purchases", a)).body, quote.body, (await get("/quotations", a)).body,
       mv.body, (await get("/inventory", a)).body, (await get("/dashboard", a)).body,
-      (await get("/reports/summary", a)).body, (await get("/branches/stock", a)).body,
+      (await get("/reports?startDate=2020-01-01&endDate=2030-12-31", a)).body, (await get("/branches/stock", a)).body,
     ];
     let seen = 0;
     for (const r of responses) {

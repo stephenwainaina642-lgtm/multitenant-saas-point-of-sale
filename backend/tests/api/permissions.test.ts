@@ -187,7 +187,7 @@ describe("roles and permissions (enforced in the backend)", () => {
       expect(listB).not.toContain(aRole.id);
       expect((await put(`/roles/${aRole.id}`, b, { permissions: ["reports.view"] })).status).toBe(404);
       expect((await del(`/roles/${aRole.id}`, b)).status).toBe(404);
-      const [row] = await query(`select permissions from roles where id = $1`, [aRole.id]);
+      const [row] = await query(`select permissions from roles where public_id = $1::uuid`, [aRole.id]);
       expect(row!.permissions).toEqual(["products.view"]);
     });
   });

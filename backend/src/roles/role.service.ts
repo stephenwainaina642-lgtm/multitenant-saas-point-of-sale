@@ -1,4 +1,5 @@
 import prisma from "../lib/prisma.js";
+import { requirePublicId } from "../lib/public-id.js";
 import { AppError } from "../lib/errors.js";
 import {
   BUILT_IN_ROLES,
@@ -10,12 +11,13 @@ import {
 
 function format(role: {
   id: bigint;
+  publicId: string;
   name: string;
   description: string | null;
   permissions: string[];
 }) {
   return {
-    id: role.id.toString(),
+    id: role.publicId,
     name: role.name,
     description: role.description,
     permissions: role.permissions,
@@ -121,12 +123,10 @@ export async function createBusinessRole(
 }
 
 async function findOwnRole(businessId: string, roleId: string) {
-  if (!/^[1-9]\d*$/.test(roleId)) {
-    throw new AppError(404, "Role not found");
-  }
+  const publicId = requirePublicId(roleId, "A valid role ID is required");
 
   const role = await prisma.role.findFirst({
-    where: { id: BigInt(roleId), businessId: BigInt(businessId) },
+    where: { publicId, businessId: BigInt(businessId) },
   });
 
   if (!role) {

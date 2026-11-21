@@ -53,3 +53,16 @@ export async function purchaseIdFromPublic(
   if (!row) throw new AppError(404, "Purchase not found");
   return row.id;
 }
+
+/** The internal branch id for a public id, within one business (400 if not a UUID, 404 if not this business's). */
+export async function branchIdFromPublic(
+  client: { branch: { findFirst(args: { where: { publicId: string; businessId: bigint }; select: { id: true } }): Promise<{ id: bigint } | null> } },
+  businessId: bigint,
+  value: unknown,
+  label = "branch",
+): Promise<bigint> {
+  const publicId = requirePublicId(value, `A valid ${label} ID is required`);
+  const row = await client.branch.findFirst({ where: { publicId, businessId }, select: { id: true } });
+  if (!row) throw new AppError(404, "Branch not found");
+  return row.id;
+}

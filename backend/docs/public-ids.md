@@ -25,12 +25,18 @@ working on the migrated database (the column is only added), so there is no brok
 | quotations | DONE (migration `20261204090100_add_public_id_quotations`): own routes. `convertedSaleId` still shows the sale's numeric id until sales are converted |
 | sales | DONE (migration `20261205090000_add_public_id_sales`): own routes (read, edit, void), payments (`saleId`), invoices (`saleId`), customer debt and settle-debt allocations, quotation `convertedSaleId` and conversion, reports, dashboard recent sales, employee profile recent sales |
 | purchases, invoices, customer payments, supplier payments | DONE (migration `20261206090000_add_public_id_purchases_invoices_payments`): purchases and invoices have their own routes; payment ids appear only in responses |
-| branches, roles, employees/users, stock transfers, businesses | not yet |
+| branches, roles, stock transfers | DONE (migration `20261207090000_add_public_id_branches_roles_transfers`): branch routes, transfer bodies, `X-Branch-ID`, the reports `branchId` filter, employee `branchId` and `role.id`, role routes |
+| employees/users, businesses | not yet |
 
 ## Products: one thing to do before deploying
 A sale saved on a device while offline keeps the product ids it was made with. After this change those ids must be the new
 random ones, so a sale still waiting to sync from BEFORE the update would be refused (the screen shows an error toast and
 keeps it). Make sure every till shows no "sales waiting to sync" badge before you deploy.
+
+## Branches: the `X-Branch-ID` header
+The header carries the branch UUID. A plain number is still accepted on this header only, so tills that saved a number before
+the change (and sales queued offline with one) keep working. It is checked against the user's allowed branches either way.
+Once no till holds an old value this fallback can be removed.
 
 ## Sales: notes
 - Queued offline sales are unaffected: they carry product and customer ids (already random), never a sale id.

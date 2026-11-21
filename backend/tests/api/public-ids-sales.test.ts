@@ -43,7 +43,7 @@ describe("sales use random public ids everywhere they appear", () => {
     const responses = [
       sale.body, (await get(`/sales/${id}`, a)).body, (await get("/sales", a)).body, pay.body, (await get("/payments", a)).body,
       inv.body, (await get("/invoices", a)).body, unpaid, settle.body, conv.body,
-      (await get("/dashboard", a)).body, (await get("/reports/summary", a)).body,
+      (await get("/dashboard", a)).body, (await get("/reports?startDate=2020-01-01&endDate=2030-12-31", a)).body,
     ];
     const text = JSON.stringify(responses);
     for (const key of ["saleId", "convertedSaleId"]) expect(text).not.toMatch(new RegExp(`"${key}":"?${internal}"?[,}]`));

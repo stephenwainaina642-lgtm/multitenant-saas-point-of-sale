@@ -34,7 +34,7 @@ describe("roles are plain data; only the owner is hardcoded", () => {
     const r = await post("/roles", editor, { name: "Sneaky", permissions: ["products.view", "settings.manage"] });
     expect(r.status).toBe(403);
     expect((await post("/roles", editor, { name: "Viewer2", permissions: ["products.view"] })).status).toBe(201);
-    const mine = (await query<{ id: string }>(`select role_id as id from business_users where user_id = $1 and business_id = $2`, [editor.userId, owner.businessId]))[0]!.id;
+    const mine = (await query<{ id: string }>(`select r.public_id::text as id from business_users bu join roles r on r.id = bu.role_id where bu.user_id = $1 and bu.business_id = $2`, [editor.userId, owner.businessId]))[0]!.id;
     expect((await put(`/roles/${mine}`, editor, { permissions: ["products.view", "settings.manage"] })).status).toBe(403);
     // owner may do both
     expect((await put(`/roles/${mine}`, owner, { permissions: ["roles.manage", "employees.manage", "products.view", "reports.view"] })).status).toBe(200);

@@ -1,13 +1,13 @@
 import prisma from "../lib/prisma.js";
-import { productIdFromPublic } from "../lib/public-id.js";
+import { branchIdFromPublic, productIdFromPublic } from "../lib/public-id.js";
 import { AppError } from "../lib/errors.js";
 import { addBranchStock, takeBranchStockOrFail } from "./branch-stock.js";
 import { milliToString, parseQuantity } from "../lib/money.js";
 
 type Actor = { userId: string; canSeeAll: boolean; branchId: bigint };
 
-const format = (b: { id: bigint; name: string; address: string | null; phone: string | null; isMain: boolean; isActive: boolean }) => ({
-  id: b.id.toString(), name: b.name, address: b.address, phone: b.phone, isMain: b.isMain, isActive: b.isActive,
+const format = (b: { id: bigint; publicId: string; name: string; address: string | null; phone: string | null; isMain: boolean; isActive: boolean }) => ({
+  id: b.publicId, name: b.name, address: b.address, phone: b.phone, isMain: b.isMain, isActive: b.isActive,
 });
 
 function cleanText(value: unknown, label: string, max: number, required = false): string | null {
@@ -56,7 +56,7 @@ export async function createBranch(businessId: bigint, userId: string, body: Rec
 }
 
 export async function updateBranch(businessId: bigint, userId: string, idText: unknown, body: Record<string, unknown>) {
-  const id = idOf(idText, "branch id");
+  const id = await branchIdFromPublic(prisma, businessId, idText, "branch");
   return prisma.$transaction(async (tx) => {
     const branch = await tx.branch.findFirst({ where: { id, businessId } });
     if (!branch) throw new AppError(404, "Branch not found");
@@ -90,7 +90,8 @@ export async function updateBranch(businessId: bigint, userId: string, idText: u
 /** Assign a staff member to a branch (null = not tied to one). */
 export async function assignStaff(businessId: bigint, actorId: string, userIdText: unknown, branchIdValue: unknown) {
   const userId = idOf(userIdText, "user id");
-  const branchId = branchIdValue === null || branchIdValue === undefined || branchIdValue === "" ? null : idOf(branchIdValue, "branch id");
+  const branchId = branchIdValue === null || branchIdValue === undefined || branchIdValue === "" ? null : await branchIdFromPublic(prisma, businessId, branchIdValue, "branch");
+  const branchPublic = branchId ? (await prisma.branch.findFirst({ where: { id: branchId, businessId }, select: { publicId: true } }))?.publicId ?? null : null;
   const member = await prisma.businessUser.findFirst({ where: { businessId, userId, isActive: true } });
   if (!member) throw new AppError(404, "Staff member not found");
   if (branchId) {
@@ -101,23 +102,23 @@ export async function assignStaff(businessId: bigint, actorId: string, userIdTex
     prisma.businessUser.update({ where: { id: member.id }, data: { branchId, updatedAt: new Date() } }),
     prisma.auditLog.create({ data: { businessId, userId: BigInt(actorId), action: "branch.assign_staff", entity: "user", entityId: userId, details: { branchId: branchId?.toString() ?? null } } }),
   ]);
-  return { userId: userId.toString(), branchId: branchId?.toString() ?? null };
+  return { userId: userId.toString(), branchId: branchPublic };
 }
 
 /** Quantity per branch for every product that is held somewhere the caller may see. */
 export async function stockByBranch(businessId: bigint, actor: Actor) {
   const rows = await prisma.branchStock.findMany({
     where: { businessId, ...(actor.canSeeAll ? {} : { branchId: actor.branchId }) },
-    select: { branchId: true, quantity: true, product: { select: { publicId: true } } },
+    select: { branch: { select: { publicId: true } }, quantity: true, product: { select: { publicId: true } } },
   });
-  return rows.map((r) => ({ branchId: r.branchId.toString(), productId: r.product.publicId, quantity: r.quantity }));
+  return rows.map((r) => ({ branchId: r.branch.publicId, productId: r.product.publicId, quantity: r.quantity }));
 }
 
 type TransferBody = { fromBranchId?: unknown; toBranchId?: unknown; items?: unknown; notes?: unknown; reference?: unknown };
 
 export async function createTransfer(businessId: bigint, actor: Actor, body: TransferBody, idempotencyKey?: string) {
-  const from = idOf(body.fromBranchId, "source branch");
-  const to = idOf(body.toBranchId, "destination branch");
+  const from = await branchIdFromPublic(prisma, businessId, body.fromBranchId, "source branch");
+  const to = await branchIdFromPublic(prisma, businessId, body.toBranchId, "destination branch");
   if (from === to) throw new AppError(400, "Choose two different branches");
   if (!actor.canSeeAll && from !== actor.branchId) {
     throw new AppError(403, "You can only send stock out of your own branch");
@@ -198,21 +199,22 @@ export async function createTransfer(businessId: bigint, actor: Actor, body: Tra
 }
 
 type TransferRow = {
-  id: bigint; fromBranchId: bigint; toBranchId: bigint; reference: string | null; notes: string | null; createdAt: Date;
+  id: bigint; publicId: string; fromBranchId: bigint; toBranchId: bigint; reference: string | null; notes: string | null; createdAt: Date;
   items: { productId: bigint; quantity: unknown }[];
 };
 
 async function formatTransfer(t: TransferRow) {
   const [branches, products] = await Promise.all([
-    prisma.branch.findMany({ where: { id: { in: [t.fromBranchId, t.toBranchId] } }, select: { id: true, name: true } }),
+    prisma.branch.findMany({ where: { id: { in: [t.fromBranchId, t.toBranchId] } }, select: { id: true, publicId: true, name: true } }),
     prisma.product.findMany({ where: { id: { in: t.items.map((i) => i.productId) } }, select: { id: true, publicId: true, name: true, sku: true } }),
   ]);
   const bn = new Map(branches.map((b) => [b.id, b.name]));
+  const bp = new Map(branches.map((b) => [b.id, b.publicId]));
   const pn = new Map(products.map((p) => [p.id, p]));
   return {
-    id: t.id.toString(),
-    fromBranchId: t.fromBranchId.toString(), fromBranchName: bn.get(t.fromBranchId) ?? "",
-    toBranchId: t.toBranchId.toString(), toBranchName: bn.get(t.toBranchId) ?? "",
+    id: t.publicId,
+    fromBranchId: bp.get(t.fromBranchId) ?? "", fromBranchName: bn.get(t.fromBranchId) ?? "",
+    toBranchId: bp.get(t.toBranchId) ?? "", toBranchName: bn.get(t.toBranchId) ?? "",
     reference: t.reference, notes: t.notes, createdAt: t.createdAt,
     items: t.items.map((i) => ({ productId: pn.get(i.productId)?.publicId ?? "", productName: pn.get(i.productId)?.name ?? "", sku: pn.get(i.productId)?.sku ?? null, quantity: String(i.quantity) })),
   };

@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
 import prisma from "../lib/prisma.js";
+import { requirePublicId } from "../lib/public-id.js";
 import { AppError } from "../lib/errors.js";
 import { decimalToCents } from "../lib/money.js";
 import { personName, phoneNumber } from "../lib/validate.js";
@@ -17,9 +18,9 @@ function tempPassword(): string {
 }
 
 function format(m: {
-  id: bigint; userId: bigint; isActive: boolean; createdAt: Date; branchId?: bigint | null;
+  id: bigint; userId: bigint; isActive: boolean; createdAt: Date; branch?: { publicId: string } | null;
   user: { name: string; email: string; phone: string | null; isActive: boolean };
-  role: { id: bigint; name: string };
+  role: { publicId: string; name: string };
 }, ownerUserId: bigint | null) {
   return {
     id: m.id.toString(),
@@ -27,15 +28,15 @@ function format(m: {
     name: m.user.name,
     email: m.user.email,
     phone: m.user.phone,
-    role: { id: m.role.id.toString(), name: m.role.name },
-    branchId: m.branchId?.toString() ?? null,
+    role: { id: m.role.publicId, name: m.role.name },
+    branchId: m.branch?.publicId ?? null,
     isOwner: ownerUserId === m.userId,
     isActive: m.isActive,
     createdAt: m.createdAt,
   };
 }
 
-const include = { user: true, role: true } as const;
+const include = { user: true, role: true, branch: { select: { publicId: true } } } as const;
 
 async function ownerOf(businessId: bigint) {
   const b = await prisma.business.findUnique({ where: { id: businessId }, select: { ownerUserId: true } });
@@ -52,8 +53,7 @@ export async function listEmployees(businessId: string) {
 async function resolveRole(businessId: bigint, roleId: unknown, roleName: unknown, actor?: Actor) {
   let role = null;
   if (roleId !== undefined && roleId !== null && roleId !== "") {
-    if (!/^[1-9]\d*$/.test(String(roleId))) throw new AppError(400, "Invalid role");
-    role = await prisma.role.findFirst({ where: { id: BigInt(String(roleId)), businessId } });
+    role = await prisma.role.findFirst({ where: { publicId: requirePublicId(roleId, "A valid role ID is required"), businessId } });
   } else if (typeof roleName === "string" && roleName.trim()) {
     const wanted = roleName.trim().toLowerCase();
     role = await prisma.role.findFirst({ where: { businessId, name: { equals: wanted, mode: "insensitive" } } });

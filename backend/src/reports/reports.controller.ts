@@ -1,6 +1,7 @@
 import type { Response } from "express";
 import type { BusinessRequest } from "../auth/business.middleware.js";
 import prisma from "../lib/prisma.js";
+import { isPublicId } from "../lib/public-id.js";
 import { isValidTimeZone, nextDay, startOfDay } from "../lib/timezone.js";
 import { getBusinessReports } from "./reports.service.js";
 import { getVatReport } from "./vat-report.service.js";
@@ -59,7 +60,11 @@ export async function getReportsController(
 
     // Without "branches.all" a user only ever sees their own branch; others may ask for one branch
     // (?branchId=) or leave it out for the whole business.
-    const asked = typeof req.query.branchId === "string" && /^[1-9]\d*$/.test(req.query.branchId) ? BigInt(req.query.branchId) : undefined;
+    let asked: bigint | undefined;
+    if (req.query.branchId !== undefined && req.query.branchId !== "") {
+      if (!isPublicId(req.query.branchId)) return res.status(400).json({ success: false, message: "A valid branch ID is required" });
+      asked = (await prisma.branch.findFirst({ where: { publicId: req.query.branchId, businessId: req.businessId }, select: { id: true } }))?.id ?? -1n;
+    }
     const branchId = req.permissions?.has("branches.all") ? asked : req.branchId;
     if (branchId && !(await prisma.branch.findFirst({ where: { id: branchId, businessId: req.businessId } }))) {
       return res.status(404).json({ success: false, message: "Branch not found" });

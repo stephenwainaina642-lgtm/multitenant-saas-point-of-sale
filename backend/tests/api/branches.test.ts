@@ -55,7 +55,7 @@ describe("branches with their own stock", () => {
     expect(await stockRows(item.id)).toEqual([{ name: "Main", quantity: "12.000" }, { name: "Westlands", quantity: "8.000" }]);
     expect(await total(item.id)).toBe(20);
     const moves = await query<{ type: string; name: string }>(
-      `select m.type, b.name from inventory_movements m join branches b on b.id = m.branch_id where m.reference = $1 order by m.type`, [`TRANSFER-${r.body.data.id}`]);
+      `select m.type, b.name from inventory_movements m join branches b on b.id = m.branch_id where m.reference = 'TRANSFER-' || (select id from stock_transfers where public_id = $1::uuid)::text order by m.type`, [r.body.data.id]);
     expect(moves).toEqual([{ type: "IN", name: "Westlands" }, { type: "OUT", name: "Main" }]);
     expect(await totalsMatch()).toBe(true);
   });

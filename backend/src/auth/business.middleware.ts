@@ -3,6 +3,7 @@ import prisma from "../lib/prisma.js";
 import type { AuthenticatedRequest } from "./auth.middleware.js";
 import { denialMessage } from "../business/business-context.service.js";
 import { resolvePermissions } from "./permissions.js";
+import { isPublicId } from "../lib/public-id.js";
 
 export type BusinessRequest = AuthenticatedRequest & {
   businessId?: bigint;
@@ -84,8 +85,17 @@ export async function requireBusinessAccess(
     // Which branch? Staff assigned to a branch stay in it; people with "branches.all" may pick one
     // with X-Branch-ID; everyone else without an assignment works in the Main branch.
     const branchHeader = req.headers["x-branch-id"];
-    const requested =
-      typeof branchHeader === "string" && /^[1-9]\d*$/.test(branchHeader) ? BigInt(branchHeader) : null;
+    // The header carries the branch's public UUID. A plain number is still accepted here only so that
+    // tills that saved one before this change (and sales queued offline with one) keep working; the
+    // branch is checked against what this user may use either way, so nothing extra is exposed.
+    let requested: bigint | null = null;
+    if (typeof branchHeader === "string") {
+      if (isPublicId(branchHeader)) {
+        requested = (await prisma.branch.findFirst({ where: { publicId: branchHeader, businessId }, select: { id: true } }))?.id ?? -1n; // no such branch here: refused below (-1n, because 0n is falsy)
+      } else if (/^[1-9]\d{0,17}$/.test(branchHeader)) {
+        requested = BigInt(branchHeader);
+      }
+    }
     const canPick = req.permissions.has("branches.all");
     const wanted =
       membership.branchId && !canPick ? membership.branchId : requested ?? membership.branchId;

@@ -84,6 +84,7 @@ model User {
 
 model Role {
   id          BigInt   @id @default(autoincrement())
+  publicId      String   @unique @default(dbgenerated("gen_random_uuid()")) @map("public_id") @db.Uuid
   name        String   @db.VarChar(100)
   description String?
   businessId  BigInt?  @map("business_id")
@@ -117,6 +118,7 @@ model BusinessUser {
 
 model Branch {
   id         BigInt   @id @default(autoincrement())
+  publicId      String   @unique @default(dbgenerated("gen_random_uuid()")) @map("public_id") @db.Uuid
   businessId BigInt   @map("business_id")
   name       String   @db.VarChar(120)
   address    String?
@@ -161,6 +163,7 @@ model BranchStock {
 
 model StockTransfer {
   id             BigInt   @id @default(autoincrement())
+  publicId      String   @unique @default(dbgenerated("gen_random_uuid()")) @map("public_id") @db.Uuid
   businessId     BigInt   @map("business_id")
   fromBranchId   BigInt   @map("from_branch_id")
   toBranchId     BigInt   @map("to_branch_id")
