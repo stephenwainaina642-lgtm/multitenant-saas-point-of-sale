@@ -1,6 +1,7 @@
 import PasswordInput from "./PasswordInput";
 import { useCallback, useEffect, useState } from "react";
 import { apiRequest, SESSION_MARKER } from "./api/client";
+import { money } from "./money";
 
 type Biz = {
   approvalStatus: "approved" | "pending" | "rejected";
@@ -23,7 +24,7 @@ const ago = (iso: string) => {
   const months = Math.floor(days / 30);
   return months < 12 ? `${months} month${months === 1 ? "" : "s"} ago` : `${Math.floor(months / 12)} year${months >= 24 ? "s" : ""} ago`;
 };
-const kes = (v: string) => `KSh ${Number(v).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const kes = (v: string | number) => money(v);
 const day = (v: string | null) => (v ? new Date(v).toLocaleDateString("en-KE", { day: "2-digit", month: "short", year: "numeric" }) : "never");
 const when = (v: string) => new Date(v).toLocaleString("en-KE", { dateStyle: "medium", timeStyle: "short" });
 const msg = (e: unknown) => (e instanceof Error ? e.message : "Something went wrong.");

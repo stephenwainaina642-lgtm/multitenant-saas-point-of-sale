@@ -4,6 +4,7 @@ import { apiRequest } from "./api/client";
 import RecordPaymentForm from "./RecordPaymentForm";
 import Letterhead from "./Letterhead";
 import { useNotify } from "./useNotify";
+import { money } from "./money";
 
 type Sale = {
   id: string;
@@ -58,11 +59,6 @@ type SaleDetails = Sale & {
 
 const CHANNELS: Record<string, string> = { walk_in: "Walk-in", online: "Online", phone: "Phone order", delivery: "Delivery", other: "Other" };
 const channelText = (c?: string) => CHANNELS[c ?? "walk_in"] ?? c ?? "Walk-in";
-const money = (value: number | string) =>
-  `KSh ${new Intl.NumberFormat("en-KE", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(Number(value) || 0)}`;
 
 const dateText = (value: string) => {
   const date = new Date(value);

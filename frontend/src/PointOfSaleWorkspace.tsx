@@ -7,6 +7,7 @@ import { enqueueSale, setSyncedHandler } from "./salesOutbox";
 import ReceiptModal, { type ReceiptData } from "./ReceiptModal";
 import { Plus, Printer, ReceiptText, Search } from "lucide-react";
 import { checkName, checkPhone, cleanName, cleanPhone, PHONE_PROPS } from "./validation";
+import { money, plainAmount } from "./money";
 
 type Product = {
   id: string;
@@ -27,11 +28,6 @@ type CartItem = {
 };
 
 
-const money = (value: number) =>
-  `KSh ${new Intl.NumberFormat("en-KE", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value)}`;
 
 type PosCustomer = { id: string; name: string; phone: string | null; creditLimit?: string; balance?: string };
 
@@ -208,7 +204,7 @@ export default function PointOfSaleWorkspace() {
 
   useEffect(() => {
     if (!amountPaidManuallyEdited) {
-      setAmountPaid(total > 0 ? total.toFixed(2) : "0");
+      setAmountPaid(total > 0 ? plainAmount(total) : "0");
     }
   }, [total, amountPaidManuallyEdited]);
 

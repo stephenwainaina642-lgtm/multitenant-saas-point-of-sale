@@ -2,6 +2,7 @@ import { can } from "./permissions";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
 import { useNotify } from "./useNotify";
+import { money } from "./money";
 
 type Supplier = {
   id: string;
@@ -76,13 +77,6 @@ const emptyForm = {
   notes: "",
 };
 
-const money = (value: number | string) =>
-  Number(value || 0).toLocaleString("en-KE", {
-    style: "currency",
-    currency: "KES",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
 
 const numberValue = (value: string) => {
   const parsed = Number(value);
@@ -106,7 +100,7 @@ export default function PurchasesWorkspace() {
   const businessId = sessionStorage.getItem("pos_business_id") ?? "";
 
   async function payPurchase(purchase: Purchase) {
-    const amount = window.prompt(`Amount paid to ${purchase.supplierName} (balance KES ${Number(purchase.balanceDue).toFixed(2)})`, String(purchase.balanceDue));
+    const amount = window.prompt(`Amount paid to ${purchase.supplierName} (balance ${money(purchase.balanceDue)})`, String(purchase.balanceDue));
     if (amount === null) return;
     const method = window.prompt("Payment method (cash, mpesa, bank, cheque)", "cash");
     if (method === null) return;

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiRequest } from "./api/client";
+import { money } from "./money";
 
 type Profile = {
   employee: { id: string; name: string; email: string; phone: string | null; role: { name: string }; isOwner: boolean; isActive: boolean; createdAt: string };
@@ -7,7 +8,6 @@ type Profile = {
   recentSales: { id: string; receiptNumber: string; saleDate: string; customerName: string | null; total: number; paymentStatus: string }[];
 };
 
-const money = (n: number) => `KSh ${n.toLocaleString("en-KE", { minimumFractionDigits: 2 })}`;
 const when = (d: string | null) => (d ? new Date(d).toLocaleString("en-KE", { dateStyle: "medium", timeStyle: "short" }) : "No sales yet");
 
 /** Opens at `#employees/<id>`; the address can be bookmarked or shared with another manager. */

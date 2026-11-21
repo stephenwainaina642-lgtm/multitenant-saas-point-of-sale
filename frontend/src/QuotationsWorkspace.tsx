@@ -2,6 +2,7 @@ import { can } from "./permissions";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
 import { useNotify } from "./useNotify";
+import { money } from "./money";
 
 type Item = { id: string; productId: string; productName: string; quantity: string | number; unitPrice: string | number; discount: string | number; tax: string | number; total: string | number };
 type Quotation = {
@@ -14,7 +15,6 @@ type Product = { id: string; name: string; sellingPrice: string | number; stockQ
 type Customer = { id: string; name: string };
 type Line = { productId: string; quantity: string; discount: string };
 
-const money = (v: number | string) => `KSh ${Number(v || 0).toLocaleString("en-KE", { minimumFractionDigits: 2 })}`;
 const day = (v: string | null) => (v ? new Date(v).toLocaleDateString("en-KE") : "—");
 const fieldStyle: React.CSSProperties = { width: "100%", boxSizing: "border-box", padding: "11px 12px", border: "1px solid #dfe7e2", borderRadius: 8, font: "inherit", marginTop: 6 };
 const labelStyle: React.CSSProperties = { display: "block", fontSize: 12, fontWeight: 600, color: "#344b40" };

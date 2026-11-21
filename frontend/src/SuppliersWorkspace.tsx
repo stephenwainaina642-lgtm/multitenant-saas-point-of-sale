@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
 import { checkBusinessName, checkPhone, cleanBusinessName, cleanPhone, PHONE_PROPS } from "./validation";
 import { useNotify } from "./useNotify";
+import { money } from "./money";
 
 type Supplier = {
   id: string;
@@ -308,7 +309,7 @@ export default function SuppliersWorkspace() {
                     <td>{supplier.phone || "—"}</td>
                     <td>{supplier.email || "—"}</td>
                     <td>{supplier.address || "—"}</td>
-                    <td>{supplier.balance !== undefined ? `KSh ${Number(supplier.balance).toLocaleString("en-KE", { minimumFractionDigits: 2 })}` : "—"}</td>
+                    <td>{supplier.balance !== undefined ? money(supplier.balance) : "—"}</td>
                     <td>
                       {supplier.createdAt
                         ? new Date(supplier.createdAt).toLocaleDateString("en-KE")

@@ -3,6 +3,7 @@ import { apiRequest } from "./api/client";
 import VatReportPanel from "./VatReportPanel";
 import { can } from "./permissions";
 import { useNotify } from "./useNotify";
+import { money } from "./money";
 
 type Sale = {
   id: string;
@@ -119,13 +120,6 @@ const localDate = (date: Date) => {
   return adjusted.toISOString().slice(0, 10);
 };
 
-const money = (value: number) =>
-  value.toLocaleString("en-KE", {
-    style: "currency",
-    currency: "KES",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
 
 const amount = (value: number | string) => Number(value) || 0;
 

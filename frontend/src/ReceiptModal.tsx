@@ -1,5 +1,6 @@
 import { Printer, X } from "lucide-react";
 import Letterhead from "./Letterhead";
+import { money } from "./money";
 
 export type ReceiptData = {
   /** null while the sale is still being saved in the background. */
@@ -21,8 +22,6 @@ export type ReceiptData = {
   notes?: string | null;
 };
 
-const money = (value: number) =>
-  `KSh ${new Intl.NumberFormat("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value) || 0)}`;
 const methodText = (m?: string) => (m ? m.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "");
 
 /** A sales receipt that can be viewed and printed right after a sale. It uses the same print styles as the Sales screen. */

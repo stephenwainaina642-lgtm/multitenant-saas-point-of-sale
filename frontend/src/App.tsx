@@ -24,6 +24,7 @@ import { AlertTriangle, Bell, BarChart3, Banknote, Boxes, Clock, FileSpreadsheet
 import { can, storePermissions } from "./permissions";
 import SyncBadge from "./SyncBadge";
 import { flushOutbox, unsyncedCount } from "./salesOutbox";
+import { money } from "./money";
 
 /** The permission a member needs to see each screen (the server enforces the same rules). */
 const navigationPermissions: Record<string, string[]> = {
@@ -77,11 +78,6 @@ type DashboardData = {
   recentSales: { id: string; receiptNumber: string; customerName: string | null; saleDate: string; total: number; paymentStatus: string; status: string }[] | null;
 };
 
-const money = (amount: number) =>
-  `KSh ${new Intl.NumberFormat("en-KE", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount)}`;
 
 function App() {
   // A link like /#employees/12 opens that employee's profile directly.

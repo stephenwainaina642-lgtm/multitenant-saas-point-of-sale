@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiRequest } from "./api/client";
 import { TaxClassOptions, useTaxRates } from "./taxRates";
 import { useNotify } from "./useNotify";
+import { money } from "./money";
 
 type Product = {
   id: string;
@@ -23,11 +24,6 @@ type Product = {
   isActive: boolean;
 };
 
-const money = (value: number | string) =>
-  `KSh ${new Intl.NumberFormat("en-KE", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(Number(value) || 0)}`;
 
 export default function ProductsWorkspace() {
   const [products, setProducts] = useState<Product[]>([]);

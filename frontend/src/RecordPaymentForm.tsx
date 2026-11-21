@@ -1,11 +1,10 @@
 import { useRef, useState } from "react";
 import { apiRequest } from "./api/client";
 import { mpesaCodeError, normalizeMpesaCode } from "./mpesa";
+import { money } from "./money";
 
 type Props = { saleId: string; balanceDue: number; onRecorded: () => void };
 
-const money = (value: number) =>
-  new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES" }).format(value);
 
 /** Records a payment against an unpaid or part-paid sale (for example a customer settling credit). */
 export default function RecordPaymentForm({ saleId, balanceDue, onRecorded }: Props) {

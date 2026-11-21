@@ -2,6 +2,7 @@ import { can } from "./permissions";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
 import { useNotify } from "./useNotify";
+import { money } from "./money";
 
 type Expense = {
   id: string;
@@ -32,13 +33,6 @@ const emptyForm = {
   notes: "",
 };
 
-const money = (value: number | string) =>
-  Number(value || 0).toLocaleString("en-KE", {
-    style: "currency",
-    currency: "KES",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
 
 const fieldStyle: React.CSSProperties = {
   width: "100%",

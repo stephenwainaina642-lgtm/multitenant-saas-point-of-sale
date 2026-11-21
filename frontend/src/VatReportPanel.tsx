@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiRequest } from "./api/client";
+import { money } from "./money";
 
 type Bucket = { netSales: number; vat?: number };
 type Section = {
@@ -16,8 +17,6 @@ type VatReport = Section & {
   notes: string[];
 };
 
-const money = (value: number) =>
-  value.toLocaleString("en-KE", { style: "currency", currency: "KES", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const csvCell = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
 
 export default function VatReportPanel({ startDate, endDate }: { startDate: string; endDate: string }) {

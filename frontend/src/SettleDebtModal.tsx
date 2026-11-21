@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { apiRequest } from "./api/client";
 import Letterhead from "./Letterhead";
 import { mpesaCodeError, normalizeMpesaCode } from "./mpesa";
+import { money } from "./money";
 
 type Unpaid = {
   customer: { id: string; name: string };
@@ -14,8 +15,6 @@ type Settled = {
   allocations: { saleId: string; receiptNumber: string; paid: string; balanceAfter: string; status: string }[];
 };
 
-const money = (v: number | string) =>
-  new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES" }).format(Number(v));
 const auth = () => ({
   token: sessionStorage.getItem("pos_token") ?? "",
   businessId: sessionStorage.getItem("pos_business_id") ?? "",

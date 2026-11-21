@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { CloudOff } from "lucide-react";
 import { discardSale, flushOutbox, retrySale, useOutbox } from "./salesOutbox";
+import { money } from "./money";
 
-const money = (n: number) => `KSh ${n.toLocaleString("en-KE", { minimumFractionDigits: 2 })}`;
 
 /** Shows sales still on this device and lets the cashier retry or discard the ones the server rejected. */
 export default function SyncBadge() {

@@ -4,6 +4,7 @@ import RolePermissionsPanel, { type Role } from "./RolePermissionsPanel";
 import EmployeeProfile from "./EmployeeProfile";
 import { checkName, checkPhone, cleanName, cleanPhone, PHONE_PROPS } from "./validation";
 import { useNotify } from "./useNotify";
+import { money } from "./money";
 
 type Employee = {
   id: string; userId: string; name: string; email: string; phone: string | null;
@@ -21,7 +22,6 @@ const fieldStyle: React.CSSProperties = {
   borderRadius: 8, font: "inherit", background: "#fff", color: "#24372e", marginTop: 6,
 };
 const labelStyle: React.CSSProperties = { display: "block", fontSize: 12, fontWeight: 600, color: "#344b40" };
-const money = (n: number) => `KSh ${n.toLocaleString("en-KE", { minimumFractionDigits: 2 })}`;
 
 export default function EmployeesWorkspace({ salespersonPerformance = [] }: { salespersonPerformance?: SalespersonPerformance[] }) {
   const token = sessionStorage.getItem("pos_token") ?? "";

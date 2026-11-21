@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
 import { checkName, checkPhone, cleanName, cleanPhone, PHONE_PROPS } from "./validation";
 import { useNotify } from "./useNotify";
+import { money } from "./money";
 
 type Customer = {
   id: string;
@@ -317,8 +318,8 @@ export default function CustomersWorkspace() {
                     <td>{customer.phone || "—"}</td>
                     <td>{customer.email || "—"}</td>
                     <td>{customer.address || "—"}</td>
-                    <td>{customer.balance !== undefined ? `KSh ${Number(customer.balance).toLocaleString("en-KE", { minimumFractionDigits: 2 })}` : "—"}</td>
-                    <td>{customer.creditLimit !== undefined ? `KSh ${Number(customer.creditLimit).toLocaleString("en-KE", { minimumFractionDigits: 2 })}` : "—"}</td>
+                    <td>{customer.balance !== undefined ? money(customer.balance) : "—"}</td>
+                    <td>{customer.creditLimit !== undefined ? money(customer.creditLimit) : "—"}</td>
                     <td>
                       {customer.createdAt
                         ? new Date(customer.createdAt).toLocaleDateString("en-KE")

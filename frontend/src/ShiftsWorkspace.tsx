@@ -3,6 +3,7 @@ import { apiRequest } from "./api/client";
 import { can } from "./permissions";
 import Letterhead from "./Letterhead";
 import { useNotify } from "./useNotify";
+import { money as moneyText } from "./money";
 
 type Live = { totalsByMethod: Record<string, string>; cashReceived: string; cashRefunded: string; cashSupplier: string; expectedCash: string };
 type Shift = {
@@ -12,7 +13,7 @@ type Shift = {
   totalsByMethod: Record<string, string> | null; closeNote: string | null; managerNote: string | null; live?: Live;
 };
 
-const kes = (v: string | number | null | undefined) => Number(v ?? 0).toLocaleString("en-KE", { style: "currency", currency: "KES", minimumFractionDigits: 2 });
+const kes = (v: number | string | null | undefined) => moneyText(v);
 const when = (v: string | null) => (v ? new Date(v).toLocaleString("en-KE", { dateStyle: "medium", timeStyle: "short" }) : "");
 const msg = (e: unknown) => (e instanceof Error ? e.message : "Something went wrong.");
 const cents = (v: string) => Math.round(Number(v || 0) * 100);
