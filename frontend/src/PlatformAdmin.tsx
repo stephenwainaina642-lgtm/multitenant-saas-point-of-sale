@@ -3,12 +3,15 @@ import { useCallback, useEffect, useState } from "react";
 import { apiRequest, SESSION_MARKER } from "./api/client";
 
 type Biz = {
+  approvalStatus: "approved" | "pending" | "rejected";
   id: string; name: string; businessType: string; isActive: boolean; createdAt: string; ownerName: string | null; ownerEmail: string | null;
   users: number; products: number; salesCount: number; salesTotal: string; sales30dCount: number; sales30dTotal: string; lastSaleAt: string | null;
 };
-type Overview = { totals: { businesses: number; suspended: number; activeLast30Days: number; users: number }; businesses: Biz[] };
+type Invite = { id: string; email: string; businessName: string | null; note: string | null; autoApprove: boolean; status: "active" | "used" | "expired" | "cancelled" | "locked"; createdAt: string; expiresAt: string; usedAt: string | null };
+type Overview = { totals: { businesses: number; pending: number; suspended: number; activeLast30Days: number; users: number }; businesses: Biz[] };
 type Audit = { id: string; action: string; businessId: string | null; reason: string; adminName: string; createdAt: string };
-type Dialog = { kind: "suspend" | "reactivate" | "reset"; biz: Biz } | null;
+type Dialog = { kind: "suspend" | "reactivate" | "reset" | "approve" | "reject"; biz: Biz } | null;
+type Created = { email: string; link: string; pin: string; expiresAt: string };
 
 const KEY = "platform_token";
 const kes = (v: string) => `KSh ${Number(v).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -26,7 +29,11 @@ export default function PlatformAdmin() {
   const [admin, setAdmin] = useState("");
   const [data, setData] = useState<Overview | null>(null);
   const [audit, setAudit] = useState<Audit[]>([]);
-  const [tab, setTab] = useState<"businesses" | "audit">("businesses");
+  const [tab, setTab] = useState<"businesses" | "invites" | "audit">("businesses");
+  const [invites, setInvites] = useState<Invite[]>([]);
+  const [inv, setInv] = useState({ email: "", businessName: "", note: "", autoApprove: true });
+  const [created, setCreated] = useState<Created | null>(null);
+  const [revoking, setRevoking] = useState<Invite | null>(null);
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -37,11 +44,13 @@ export default function PlatformAdmin() {
 
   const load = useCallback(async (t: string) => {
     try {
-      const [o, a, me] = await Promise.all([
+      const [o, a, me, iv] = await Promise.all([
         apiRequest<Overview>("/platform/overview", { token: t }),
         apiRequest<Audit[]>("/platform/audit", { token: t }),
         apiRequest<{ name: string }>("/platform/me", { token: t }),
+        apiRequest<Invite[]>("/platform/invites", { token: t }),
       ]);
+      setInvites(iv.data ?? []);
       setData(o.data ?? null); setAudit(a.data ?? []); setAdmin(me.data?.name ?? ""); setError("");
     } catch (e) { setError(msg(e)); }
   }, []);
@@ -55,6 +64,21 @@ export default function PlatformAdmin() {
     } catch (e) { setError(msg(e)); } finally { setBusy(false); }
   }
   async function signOut() { try { await apiRequest("/platform/logout", { method: "POST" }); } catch { /* the cookie expires on its own */ } try { sessionStorage.removeItem(KEY); } catch { /* ignore */ } setToken(""); setData(null); window.location.hash = ""; window.location.reload(); }
+
+  async function createInvite(ev: React.FormEvent) {
+    ev.preventDefault(); setBusy(true); setError("");
+    try {
+      const r = await apiRequest<{ email: string; token: string; pin: string; expiresAt: string }>("/platform/invites", { method: "POST", token, body: inv });
+      if (r.data) setCreated({ email: r.data.email, link: `${window.location.origin}/#join=${r.data.token}`, pin: r.data.pin, expiresAt: r.data.expiresAt });
+      setInv({ email: "", businessName: "", note: "", autoApprove: true }); await load(token);
+    } catch (e) { setError(msg(e)); } finally { setBusy(false); }
+  }
+  async function revoke(ev: React.FormEvent) {
+    ev.preventDefault(); if (!revoking) return; setBusy(true); setError("");
+    try { await apiRequest(`/platform/invites/${revoking.id}/revoke`, { method: "POST", token, body: { reason } }); setRevoking(null); setReason(""); await load(token); }
+    catch (e) { setError(msg(e)); } finally { setBusy(false); }
+  }
+  const copy = (text: string) => { void navigator.clipboard?.writeText(text); };
 
   async function confirm(ev: React.FormEvent) {
     ev.preventDefault(); if (!dialog) return; setBusy(true); setError("");
@@ -100,12 +124,12 @@ export default function PlatformAdmin() {
       {error && <p style={{ color: "#b3412f" }}>{error}</p>}
       {result && <pre style={{ ...card, background: "#fff7e0", whiteSpace: "pre-wrap", margin: "12px 0" }}>{result} <button style={small} onClick={() => setResult("")}>Dismiss</button></pre>}
       <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 12, margin: "16px 0" }}>
-        {[["Businesses", data?.totals.businesses], ["Active in last 30 days", data?.totals.activeLast30Days], ["Suspended", data?.totals.suspended], ["Users", data?.totals.users]].map(([l, v]) => (
+        {[["Businesses", data?.totals.businesses], ["Waiting for approval", data?.totals.pending], ["Active in last 30 days", data?.totals.activeLast30Days], ["Suspended", data?.totals.suspended], ["Users", data?.totals.users]].map(([l, v]) => (
           <div key={String(l)} style={card}><div style={{ fontSize: 12, color: "#6b7a70" }}>{l}</div><div style={{ fontSize: 26, fontWeight: 700 }}>{v ?? "–"}</div></div>
         ))}
       </section>
       <nav style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-        {(["businesses", "audit"] as const).map((t) => <button key={t} style={{ ...small, ...(tab === t ? { background: "#176b4d", color: "#fff" } : {}) }} onClick={() => setTab(t)}>{t === "businesses" ? "Businesses" : "Admin activity"}</button>)}
+        {(["businesses", "invites", "audit"] as const).map((t) => <button key={t} style={{ ...small, ...(tab === t ? { background: "#176b4d", color: "#fff" } : {}) }} onClick={() => setTab(t)}>{t === "businesses" ? "Businesses" : t === "invites" ? "Invitations" : "Admin activity"}</button>)}
         {tab === "businesses" && <input style={{ ...input, maxWidth: 280, marginLeft: "auto" }} placeholder="Search name or owner" value={search} onChange={(e) => setSearch(e.target.value)} />}
       </nav>
 
@@ -123,8 +147,10 @@ export default function PlatformAdmin() {
                   <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{kes(b.salesTotal)}</td>
                   <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{kes(b.sales30dTotal)}<br /><small style={{ color: "#6b7a70" }}>{b.sales30dCount} sales</small></td>
                   <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{day(b.lastSaleAt)}</td>
-                  <td style={{ padding: "10px 12px" }}><span style={{ padding: "2px 8px", borderRadius: 99, fontSize: 11, background: b.isActive ? "#e3f4e9" : "#fde8e4", color: b.isActive ? "#176b4d" : "#b3412f" }}>{b.isActive ? "Active" : "Suspended"}</span></td>
+                  <td style={{ padding: "10px 12px" }}>{(() => { const st = !b.isActive ? ["Suspended", "#fde8e4", "#b3412f"] : b.approvalStatus === "pending" ? ["Awaiting approval", "#fff3d6", "#8a5a00"] : b.approvalStatus === "rejected" ? ["Rejected", "#fde8e4", "#b3412f"] : ["Active", "#e3f4e9", "#176b4d"]; return <span style={{ padding: "2px 8px", borderRadius: 99, fontSize: 11, background: st[1], color: st[2], whiteSpace: "nowrap" }}>{st[0]}</span>; })()}</td>
                   <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>
+                    {b.approvalStatus !== "approved" && <><button style={{ ...small, background: "#e3f4e9" }} onClick={() => { setDialog({ kind: "approve", biz: b }); setReason(""); setError(""); }}>Approve</button>{" "}</>}
+                    {b.approvalStatus !== "rejected" && <><button style={small} onClick={() => { setDialog({ kind: "reject", biz: b }); setReason(""); setError(""); }}>Reject</button>{" "}</>}
                     <button style={small} onClick={() => { setDialog({ kind: b.isActive ? "suspend" : "reactivate", biz: b }); setReason(""); setError(""); }}>{b.isActive ? "Suspend" : "Reactivate"}</button>{" "}
                     <button style={small} onClick={() => { setDialog({ kind: "reset", biz: b }); setReason(""); setError(""); }}>Reset owner</button>
                   </td>
@@ -133,6 +159,37 @@ export default function PlatformAdmin() {
               {rows.length === 0 && <tr><td colSpan={11} style={{ padding: 20, textAlign: "center", color: "#6b7a70" }}>No businesses found.</td></tr>}
             </tbody>
           </table>
+        </div>
+      ) : tab === "invites" ? (
+        <div style={{ display: "grid", gap: 12 }}>
+          <form onSubmit={createInvite} style={{ ...card, display: "grid", gap: 10 }}>
+            <h2 style={{ margin: 0, fontSize: 16 }}>Invite a client</h2>
+            <p style={{ margin: 0, fontSize: 13, color: "#52625a" }}>Creates a single-use link (valid 7 days) that only works for this email address, plus a 6-digit PIN. Send the link and the PIN by different channels, for example the link by email and the PIN by phone.</p>
+            <input style={input} type="email" placeholder="Client's email address" value={inv.email} onChange={(e) => setInv({ ...inv, email: e.target.value })} required />
+            <input style={input} placeholder="Business name (optional, they can change it)" value={inv.businessName} onChange={(e) => setInv({ ...inv, businessName: e.target.value })} maxLength={255} />
+            <input style={input} placeholder="Note for yourself (optional)" value={inv.note} onChange={(e) => setInv({ ...inv, note: e.target.value })} maxLength={500} />
+            <label style={{ fontSize: 13 }}><input type="checkbox" checked={inv.autoApprove} onChange={(e) => setInv({ ...inv, autoApprove: e.target.checked })} /> Approve the business automatically when they sign up (untick to review it first)</label>
+            {error && <p style={{ margin: 0, color: "#b3412f", fontSize: 13 }}>{error}</p>}
+            <div><button style={primary} disabled={busy}>{busy ? "Please wait..." : "Create invitation"}</button></div>
+          </form>
+          <div style={{ ...card, padding: 0, overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead><tr style={{ textAlign: "left", background: "#f4f8f5" }}>{["Client email", "Business", "Created", "Expires", "Status", ""].map((h) => <th key={h} style={{ padding: "10px 12px" }}>{h}</th>)}</tr></thead>
+              <tbody>
+                {invites.map((i) => (
+                  <tr key={i.id} style={{ borderTop: "1px solid #e8eee9" }}>
+                    <td style={{ padding: "10px 12px" }}>{i.email}{i.note && <><br /><small style={{ color: "#6b7a70" }}>{i.note}</small></>}</td>
+                    <td style={{ padding: "10px 12px" }}>{i.businessName || "—"}</td>
+                    <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{day(i.createdAt)}</td>
+                    <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{day(i.expiresAt)}</td>
+                    <td style={{ padding: "10px 12px" }}>{{ active: "Waiting for the client", used: `Used ${day(i.usedAt)}`, expired: "Expired", cancelled: "Cancelled", locked: "Locked (wrong PINs)" }[i.status]}</td>
+                    <td style={{ padding: "10px 12px" }}>{i.status === "active" || i.status === "locked" ? <button style={small} onClick={() => { setRevoking(i); setReason(""); setError(""); }}>Cancel</button> : null}</td>
+                  </tr>
+                ))}
+                {invites.length === 0 && <tr><td colSpan={6} style={{ padding: 20, textAlign: "center", color: "#6b7a70" }}>No invitations yet.</td></tr>}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
         <div style={{ ...card, padding: 0, overflowX: "auto" }}>
@@ -148,15 +205,40 @@ export default function PlatformAdmin() {
       {dialog && (
         <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "grid", placeItems: "center", padding: 16, zIndex: 50 }}>
           <form onSubmit={confirm} style={{ ...card, width: "100%", maxWidth: 440, display: "grid", gap: 10 }}>
-            <h2 style={{ margin: 0, fontSize: 18 }}>{dialog.kind === "suspend" ? "Suspend" : dialog.kind === "reactivate" ? "Reactivate" : "Reset owner access for"} {dialog.biz.name}</h2>
+            <h2 style={{ margin: 0, fontSize: 18 }}>{dialog.kind === "suspend" ? "Suspend" : dialog.kind === "reactivate" ? "Reactivate" : dialog.kind === "approve" ? "Approve" : dialog.kind === "reject" ? "Reject" : "Reset owner access for"} {dialog.biz.name}</h2>
             <p style={{ margin: 0, fontSize: 13, color: "#52625a" }}>
               {dialog.kind === "suspend" && "Its users are blocked straight away and see a suspended message. No data is deleted."}
               {dialog.kind === "reactivate" && "Its users can sign in and work again."}
+              {dialog.kind === "approve" && "Its users can start using the system straight away."}
+              {dialog.kind === "reject" && "Its users are blocked and told the business was not approved. No data is deleted; you can approve it later."}
               {dialog.kind === "reset" && `Owner: ${dialog.biz.ownerEmail}. If e-mail is set up a reset link is sent; otherwise a one-time temporary password is shown to you.`}
             </p>
             <textarea style={{ ...input, minHeight: 70 }} placeholder="Reason (required, recorded in the admin activity log)" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} required minLength={3} autoFocus />
             {error && <p style={{ margin: 0, color: "#b3412f", fontSize: 13 }}>{error}</p>}
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><button type="button" style={small} onClick={() => setDialog(null)}>Cancel</button><button style={primary} disabled={busy}>{busy ? "Please wait..." : "Confirm"}</button></div>
+          </form>
+        </div>
+      )}
+      {created && (
+        <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "grid", placeItems: "center", padding: 16, zIndex: 50 }}>
+          <div style={{ ...card, width: "100%", maxWidth: 520, display: "grid", gap: 10 }}>
+            <h2 style={{ margin: 0, fontSize: 18 }}>Invitation for {created.email}</h2>
+            <p style={{ margin: 0, fontSize: 13, color: "#8a5a00" }}>Shown only once. Copy both now. It expires on {day(created.expiresAt)}.</p>
+            <label style={{ fontSize: 12, color: "#6b7a70" }}>Link (send by email or message)</label>
+            <div style={{ display: "flex", gap: 6 }}><input style={input} readOnly value={created.link} onFocus={(e) => e.target.select()} /><button type="button" style={small} onClick={() => copy(created.link)}>Copy</button></div>
+            <label style={{ fontSize: 12, color: "#6b7a70" }}>PIN (give it separately, for example by phone)</label>
+            <div style={{ display: "flex", gap: 6 }}><input style={{ ...input, fontSize: 22, letterSpacing: 4, fontWeight: 700 }} readOnly value={created.pin} /><button type="button" style={small} onClick={() => copy(created.pin)}>Copy</button></div>
+            <div style={{ display: "flex", justifyContent: "flex-end" }}><button style={primary} onClick={() => setCreated(null)}>I have copied them</button></div>
+          </div>
+        </div>
+      )}
+      {revoking && (
+        <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "grid", placeItems: "center", padding: 16, zIndex: 50 }}>
+          <form onSubmit={revoke} style={{ ...card, width: "100%", maxWidth: 440, display: "grid", gap: 10 }}>
+            <h2 style={{ margin: 0, fontSize: 18 }}>Cancel the invitation for {revoking.email}</h2>
+            <textarea style={{ ...input, minHeight: 70 }} placeholder="Reason (required, recorded in the admin activity log)" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} required minLength={3} autoFocus />
+            {error && <p style={{ margin: 0, color: "#b3412f", fontSize: 13 }}>{error}</p>}
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><button type="button" style={small} onClick={() => setRevoking(null)}>Back</button><button style={primary} disabled={busy}>Cancel invitation</button></div>
           </form>
         </div>
       )}

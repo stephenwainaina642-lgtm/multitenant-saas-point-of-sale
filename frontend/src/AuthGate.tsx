@@ -1,3 +1,4 @@
+import { checkName, cleanName } from "./validation";
 import PasswordInput from "./PasswordInput";
 import { useEffect, useState } from "react";
 import { BUSINESS_TYPE_OPTIONS } from "./businessTypes";
@@ -38,8 +39,20 @@ type Props = {
   onAuthenticated: () => void;
 };
 
+/** A client invitation arrives as /#join=<token>. Keep it in memory and take it out of the address bar. */
+function takeJoinToken(): string {
+  const m = /^#join=([\w-]{20,100})$/.exec(window.location.hash);
+  if (!m) return "";
+  history.replaceState(null, "", window.location.pathname + window.location.search);
+  return m[1]!;
+}
+
 export default function AuthGate({ onAuthenticated }: Props) {
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const [joinToken] = useState(takeJoinToken);
+  const [invitePin, setInvitePin] = useState("");
+  const [inviteState, setInviteState] = useState<"none" | "checking" | "ok" | "bad">(joinToken ? "checking" : "none");
+  const [openSignup, setOpenSignup] = useState(false);
+  const [mode, setMode] = useState<"login" | "register">(joinToken ? "register" : "login");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -52,6 +65,18 @@ export default function AuthGate({ onAuthenticated }: Props) {
   const [busy, setBusy] = useState(false);
   const [resetToken, setResetToken] = useState(takeResetToken);
   const [forgotOpen, setForgotOpen] = useState(false);
+  useEffect(() => {
+    if (joinToken) {
+      apiRequest<{ email: string; businessName: string | null }>(`/auth/invite/${encodeURIComponent(joinToken)}`)
+        .then((r) => {
+          setEmail(r.data?.email ?? ""); if (r.data?.businessName) setBusinessName(r.data.businessName);
+          setInviteState("ok");
+        })
+        .catch((e) => { setInviteState("bad"); setMessage(e instanceof Error ? e.message : "This invitation is not valid."); });
+    } else {
+      apiRequest<{ open: boolean }>("/auth/signup-mode").then((r) => setOpenSignup(Boolean(r.data?.open))).catch(() => undefined);
+    }
+  }, [joinToken]);
   useEffect(() => {
     const onHash = () => { const t = takeResetToken(); if (t) { setResetToken(t); setForgotOpen(false); } };
     window.addEventListener("hashchange", onHash);
@@ -88,9 +113,12 @@ export default function AuthGate({ onAuthenticated }: Props) {
 
     try {
       if (mode === "register") {
+        const problem = checkName(name, "Your name");
+        if (problem) { setMessage(problem); return; }
+        if (joinToken && !/^\d{6}$/.test(invitePin.trim())) { setMessage("Enter the 6-digit PIN you were given."); return; }
         const response = await apiRequest<AuthResult>("/auth/register", {
           method: "POST",
-          body: { name, email, password, businessName, businessType },
+          body: { name, email, password, businessName, businessType, ...(joinToken && { inviteToken: joinToken, invitePin: invitePin.trim() }) },
         });
 
         const result = response.data!;
@@ -184,7 +212,7 @@ export default function AuthGate({ onAuthenticated }: Props) {
           {mode === "register" && (
             <>
               <label className="auth-label" htmlFor="full-name">Your full name</label>
-              <input id="full-name" className="auth-input" value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Stephen Wainaina" autoComplete="name" required />
+              <input id="full-name" className="auth-input" value={name} onChange={(event) => setName(cleanName(event.target.value))} placeholder="e.g. Stephen Wainaina" autoComplete="name" required />
 
               <label className="auth-label" htmlFor="business-name">Business name</label>
               <input id="business-name" className="auth-input" value={businessName} onChange={(event) => setBusinessName(event.target.value)} placeholder="Your business name" required />
@@ -199,26 +227,37 @@ export default function AuthGate({ onAuthenticated }: Props) {
           )}
 
           <label className="auth-label" htmlFor="email">Email address</label>
-          <input id="email" className="auth-input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@business.com" autoComplete="email" required />
+          <input id="email" className="auth-input" type="email" value={email} readOnly={Boolean(joinToken)} onChange={(event) => setEmail(event.target.value)} placeholder="you@business.com" autoComplete="email" required />
 
           <label className="auth-label" htmlFor="password">Password</label>
           <PasswordInput id="password" className="auth-input" value={password} onChange={(event) => setPassword(event.target.value)} placeholder={mode === "register" ? "At least 8 characters" : "Enter your password"} autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={mode === "register" ? 8 : undefined} required />
+
+          {mode === "register" && joinToken && (
+            <>
+              <label className="auth-label" htmlFor="invite-pin">Invitation PIN</label>
+              <input id="invite-pin" className="auth-input" inputMode="numeric" maxLength={6} value={invitePin} onChange={(event) => setInvitePin(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="6 digits, given to you separately" autoComplete="one-time-code" required />
+            </>
+          )}
 
           {mode === "login" && <p className="auth-forgot"><button type="button" onClick={() => { setMessage(""); setForgotOpen(true); }}>Forgot password?</button></p>}
 
           {message && <p className="auth-message">{message}</p>}
 
-          <button className="auth-submit" type="submit" disabled={busy}>
+          <button className="auth-submit" type="submit" disabled={busy || inviteState === "checking" || inviteState === "bad"}>
             {busy ? "Please wait..." : mode === "login" ? "Sign in" : "Create account"}
           </button>
         </form>
 
-        <p className="auth-switch">
-          {mode === "login" ? "New to POS Suite?" : "Already have an account?"}{" "}
-          <button type="button" onClick={() => { setMode(mode === "login" ? "register" : "login"); setMessage(""); }}>
-            {mode === "login" ? "Create an account" : "Sign in"}
-          </button>
-        </p>
+        {(openSignup || joinToken || mode === "register") ? (
+          <p className="auth-switch">
+            {mode === "login" ? "New to POS Suite?" : "Already have an account?"}{" "}
+            <button type="button" onClick={() => { setMode(mode === "login" ? "register" : "login"); setMessage(""); }}>
+              {mode === "login" ? "Create an account" : "Sign in"}
+            </button>
+          </p>
+        ) : (
+          <p className="auth-switch">New business? Sign-up is by invitation. Ask us for your link.</p>
+        )}
         <p className="auth-footer">Secure workspace access for your business.</p>
       </section>
     </main>
