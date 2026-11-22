@@ -256,3 +256,20 @@ export async function mpesaStatusForTill(businessId: bigint) {
   const c = await prisma.integrationConnection.findUnique({ where: { businessId_provider: { businessId, provider: "mpesa" } }, select: { isEnabled: true, environment: true } });
   return { enabled: !!c?.isEnabled, environment: c?.isEnabled ? c.environment : null };
 }
+
+/**
+ * What needs a person's attention. Read-only.
+ *  - unlinked: Safaricom confirmed the money but no sale used it (customer paid, sale never completed).
+ *  - review:   "unconfirmed" requests: we could not tell whether the customer paid.
+ */
+export async function listAttention(businessId: bigint) {
+  const [unlinked, review] = await Promise.all([
+    prisma.mpesaPaymentRequest.findMany({ where: { businessId, status: "paid", saleId: null }, orderBy: { paidAt: "desc" }, take: 100 }),
+    prisma.mpesaPaymentRequest.findMany({ where: { businessId, status: "unconfirmed", createdAt: { gte: new Date(Date.now() - 30 * 86400_000) } }, orderBy: { createdAt: "desc" }, take: 100 }),
+  ]);
+  const ids = [...new Set([...unlinked, ...review].map((r) => r.createdByUserId).filter((x): x is bigint => x !== null))];
+  const users = ids.length ? await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } }) : [];
+  const name = new Map(users.map((u) => [u.id, u.name]));
+  const row = (r: Row) => ({ ...present(r), paidAt: r.paidAt, requestedBy: r.createdByUserId ? name.get(r.createdByUserId) ?? null : null });
+  return { unlinked: unlinked.map(row), review: review.map(row) };
+}

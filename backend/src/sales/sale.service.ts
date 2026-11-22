@@ -492,6 +492,14 @@ export async function createBusinessSale(
           reference = await claimMpesaRequest(tx, bizId, sale.id, method, amountPaid, data.mpesaPaymentRequestId);
         } else {
           reference = await checkedPaymentReference(tx, bizId, method, data.paymentReference);
+          // Entering the receipt of an STK payment by hand (the customer paid but the sale was never completed)
+          // settles that confirmed payment too, but only when the amount is exactly what Safaricom confirmed.
+          if (method === "mpesa" && reference) {
+            await tx.mpesaPaymentRequest.updateMany({
+              where: { businessId: bizId, mpesaReceipt: reference, status: "paid", saleId: null, amountCents: amountPaid },
+              data: { saleId: sale.id, updatedAt: new Date() },
+            });
+          }
         }
         await tx.payment.create({
           data: {

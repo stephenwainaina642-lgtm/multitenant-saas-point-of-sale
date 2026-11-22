@@ -96,3 +96,15 @@ amount *we requested*. Statuses: `pending`, `paid`, `failed`, `cancelled`, `expi
 * Refunds of STK-paid sales are still recorded manually, as before; nothing is refunded through Safaricom.
 * A sale queued offline with a request id is sent when the till reconnects; if the payment was spent elsewhere meanwhile it is rejected and appears as needing attention.
 * Verified against a local fake Safaricom only, not the live sandbox.
+
+---
+
+# Payments needing attention (read-only)
+
+`GET /api/integrations/mpesa/attention` (needs `payments.view`) returns `unlinked` (Safaricom-confirmed, no sale used it) and
+`review` (`unconfirmed` in the last 30 days). Settings shows them under the integration cards, and hides the section when empty.
+
+Clearing an unlinked payment: ring the sale up with method M-Pesa and type the receipt code, for **exactly** the confirmed amount. The sale
+service then links that confirmed payment automatically. A different amount is still accepted as a manual code (as before) but the payment stays
+listed for a person to look at. There is deliberately no "dismiss" button yet: that would need new columns to record who dismissed what and why,
+which should be agreed first.

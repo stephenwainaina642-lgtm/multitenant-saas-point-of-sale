@@ -79,3 +79,15 @@
 .stk-spin { animation: int-spin .9s linear infinite; }
 
 .pos-payment-form input:disabled, .pos-payment-form select:disabled, .inventory-field input:disabled, .inventory-field select:disabled { background: #eef2ef; color: #5a665e; cursor: not-allowed; }
+
+/* M-PESA attention list */
+.int-attn { margin-top: 22px; padding: 16px; border: 1px solid #f0d9a8; border-radius: 12px; background: #fffdf6; display: grid; gap: 14px; }
+.int-attn-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.int-attn h4 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 15px; color: #6b4a00; }
+.int-attn h5 { margin: 0 0 4px; font-size: 13.5px; }
+.int-attn section p { margin: 0 0 8px; font-size: 12.5px; line-height: 1.5; color: #4a554e; }
+.int-attn-scroll { overflow-x: auto; }
+.int-attn table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.int-attn th, .int-attn td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #f0e6c8; white-space: nowrap; }
+.int-attn th { font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: #7a6a3a; }
+.int-attn .num { text-align: right; }

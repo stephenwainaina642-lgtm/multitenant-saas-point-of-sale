@@ -383,4 +383,42 @@ describe("M-PESA STK Push (milestone 2a: backend only)", () => {
       await expect(query(`update mpesa_payment_requests set sale_id = $1 where public_id = $2::uuid`, [osRow!.id, paidOther])).rejects.toThrow(/different businesses/);
     });
   });
+
+  describe("payments needing attention", () => {
+    let product: string;
+    beforeAll(async () => { product = (await createProduct(owner, { name: "Attention Item", costPrice: 100, sellingPrice: 1000, stockQuantity: 100 })).id; });
+
+    it("lists confirmed-but-unused payments and unconfirmed requests, for people who may see payments", async () => {
+      const lonely = await confirmed(owner, "750", "LONELYPAY1");
+      const dead = await pay(owner, { phone: "0711000003" }); // network failure -> unconfirmed
+      const r = await call("GET", "/integrations/mpesa/attention", owner);
+      expect(r.status).toBe(200);
+      const u = r.body.data.unlinked.find((x: any) => x.id === lonely);
+      expect(u).toMatchObject({ amount: "750.00", mpesaReceipt: "LONELYPAY1", phone: "254*****678" });
+      expect(u.requestedBy).toBeTruthy();
+      expect(r.body.data.review.map((x: any) => x.id)).toContain(dead.body.data.id);
+      expect(JSON.stringify(r.body)).not.toMatch(/callback|token/i);
+      expect((await call("GET", "/integrations/mpesa/attention", nobody)).status).toBe(403);
+      expect((await call("GET", "/integrations/mpesa/attention", cashier)).status).toBe(403); // cashiers cannot see all payments
+      const theirs = await call("GET", "/integrations/mpesa/attention", other);
+      expect(JSON.stringify(theirs.body)).not.toContain(lonely);
+    });
+
+    it("ringing the sale up with that receipt by hand settles the payment and clears it from the list", async () => {
+      const listed = async (id: string) => (await call("GET", "/integrations/mpesa/attention", owner)).body.data.unlinked.some((x: any) => x.id === id);
+      // Amount differs from what Safaricom confirmed: the manual sale is allowed (it is only a typed code) but a person must look.
+      const odd = await confirmed(owner, "1000", "ODDAMOUNT1");
+      const c = await createCustomer(owner, "Fix Customer", "0733000222");
+      expect((await sale(owner, product, 2, { amountPaid: 1500, customerId: c.id, paymentReference: "ODDAMOUNT1" })).status).toBe(201);
+      expect(await listed(odd)).toBe(true);
+      // Exact amount: it settles the confirmed payment and the list is clear.
+      const id = await confirmed(owner, "1000", "MANUALFIX1");
+      expect(await listed(id)).toBe(true);
+      const ok = await sale(owner, product, 1, { paymentReference: "MANUALFIX1" });
+      expect(ok.status, JSON.stringify(ok.body)).toBe(201);
+      expect(await listed(id)).toBe(false);
+      const row = await query<{ ok: boolean }>(`select (sale_id = (select id from sales where public_id = $1::uuid)) ok from mpesa_payment_requests where public_id = $2::uuid`, [ok.body.data.id, id]);
+      expect(row[0]!.ok).toBe(true);
+    });
+  });
 });

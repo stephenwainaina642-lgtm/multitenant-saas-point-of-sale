@@ -3,7 +3,7 @@ import { rateLimit } from "express-rate-limit";
 import { authenticate } from "../../auth/auth.middleware.js";
 import { requireBusinessAccess } from "../../auth/business.middleware.js";
 import { requirePermission } from "../../auth/permissions.js";
-import { createPaymentController, getPaymentController, mpesaTillStatusController, mpesaCallbackController, disableController, enableController, getController, listController, saveController, testController } from "./integration.controller.js";
+import { createPaymentController, getPaymentController, mpesaTillStatusController, mpesaAttentionController, mpesaCallbackController, disableController, enableController, getController, listController, saveController, testController } from "./integration.controller.js";
 
 const limit = (max: number, windowMs: number, message: string) =>
   rateLimit({
@@ -32,6 +32,8 @@ router.post("/callbacks/mpesa/:token", callbackLimiter, mpesaCallbackController)
 const payGuard = [authenticate, requireBusinessAccess, requirePermission("payments.create")];
 const payLimiter = limit(Number(process.env.MPESA_REQUEST_LIMIT) || 20, 60_000, "Too many payment requests. Wait a minute.");
 router.get("/mpesa/status", ...payGuard, mpesaTillStatusController);
+// Money that needs a person: confirmed-but-unused payments and "could not confirm" requests. Needs to see all payments.
+router.get("/mpesa/attention", authenticate, requireBusinessAccess, requirePermission("payments.view"), mpesaAttentionController);
 router.post("/mpesa/payment-requests", ...payGuard, payLimiter, createPaymentController);
 router.get("/mpesa/payment-requests/:id", ...payGuard, getPaymentController);
 
