@@ -9,7 +9,7 @@ const GROUPS: Record<string, string> = {
   products: "Products", inventory: "Inventory", customers: "Customers", suppliers: "Suppliers",
   purchases: "Purchases", sales: "Sales", payments: "Payments", expenses: "Expenses",
   invoices: "Invoices", quotations: "Quotations", reports: "Reports", audit: "Audit log",
-  roles: "Roles", employees: "Employees", settings: "Settings",
+  roles: "Roles", employees: "Employees", settings: "Settings", integrations: "Integrations",
 };
 
 type Props = { onChanged?: () => void };

@@ -16,6 +16,7 @@ import InvoicesWorkspace from "./InvoicesWorkspace";
 import QuotationsWorkspace from "./QuotationsWorkspace";
 import ReportsWorkspace from "./ReportsWorkspace";
 import BusinessSettingsWorkspace from "./BusinessSettingsWorkspace";
+import IntegrationsWorkspace from "./IntegrationsWorkspace";
 import ChangePasswordPanel from "./ChangePasswordPanel";
 import EmployeesWorkspace from "./EmployeesWorkspace";
 import { apiRequest } from "./api/client";
@@ -346,6 +347,7 @@ function App() {
           ) : activePage === "Settings" ? (
             <>
               <BusinessSettingsWorkspace />
+              <div className="settings-workspace"><IntegrationsWorkspace /></div>
               <ChangePasswordPanel />
             </>
           ) : (

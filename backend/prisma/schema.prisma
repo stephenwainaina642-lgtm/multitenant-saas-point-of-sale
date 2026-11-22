@@ -31,6 +31,10 @@ model Business {
   memberships        BusinessUser[]
   roles              Role[]
   taxRates           TaxRate[]
+  integrationConnections IntegrationConnection[]
+  integrationSecrets     IntegrationSecret[]
+  integrationEvents      IntegrationEvent[]
+  integrationAuditLogs   IntegrationAuditLog[]
   owner              User?               @relation("BusinessOwner", fields: [ownerUserId], references: [id])
   categories         Category[]
   products           Product[]
@@ -780,4 +784,96 @@ model BusinessInvite {
 
   @@index([email])
   @@map("business_invites")
+}
+
+/// One provider (mpesa | pesapal | etims) set up by one business, with its own merchant account.
+/// Non-secret settings live in `config`; credentials live only in integration_secrets, encrypted.
+model IntegrationConnection {
+  id                 BigInt    @id @default(autoincrement())
+  publicId           String    @unique @default(dbgenerated("gen_random_uuid()")) @map("public_id") @db.Uuid
+  businessId         BigInt    @map("business_id")
+  provider           String    @db.VarChar(20)
+  /// sandbox | production
+  environment        String    @default("sandbox") @db.VarChar(12)
+  isEnabled          Boolean   @default(false) @map("is_enabled")
+  config             Json      @default("{}")
+  /// Outcome of the last real connection test: ok | failed. NULL = never tested.
+  lastTestStatus     String?   @map("last_test_status") @db.VarChar(10)
+  lastTestAt         DateTime? @map("last_test_at") @db.Timestamptz(6)
+  lastTestMessage    String?   @map("last_test_message") @db.VarChar(300)
+  /// The settingsVersion that test was run against; a test only counts while it equals the current version.
+  lastTestVersion    Int?      @map("last_test_version")
+  /// Bumped on every credential or environment change, so a verification made against older settings is not trusted.
+  settingsVersion    Int       @default(1) @map("settings_version")
+  createdByUserId    BigInt?   @map("created_by_user_id")
+  updatedByUserId    BigInt?   @map("updated_by_user_id")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  business Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  secrets  IntegrationSecret[]
+  events   IntegrationEvent[]
+  audit    IntegrationAuditLog[]
+
+  @@unique([businessId, provider])
+  @@map("integration_connections")
+}
+
+/// One encrypted credential (AES-256-GCM). Never returned by the API; `hint` is a harmless masked preview.
+model IntegrationSecret {
+  id           BigInt   @id @default(autoincrement())
+  businessId   BigInt   @map("business_id")
+  connectionId BigInt   @map("connection_id")
+  name         String   @db.VarChar(40)
+  ciphertext   String
+  keyVersion   Int      @default(1) @map("key_version")
+  hint         String?  @db.VarChar(12)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  business   Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  connection IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, name])
+  @@index([businessId])
+  @@map("integration_secrets")
+}
+
+/// Things that happened with a provider (tests now; callbacks and payment requests in later milestones).
+/// Payloads are stored redacted. (business, connection, idempotency key) is unique so a retried request is recognised.
+model IntegrationEvent {
+  id             BigInt   @id @default(autoincrement())
+  businessId     BigInt   @map("business_id")
+  connectionId   BigInt   @map("connection_id")
+  type           String   @db.VarChar(40)
+  status         String   @db.VarChar(20)
+  idempotencyKey String?  @map("idempotency_key") @db.VarChar(100)
+  payload        Json     @default("{}")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  business   Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  connection IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, connectionId, idempotencyKey])
+  @@index([businessId, connectionId, createdAt])
+  @@map("integration_events")
+}
+
+/// Who changed what on an integration. Kept when the connection row goes; it never holds secret values.
+model IntegrationAuditLog {
+  id           BigInt   @id @default(autoincrement())
+  businessId   BigInt   @map("business_id")
+  connectionId BigInt?  @map("connection_id")
+  provider     String   @db.VarChar(20)
+  userId       BigInt?  @map("user_id")
+  action       String   @db.VarChar(40)
+  details      Json     @default("{}")
+  ip           String?  @db.VarChar(64)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  business   Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  connection IntegrationConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, createdAt])
+  @@map("integration_audit_logs")
 }

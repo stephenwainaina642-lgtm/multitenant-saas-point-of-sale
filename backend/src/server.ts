@@ -32,6 +32,7 @@ import dashboardRoutes from "./dashboard/dashboard.routes.js";
 import invoiceRoutes from "./invoices/invoice.routes.js";
 import roleRoutes from "./roles/role.routes.js";
 import taxRoutes from "./tax/tax.routes.js";
+import integrationRoutes from "./modules/integrations/integration.routes.js";
 import employeeRoutes from "./employees/employee.routes.js";
 
 dotenv.config();
@@ -94,6 +95,7 @@ app.use("/api/import", importRoutes);
 app.use("/api/invoices", invoiceRoutes);
 app.use("/api/roles", roleRoutes);
 app.use("/api/tax-rates", taxRoutes);
+app.use("/api/integrations", integrationRoutes);
 app.use("/api/employees", employeeRoutes);
 
 // Liveness: the process is up. Readiness: it can also reach its database.

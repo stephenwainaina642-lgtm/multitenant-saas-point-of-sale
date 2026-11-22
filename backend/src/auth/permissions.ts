@@ -33,6 +33,7 @@ export const PERMISSION_CATALOG = {
   "roles.manage": "Create and edit roles",
   "employees.manage": "Add, deactivate and change employees",
   "settings.manage": "Change business settings",
+  "integrations.manage": "View and configure payment and tax integrations (M-PESA, Pesapal, eTIMS)",
   "shifts.use": "Open and close own till shift (cash-up)",
   "shifts.view_all": "View every cashier's shifts and add manager notes",
   "branches.manage": "Create and edit branches and assign staff to them",
@@ -51,7 +52,7 @@ export const ALL_PERMISSIONS = Object.keys(PERMISSION_CATALOG) as Permission[];
 export const BUILT_IN_ROLES: Record<string, Permission[]> = {
   owner: ALL_PERMISSIONS,
   manager: ALL_PERMISSIONS.filter(
-    (p) => p !== "roles.manage" && p !== "settings.manage" && p !== "employees.manage"
+    (p) => p !== "roles.manage" && p !== "settings.manage" && p !== "employees.manage" && p !== "integrations.manage"
   ),
   "inventory manager": [
     "products.view", "products.manage", "inventory.view", "inventory.adjust",

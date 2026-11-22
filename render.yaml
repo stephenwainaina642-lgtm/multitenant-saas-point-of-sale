@@ -23,3 +23,6 @@ services:
         sync: false
       - key: APP_URL
         sync: false
+      # 32 random bytes, base64 (e.g. `openssl rand -base64 32`). Encrypts M-PESA/Pesapal credentials. Set once, never change without a rotation plan.
+      - key: INTEGRATIONS_ENCRYPTION_KEY
+        sync: false
