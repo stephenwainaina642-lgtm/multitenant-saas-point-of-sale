@@ -3,7 +3,7 @@ import { rateLimit } from "express-rate-limit";
 import { authenticate } from "../../auth/auth.middleware.js";
 import { requireBusinessAccess } from "../../auth/business.middleware.js";
 import { requirePermission } from "../../auth/permissions.js";
-import { disableController, enableController, getController, listController, saveController, testController } from "./integration.controller.js";
+import { createPaymentController, getPaymentController, mpesaCallbackController, disableController, enableController, getController, listController, saveController, testController } from "./integration.controller.js";
 
 const limit = (max: number, windowMs: number, message: string) =>
   rateLimit({
@@ -23,6 +23,16 @@ const testLimiter = limit(Number(process.env.INTEGRATIONS_TEST_LIMIT) || 10, 10 
 
 const router = Router();
 const guard = [authenticate, requireBusinessAccess, requirePermission("integrations.manage")];
+
+// Safaricom's callback: public on purpose, protected by the unguessable token in the URL and an IP rate limit.
+const callbackLimiter = rateLimit({ windowMs: 60_000, limit: Number(process.env.MPESA_CALLBACK_LIMIT) || 120, standardHeaders: "draft-7", legacyHeaders: false, handler: (_q, r) => { r.status(429).json({ success: false, message: "Too many requests" }); } });
+router.post("/callbacks/mpesa/:token", callbackLimiter, mpesaCallbackController);
+
+// Asking a customer to pay is a till job, so it follows the payments permission, not integrations.manage.
+const payGuard = [authenticate, requireBusinessAccess, requirePermission("payments.create")];
+const payLimiter = limit(Number(process.env.MPESA_REQUEST_LIMIT) || 20, 60_000, "Too many payment requests. Wait a minute.");
+router.post("/mpesa/payment-requests", ...payGuard, payLimiter, createPaymentController);
+router.get("/mpesa/payment-requests/:id", ...payGuard, getPaymentController);
 
 router.get("/", ...guard, listController);
 router.get("/:provider", ...guard, getController);

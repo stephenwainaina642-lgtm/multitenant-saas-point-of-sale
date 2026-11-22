@@ -35,6 +35,7 @@ model Business {
   integrationSecrets     IntegrationSecret[]
   integrationEvents      IntegrationEvent[]
   integrationAuditLogs   IntegrationAuditLog[]
+  mpesaPaymentRequests   MpesaPaymentRequest[]
   owner              User?               @relation("BusinessOwner", fields: [ownerUserId], references: [id])
   categories         Category[]
   products           Product[]
@@ -814,6 +815,7 @@ model IntegrationConnection {
   secrets  IntegrationSecret[]
   events   IntegrationEvent[]
   audit    IntegrationAuditLog[]
+  mpesaRequests MpesaPaymentRequest[]
 
   @@unique([businessId, provider])
   @@map("integration_connections")
@@ -876,4 +878,45 @@ model IntegrationAuditLog {
 
   @@index([businessId, createdAt])
   @@map("integration_audit_logs")
+}
+
+/// One M-PESA STK Push asked of a customer's phone. "pending" means the prompt was sent, NOT that money arrived:
+/// only status "paid" (callback checked against a Safaricom status query) counts as payment.
+/// Not linked to any sale yet (that is the POS step); nothing here changes sales, stock or the cash books.
+model MpesaPaymentRequest {
+  id                BigInt    @id @default(autoincrement())
+  publicId          String    @unique @default(dbgenerated("gen_random_uuid()")) @map("public_id") @db.Uuid
+  businessId        BigInt    @map("business_id")
+  connectionId      BigInt    @map("connection_id")
+  environment       String    @db.VarChar(12)
+  amountCents       BigInt    @map("amount_cents")
+  phone             String    @db.VarChar(12)
+  accountReference  String    @map("account_reference") @db.VarChar(12)
+  description       String    @db.VarChar(60)
+  merchantRequestId String?   @map("merchant_request_id") @db.VarChar(60)
+  checkoutRequestId String?   @unique @map("checkout_request_id") @db.VarChar(80)
+  /// sha256 of the secret in this request's callback URL. The token itself is never stored.
+  callbackTokenHash String    @unique @map("callback_token_hash") @db.VarChar(64)
+  /// pending | paid | failed | cancelled | expired | unconfirmed
+  status            String    @default("pending") @db.VarChar(12)
+  resultCode        Int?      @map("result_code")
+  resultDesc        String?   @map("result_desc") @db.VarChar(200)
+  mpesaReceipt      String?   @map("mpesa_receipt") @db.VarChar(20)
+  paidAmountCents   BigInt?   @map("paid_amount_cents")
+  /// What the callback claimed (unverified) so a later status check can complete the record.
+  callbackClaim     Json?     @map("callback_claim")
+  idempotencyKey    String    @map("idempotency_key") @db.VarChar(100)
+  createdByUserId   BigInt?   @map("created_by_user_id")
+  expiresAt         DateTime  @map("expires_at") @db.Timestamptz(6)
+  lastCheckedAt     DateTime? @map("last_checked_at") @db.Timestamptz(6)
+  paidAt            DateTime? @map("paid_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  business   Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  connection IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Restrict)
+
+  @@unique([businessId, idempotencyKey])
+  @@index([businessId, createdAt])
+  @@map("mpesa_payment_requests")
 }

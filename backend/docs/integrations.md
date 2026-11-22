@@ -43,3 +43,37 @@ connection keeps its audit history.
 * Changing credentials or environment invalidates the last test and switches the integration off.
 * These endpoints have been exercised only against a local fake provider in tests, **not** against the live Safaricom or
   Pesapal sandboxes. Run "Test connection" with real sandbox credentials once to confirm.
+
+---
+
+# Milestone 2a — M-PESA STK Push (backend only)
+
+No POS screen or sale changes yet (that is 2b). Nothing here creates a sale, payment row, stock movement or cash entry.
+
+## Endpoints
+| Method | Path | Permission |
+|---|---|---|
+| POST | `/api/integrations/mpesa/payment-requests` | `payments.create` (cashiers). Body `{amount, phone, accountReference?, description?}`; **`Idempotency-Key` header required** |
+| GET | `/api/integrations/mpesa/payment-requests/:id` | `payments.create`. Returns the current status and, when unsettled, asks Safaricom |
+| POST | `/api/integrations/callbacks/mpesa/:token` | public (Safaricom). The secret token in the URL is the credential |
+
+Amount is whole shillings (Safaricom's STK Push takes no cents), max KES 250,000. Phone accepts `07…`, `01…`, `+254…`, `254…`.
+
+## What "paid" means
+`pending` = the prompt was sent. It is **not** payment. A request becomes `paid` only when Safaricom's own STK Query says
+the push succeeded (a callback is a hint, never proof, because anyone who learns the URL could post to it). Paid is recorded at the
+amount *we requested*. Statuses: `pending`, `paid`, `failed`, `cancelled`, `expired`, `unconfirmed`.
+* `failed`: Safaricom refused the request. `cancelled`/`expired`: customer cancelled / did not answer. A later Safaricom-confirmed success still upgrades these to `paid` (late payment).
+* `unconfirmed`: we cannot be sure (network failure while sending, a callback whose amount/receipt did not match, or a receipt already used). Check with the customer/Safaricom; never retry blindly.
+* A paid request never changes. One M-PESA receipt can pay only one request per business (database-enforced).
+* The callback URL token is stored only as a SHA-256 hash and is never returned by the API or written to logs.
+
+## Server settings needed
+* `PUBLIC_API_URL` (or `APP_URL`) — the public **https** address Safaricom can reach, e.g. `https://nexapos-api.onrender.com`. Without it requests are refused with a clear message.
+* Optional: `MPESA_REQUEST_LIMIT` (default 20/min per person), `MPESA_CALLBACK_LIMIT` (default 120/min per IP), `MPESA_RECHECK_MS` (default 8000).
+
+## Honest limits
+* Exercised only against a local fake Safaricom. The real sandbox flow (OAuth, `processrequest`, `stkpushquery`, a real callback) is **not yet verified**.
+* A callback whose receipt is missing/malformed still leads to `paid` if Safaricom confirms, but with no receipt number stored.
+* Safaricom does not sign callbacks and its source IPs are not enforced here; protection is the secret URL plus the status query.
+* No automatic background reconciliation yet: a lost callback is repaired when someone opens/polls the request.

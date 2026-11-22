@@ -43,3 +43,25 @@ export const enableController = wrap(async (req, res) => {
 export const disableController = wrap(async (req, res) => {
   res.json({ success: true, data: await setIntegrationEnabled(actor(req), providerOf(req), false, req.body?.confirm) });
 });
+
+import { createPaymentRequest, getPaymentRequest, handleCallback } from "./mpesa-payments.service.js";
+
+export const createPaymentController = wrap(async (req, res) => {
+  const key = parseIdempotencyKey(req.header("idempotency-key"));
+  if (!key) throw new AppError(400, "Send an Idempotency-Key header so a retry cannot ask the customer twice");
+  const r = await createPaymentRequest(actor(req), req.body ?? {}, key);
+  res.status(r.replayed ? 200 : 201).json({ success: true, data: r.request, replayed: r.replayed });
+});
+export const getPaymentController = wrap(async (req, res) => {
+  res.json({ success: true, data: await getPaymentRequest(req.businessId!, String(req.params.id)) });
+});
+
+/** Public (Safaricom calls it). No session; the secret token in the path is the credential. */
+export const mpesaCallbackController = (req: import("express").Request, res: Response, next: NextFunction) => {
+  handleCallback(String(req.params.token), req.body)
+    .then((found) => {
+      if (!found) { res.status(404).json({ success: false, message: "Not found" }); return; }
+      res.json({ ResultCode: 0, ResultDesc: "Accepted" });
+    })
+    .catch(next);
+};
