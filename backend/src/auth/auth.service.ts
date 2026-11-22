@@ -57,7 +57,7 @@ export async function loginUser(
       email: user.email,
     },
     businesses: user.memberships.map((membership) => ({
-      id: membership.business.id.toString(),
+      id: membership.business.publicId,
       name: membership.business.name,
       role: membership.role.name,
     })),

@@ -102,30 +102,31 @@ describe("platform super admin", () => {
   });
 
   it("suspends and reactivates a business, needs a reason, and records both", async () => {
-    expect((await adminPost(`/businesses/${idle.businessId}/suspend`, {})).status).toBe(400);
-    expect((await adminPost(`/businesses/${idle.businessId}/suspend`, { reason: " " })).status).toBe(400);
-    expect((await adminPost(`/businesses/${idle.businessId}/suspend`, { reason: "Unpaid subscription" })).status).toBe(200);
-    expect((await adminPost(`/businesses/${idle.businessId}/suspend`, { reason: "again" })).status).toBe(409);
+    expect((await adminPost(`/businesses/${idle.businessPublicId}/suspend`, {})).status).toBe(400);
+    expect((await adminPost(`/businesses/${idle.businessPublicId}/suspend`, { reason: " " })).status).toBe(400);
+    expect((await adminPost(`/businesses/${idle.businessPublicId}/suspend`, { reason: "Unpaid subscription" })).status).toBe(200);
+    expect((await adminPost(`/businesses/${idle.businessPublicId}/suspend`, { reason: "again" })).status).toBe(409);
 
     const blocked = await get("/customers", idle);
     expect(blocked.status).toBe(403);
     expect(blocked.body.message).toMatch(/suspended/i);
-    expect((await post("/business-context/select", idle, { businessId: idle.businessId })).body.message).toMatch(/suspended/i);
+    expect((await post("/business-context/select", idle, { businessId: idle.businessPublicId })).body.message).toMatch(/suspended/i);
     expect((await get("/customers", shop)).status).toBe(200); // other businesses unaffected
 
-    expect((await adminPost(`/businesses/${idle.businessId}/reactivate`, { reason: "Paid" })).status).toBe(200);
+    expect((await adminPost(`/businesses/${idle.businessPublicId}/reactivate`, { reason: "Paid" })).status).toBe(200);
     expect((await get("/customers", idle)).status).toBe(200);
 
     const audit = (await adminGet("/audit")).body.data;
     expect(audit.map((a: any) => a.action)).toEqual(["business.reactivate", "business.suspend"]);
-    expect(audit[1]).toMatchObject({ reason: "Unpaid subscription", adminName: "Boss", businessId: idle.businessId });
-    expect((await adminPost(`/businesses/999999/suspend`, { reason: "nope" })).status).toBe(404);
+    expect(audit[1]).toMatchObject({ reason: "Unpaid subscription", adminName: "Boss", businessId: idle.businessPublicId });
+    expect((await adminPost(`/businesses/3f2b1c1e-9d4a-4c55-8a1e-0b9f6d7e1a42/suspend`, { reason: "nope" })).status).toBe(404);
+    expect((await adminPost(`/businesses/999999/suspend`, { reason: "nope" })).status).toBe(400); // a sequential id is refused
     expect((await adminPost(`/businesses/abc/suspend`, { reason: "nope" })).status).toBe(400);
   });
 
   it("without e-mail set up, an owner reset gives a one-time temporary password and signs the owner out", async () => {
     await new Promise((r) => setTimeout(r, 1100)); // JWT issue time has one-second resolution
-    const r = await adminPost(`/businesses/${shop.businessId}/reset-owner`, { reason: "Owner locked out, phoned support" });
+    const r = await adminPost(`/businesses/${shop.businessPublicId}/reset-owner`, { reason: "Owner locked out, phoned support" });
     expect(r.status, JSON.stringify(r.body)).toBe(200);
     expect(r.body.data).toMatchObject({ method: "temporary_password", ownerEmail: shop.email });
     const temp = r.body.data.temporaryPassword as string;
@@ -136,7 +137,7 @@ describe("platform super admin", () => {
     const audit = (await adminGet("/audit")).body.data;
     expect(audit[0]).toMatchObject({ action: "owner.reset_access" });
     expect(JSON.stringify(audit)).not.toContain(temp); // the password is never written to the audit log
-    expect((await adminPost(`/businesses/${shop.businessId}/reset-owner`, {})).status).toBe(400);
+    expect((await adminPost(`/businesses/${shop.businessPublicId}/reset-owner`, {})).status).toBe(400);
   });
 
   it("stops working when the admin is deactivated", async () => {

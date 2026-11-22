@@ -6,6 +6,8 @@ let counter = 0;
 const uniq = () => `${Date.now().toString(36)}${(counter++).toString(36)}`;
 
 export type Tenant = Session & {
+  /** `businessId` is the internal number (for SQL in tests); `businessPublicId` is what the API shows and the header carries. */
+  businessPublicId: string;
   /** Internal numeric id (for SQL in tests). */
   userId: string;
   /** The id the API shows. */
@@ -36,7 +38,8 @@ export async function registerTenant(
   const data = res.body.data;
   return {
     token: data.token,
-    businessId: data.businesses[0].id,
+    businessId: String((await query<{ id: string }>(`select id from businesses where public_id = $1::uuid`, [data.businesses[0].id]))[0]!.id),
+    businessPublicId: data.businesses[0].id,
     userId: String((await query<{ id: string }>(`select id from users where public_id = $1::uuid`, [data.user.id]))[0]!.id),
     userPublicId: data.user.id,
     email,
@@ -71,7 +74,7 @@ export async function addEmployee(
     `insert into business_users(business_id, user_id, role_id) values ($1, $2, $3)`,
     [owner.businessId, emp.userId, role!.id]
   );
-  return { ...emp, businessId: owner.businessId, businessName: owner.businessName };
+  return { ...emp, businessId: owner.businessId, businessPublicId: owner.businessPublicId, businessName: owner.businessName };
 }
 
 export type ProductSeed = {

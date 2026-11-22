@@ -1,5 +1,6 @@
 import prisma from "../lib/prisma.js";
 import { resolvePermissions } from "../auth/permissions.js";
+import { isPublicId } from "../lib/public-id.js";
 
 export const SUSPENDED_MESSAGE = "This business account is suspended. Please contact support.";
 
@@ -26,10 +27,14 @@ export async function verifyBusinessAccess(
   userId: string,
   businessId: string
 ) {
+  // The client names the business by its public UUID; an unknown one is refused like one the user doesn't belong to.
+  if (!isPublicId(businessId)) throw new Error("A valid business ID is required");
+  const known = await prisma.business.findFirst({ where: { publicId: businessId }, select: { id: true } });
+  const internalId = known?.id ?? -1n;
   const membership = await prisma.businessUser.findFirst({
     where: {
       userId: BigInt(userId),
-      businessId: BigInt(businessId),
+      businessId: internalId,
       isActive: true,
       business: {
         isActive: true,
@@ -43,11 +48,11 @@ export async function verifyBusinessAccess(
   });
 
   if (!membership) {
-    throw new Error(await denialMessage(BigInt(userId), BigInt(businessId)));
+    throw new Error(await denialMessage(BigInt(userId), internalId));
   }
 
   return {
-    businessId: membership.business.id.toString(),
+    businessId: membership.business.publicId,
     businessName: membership.business.name,
     businessType: membership.business.businessType,
     role: membership.role.name,

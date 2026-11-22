@@ -30,8 +30,8 @@ describe("employees", () => {
 
     const l = await login("wanjiru@shop.example", pw);
     expect(l.status).toBe(200);
-    expect(l.body.data.businesses.map((b: any) => b.id)).toContain(s.t.businessId);
-    const emp = { token: l.body.data.token, businessId: s.t.businessId };
+    expect(l.body.data.businesses.map((b: any) => b.id)).toContain(s.t.businessPublicId);
+    const emp = { token: l.body.data.token, businessId: s.t.businessPublicId };
     expect((await get("/products", emp)).status).toBe(200);
     expect((await get("/expenses", emp)).status).toBe(403);
     expect((await get("/employees", emp)).status).toBe(403);
@@ -63,7 +63,7 @@ describe("employees", () => {
     expect(res.status).toBe(201);
     expect(res.body.data.role.name).toBe("Cashier");
     const l = await login("achieng@shop.example", res.body.temporaryPassword);
-    const emp = { token: l.body.data.token, businessId: s.t.businessId };
+    const emp = { token: l.body.data.token, businessId: s.t.businessPublicId };
     expect((await get("/products", emp)).status).toBe(200);
   });
 
@@ -89,7 +89,7 @@ describe("employees", () => {
     const roleId = await mkRole("Temp", ["products.view"]);
     const add = await post("/employees", s.t, { name: "Temp", email: "temp@shop.example", roleId });
     const l = await login("temp@shop.example", add.body.temporaryPassword);
-    const emp = { token: l.body.data.token, businessId: s.t.businessId };
+    const emp = { token: l.body.data.token, businessId: s.t.businessPublicId };
     expect((await get("/products", emp)).status).toBe(200);
     expect((await post(`/employees/${add.body.data.id}/deactivate`, s.t, {})).status).toBe(200);
     expect((await get("/products", emp)).status).toBe(403);
@@ -103,7 +103,7 @@ describe("employees", () => {
     const high = await mkRole("High", ["products.view", "expenses.view"]);
     const add = await post("/employees", s.t, { name: "Role Change", email: "rc@shop.example", roleId: low });
     const l = await login("rc@shop.example", add.body.temporaryPassword);
-    const emp = { token: l.body.data.token, businessId: s.t.businessId };
+    const emp = { token: l.body.data.token, businessId: s.t.businessPublicId };
     expect((await get("/expenses", emp)).status).toBe(403);
     await put(`/employees/${add.body.data.id}`, s.t, { roleId: high });
     expect((await get("/expenses", emp)).status).toBe(200);

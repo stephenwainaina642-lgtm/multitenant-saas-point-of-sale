@@ -27,12 +27,19 @@ working on the migrated database (the column is only added), so there is no brok
 | purchases, invoices, customer payments, supplier payments | DONE (migration `20261206090000_add_public_id_purchases_invoices_payments`): purchases and invoices have their own routes; payment ids appear only in responses |
 | branches, roles, stock transfers | DONE (migration `20261207090000_add_public_id_branches_roles_transfers`): branch routes, transfer bodies, `X-Branch-ID`, the reports `branchId` filter, employee `branchId` and `role.id`, role routes |
 | users and employee memberships | DONE (migration `20261208090000_add_public_id_users_memberships`): `/employees/:id`, branch staff `:userId`, `userId`/`salespersonId` on sales and the dashboard, `user.id` in sign-in and registration responses. The login token still carries the internal id (signed, HttpOnly, never in a body), so nobody is signed out |
-| businesses, audit-log `entityId`/`userId` (inputs and outputs together) | not yet |
+| businesses | DONE (migration `20261209090000_add_public_id_businesses`): `X-Business-ID` header, `POST /business-context/select`, `/businesses` list and current business, sign-in and registration responses, the platform admin screens (approve, reject, suspend, reactivate, reset owner) and the platform audit trail. The header still accepts an old plain number (membership-checked, like branches) so open tabs and queued offline sales keep working |
+| audit log and register shifts | DONE (migration `20261210090000_add_public_id_audit_logs`): audit rows get their own public id; `userId`, `businessId`, `entityId` (by entity type) and the `saleId`/`branchId` inside `details` are mapped when the log is read, so stored history is untouched. The `userId` and `entityId` filters take UUIDs (`entityId` also needs `entity`). A deleted record can no longer be looked up, so its `entityId` shows `null`. Shifts: `/shifts/:id`, `openedBy`, `?userId=` |
+| platform invitations (`/platform/invites/:id`) | not yet (super-admin only, behind sign-in and 2FA) |
 
 ## Products: one thing to do before deploying
 A sale saved on a device while offline keeps the product ids it was made with. After this change those ids must be the new
 random ones, so a sale still waiting to sync from BEFORE the update would be refused (the screen shows an error toast and
 keeps it). Make sure every till shows no "sales waiting to sync" badge before you deploy.
+
+## Businesses: the `X-Business-ID` header
+The header carries the business UUID. A plain number is still accepted on this header only, for open tabs and offline-queued sales
+that saved one before the change; the user's membership in that business is checked either way. It can be removed once no
+client holds an old value.
 
 ## Branches: the `X-Branch-ID` header
 The header carries the branch UUID. A plain number is still accepted on this header only, so tills that saved a number before

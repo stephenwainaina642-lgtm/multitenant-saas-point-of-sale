@@ -36,14 +36,21 @@ export async function requireBusinessAccess(
       });
     }
 
-    if (!/^[1-9]\d*$/.test(businessIdHeader)) {
+    // The header carries the business's public UUID. A plain number is still accepted on this header only,
+    // so tabs and offline-queued sales that saved one before this change keep working; the membership check
+    // below applies either way, so nothing extra is exposed.
+    let businessId: bigint;
+    if (isPublicId(businessIdHeader)) {
+      const found = await prisma.business.findFirst({ where: { publicId: businessIdHeader }, select: { id: true } });
+      businessId = found?.id ?? -1n; // unknown here: no membership will match, so it is refused below
+    } else if (/^[1-9]\d{0,17}$/.test(businessIdHeader)) {
+      businessId = BigInt(businessIdHeader);
+    } else {
       return res.status(400).json({
         success: false,
         message: "Invalid business ID",
       });
     }
-
-    const businessId = BigInt(businessIdHeader);
     const userId = BigInt(req.user.userId);
 
     const membership = await prisma.businessUser.findFirst({

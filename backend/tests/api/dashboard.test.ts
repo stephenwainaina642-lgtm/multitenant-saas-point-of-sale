@@ -115,7 +115,7 @@ describe("dashboard", () => {
     expect(d.receivables.outstanding).toBe(0);
     expect((await get("/dashboard", { token: "", businessId: a.t.businessId } as any)).status).toBe(401);
     // a business the user doesn't belong to is refused
-    expect((await get("/dashboard", { ...b, businessId: a.t.businessId })).status).toBe(403);
+    expect((await get("/dashboard", { ...b, businessId: a.t.businessId, businessPublicId: a.t.businessPublicId })).status).toBe(403);
   });
 
   it("reads timestamps correctly even when the database's own time zone is not UTC", async () => {
@@ -133,7 +133,7 @@ describe("dashboard", () => {
       try {
         await waitForHealth(`http://127.0.0.1:${port}/api/health`, 40_000, srv);
         const res = await fetch(`http://127.0.0.1:${port}/api/sales/${r.body.data.id}`, {
-          headers: { authorization: `Bearer ${s.t.token}`, "x-business-id": s.t.businessId },
+          headers: { authorization: `Bearer ${s.t.token}`, "x-business-id": s.t.businessPublicId },
         });
         expect(new Date((await res.json()).data.saleDate).toISOString()).toBe("2026-03-01T21:30:00.000Z");
       } finally { await srv.stop(); }
@@ -147,7 +147,7 @@ describe("dashboard", () => {
     const cashier = await addEmployee(s.t, "Counter", ["sales.create", "sales.view_own", "payments.create"]);
     const accountant = await addEmployee(s.t, "Accountant");   // built-in defaults
 
-    const pick = async (t: any) => (await post("/business-context/select", { token: t.token }, { businessId: t.businessId })).body.data;
+    const pick = async (t: any) => (await post("/business-context/select", { token: t.token }, { businessId: t.businessPublicId })).body.data;
     const owner = await pick(s.t);
     expect(owner.permissions).toContain("settings.manage");
     expect(owner.permissions).toContain("sales.void");

@@ -1,5 +1,8 @@
 import type { Request, Response } from "express";
-import { auditService } from "./audit.service.js";
+import { auditService, auditEntityIdFromPublic, presentLogs } from "./audit.service.js";
+import prisma from "../lib/prisma.js";
+import { AppError } from "../lib/errors.js";
+import { requirePublicId } from "../lib/public-id.js";
 
 export async function getAuditLogsController(
   req: Request,
@@ -17,10 +20,14 @@ export async function getAuditLogsController(
 
     const businessId = BigInt(String(rawBusinessId));
 
-    const userId =
-      req.query.userId !== undefined
-        ? BigInt(String(req.query.userId))
-        : undefined;
+    let userId: bigint | undefined;
+    if (req.query.userId !== undefined) {
+      const who = await prisma.user.findFirst({
+        where: { publicId: requirePublicId(req.query.userId, "A valid user ID is required"), memberships: { some: { businessId } } },
+        select: { id: true },
+      });
+      userId = who?.id ?? -1n; // not a person in this business: matches nothing
+    }
 
     const action =
       req.query.action !== undefined
@@ -32,10 +39,11 @@ export async function getAuditLogsController(
         ? String(req.query.entity)
         : undefined;
 
-    const entityId =
-      req.query.entityId !== undefined
-        ? BigInt(String(req.query.entityId))
-        : undefined;
+    let entityId: bigint | undefined;
+    if (req.query.entityId !== undefined) {
+      if (entity === undefined) throw new AppError(400, "entity is required when filtering by entityId");
+      entityId = await auditEntityIdFromPublic(businessId, entity, requirePublicId(req.query.entityId, "A valid entity ID is required"));
+    }
 
     const from =
       req.query.from !== undefined
@@ -85,23 +93,7 @@ export async function getAuditLogsController(
     return res.json({
       success: true,
       message: "Audit logs retrieved successfully",
-      data: result.logs.map((log: any) => ({
-        id: log.id.toString(),
-        businessId: log.businessId.toString(),
-        userId: log.userId?.toString() ?? null,
-        action: log.action,
-        entity: log.entity,
-        entityId: log.entityId?.toString() ?? null,
-        details: log.details,
-        createdAt: log.createdAt,
-        user: log.user
-          ? {
-              id: log.user.id.toString(),
-              name: log.user.name,
-              email: log.user.email,
-            }
-          : null,
-      })),
+      data: await presentLogs(businessId, result.logs as never),
       pagination: {
         total: result.total,
         limit,
@@ -109,6 +101,9 @@ export async function getAuditLogsController(
       },
     });
   } catch (error) {
+    if (error instanceof AppError) {
+      return res.status(error.status).json({ success: false, message: error.message });
+    }
     console.error("Get audit logs error:", error);
 
     return res.status(500).json({

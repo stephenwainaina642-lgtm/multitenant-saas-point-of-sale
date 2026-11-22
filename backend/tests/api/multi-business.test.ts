@@ -13,7 +13,7 @@ describe("an owner adds another business", () => {
     const made = await post("/businesses", a, { name: "Shop B", businessType: "pharmacy" });
     expect(made.status, JSON.stringify(made.body)).toBe(201);
     expect(made.body.data).toMatchObject({ name: "Shop B", businessType: "pharmacy", role: "owner" });
-    const b = { ...a, businessId: made.body.data.id };
+    const b = { ...a, businessId: made.body.data.id, businessPublicId: made.body.data.id };
 
     const list = (await get("/businesses", a)).body.data.map((x: any) => x.name).sort();
     expect(list).toEqual(["Shop A", "Shop B"]);
@@ -30,7 +30,7 @@ describe("an owner adds another business", () => {
   it("cannot reach a business it does not belong to, and validates the request", async () => {
     const x = await registerTenant("Other Owner");
     const y = await registerTenant("Someone Else");
-    expect((await get("/products", { ...x, businessId: y.businessId })).status).toBe(403);
+    expect((await get("/products", { ...x, businessId: y.businessId, businessPublicId: y.businessPublicId })).status).toBe(403);
     expect((await post("/businesses", x, { name: "  " })).status).toBe(400);
     expect((await post("/businesses", x, { name: "Ok", businessType: "spaceship" })).status).toBe(400);
     expect((await api("POST", "/businesses", { body: { name: "No login" } })).status).toBe(401);

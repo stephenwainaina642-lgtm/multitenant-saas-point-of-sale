@@ -61,8 +61,8 @@ describe("till shifts and end-of-day cash-up", () => {
     // later sales never change a closed shift, and the database itself refuses edits and deletes
     await post("/sales", cashier, { items: [line(product.id, 1)], paymentMethod: "cash", amountPaid: 100 });
     expect((await get(`/shifts/${id}`, cashier)).body.data.expectedCash).toBe("1900.00");
-    await expect(query(`update register_shifts set counted_cash = 1900, variance = 0 where id = $1`, [id])).rejects.toThrow(/closed shift cannot be changed/);
-    await expect(query(`delete from register_shifts where id = $1`, [id])).rejects.toThrow(/cannot be deleted/);
+    await expect(query(`update register_shifts set counted_cash = 1900, variance = 0 where public_id = $1::uuid`, [id])).rejects.toThrow(/closed shift cannot be changed/);
+    await expect(query(`delete from register_shifts where public_id = $1::uuid`, [id])).rejects.toThrow(/cannot be deleted/);
 
     // a manager can add a note; the cashier cannot
     expect((await post(`/shifts/${id}/note`, cashier, { note: "x" })).status).toBe(403);

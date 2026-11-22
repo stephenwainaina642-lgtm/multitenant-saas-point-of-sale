@@ -24,7 +24,7 @@ export async function createBusinessForUser(userId: string, nameIn: unknown, typ
     const role = await tx.role.create({ data: { name: "owner", description: "Business owner with full access", businessId: business.id } });
     await tx.role.createMany({ data: starterRoleRows(business.id) });
     await tx.businessUser.create({ data: { businessId: business.id, userId: uid, roleId: role.id } });
-    return { id: business.id.toString(), name: business.name, businessType: business.businessType, role: role.name, approvalStatus: business.approvalStatus };
+    return { id: business.publicId, name: business.name, businessType: business.businessType, role: role.name, approvalStatus: business.approvalStatus };
   });
 }
 
@@ -47,7 +47,7 @@ export async function getUserBusinesses(userId: string) {
   });
 
   return memberships.map((membership) => ({
-    id: membership.business.id.toString(),
+    id: membership.business.publicId,
     name: membership.business.name,
     businessType: membership.business.businessType,
     email: membership.business.email,
@@ -67,6 +67,7 @@ export async function getBusinessProfile(businessId: bigint) {
     },
     select: {
       id: true,
+      publicId: true,
       name: true,
       businessType: true,
       email: true,
@@ -87,7 +88,7 @@ export async function getBusinessProfile(businessId: bigint) {
 
   return {
     ...business,
-    id: business.id.toString(),
+    id: business.publicId,
     vatRate: business.vatRate.toFixed(2),
   };
 }
@@ -117,6 +118,7 @@ export async function updateBusinessProfile(
     data,
     select: {
       id: true,
+      publicId: true,
       name: true,
       businessType: true,
       email: true,
@@ -133,7 +135,7 @@ export async function updateBusinessProfile(
 
   return {
     ...business,
-    id: business.id.toString(),
+    id: business.publicId,
     vatRate: business.vatRate.toFixed(2),
   };
 }

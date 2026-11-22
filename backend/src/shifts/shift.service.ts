@@ -1,4 +1,5 @@
 import prisma from "../lib/prisma.js";
+import { requirePublicId } from "../lib/public-id.js";
 import { AppError } from "../lib/errors.js";
 import { centsToString, decimalToCents, parseMoney } from "../lib/money.js";
 
@@ -30,13 +31,13 @@ async function tally(tx: Tx | typeof prisma, businessId: bigint, userId: bigint,
 }
 
 type ShiftRow = NonNullable<Awaited<ReturnType<typeof prisma.registerShift.findFirst>>> & {
-  opener?: { name: string } | null; closer?: { name: string } | null;
+  opener?: { publicId: string; name: string } | null; closer?: { name: string } | null;
 };
 const money = (v: unknown) => (v === null || v === undefined ? null : centsToString(cents(v)));
 
 function format(s: ShiftRow, live?: Awaited<ReturnType<typeof liveFigures>>) {
   return {
-    id: s.id.toString(), status: s.status, openedBy: s.openedBy.toString(), openedByName: s.opener?.name ?? null,
+    id: s.publicId, status: s.status, openedBy: s.opener?.publicId ?? null, openedByName: s.opener?.name ?? null,
     openedAt: s.openedAt, openingFloat: money(s.openingFloat),
     closedAt: s.closedAt, closedByName: s.closer?.name ?? null,
     cashReceived: money(s.cashReceived), cashRefunded: money(s.cashRefunded), cashSupplier: money(s.cashSupplier),
@@ -77,8 +78,8 @@ export async function openShift(businessId: string, userId: string, floatIn: unk
 }
 
 export async function closeShift(businessId: string, actor: Actor, idText: string, body: { countedCash?: unknown; cashPaidOut?: unknown; note?: unknown }) {
-  const id = shiftId(idText);
   const biz = BigInt(businessId);
+  const id = await shiftId(biz, idText);
   const counted = parseMoney(body.countedCash, "Counted cash");
   const paidOut = parseMoney(body.cashPaidOut ?? 0, "Cash paid out");
   if (counted < 0n) throw new AppError(400, "Counted cash cannot be negative");
@@ -116,7 +117,10 @@ export async function closeShift(businessId: string, actor: Actor, idText: strin
 export async function listShifts(businessId: string, actor: Actor, q: { from?: string; to?: string; userId?: string }) {
   const where: Record<string, unknown> = { businessId: BigInt(businessId) };
   if (!actor.canSeeAll) where.openedBy = BigInt(actor.userId);
-  else if (q.userId && /^\d+$/.test(q.userId)) where.openedBy = BigInt(q.userId);
+  else if (q.userId) {
+    const who = await prisma.user.findFirst({ where: { publicId: requirePublicId(q.userId, "A valid user ID is required"), memberships: { some: { businessId: BigInt(businessId) } } }, select: { id: true } });
+    where.openedBy = who?.id ?? -1n;
+  }
   const range: Record<string, Date> = {};
   const f = q.from && new Date(q.from), t = q.to && new Date(q.to);
   if (f && !Number.isNaN(f.getTime())) range.gte = f;
@@ -127,14 +131,14 @@ export async function listShifts(businessId: string, actor: Actor, q: { from?: s
 }
 
 export async function getShift(businessId: string, actor: Actor, idText: string) {
-  const s = await prisma.registerShift.findFirst({ where: { id: shiftId(idText), businessId: BigInt(businessId) }, include: { opener: true, closer: true } });
+  const s = await prisma.registerShift.findFirst({ where: { publicId: requirePublicId(idText, "A valid shift ID is required"), businessId: BigInt(businessId) }, include: { opener: true, closer: true } });
   if (!s || (!actor.canSeeAll && s.openedBy.toString() !== actor.userId)) throw new AppError(404, "Shift not found");
   return format(s, s.status === "open" ? await liveFigures(prisma, s) : undefined);
 }
 
 export async function setManagerNote(businessId: string, actorUserId: string, idText: string, noteIn: unknown) {
   const note = typeof noteIn === "string" ? noteIn.trim().slice(0, 1000) : "";
-  const id = shiftId(idText);
+  const id = await shiftId(BigInt(businessId), idText);
   const found = await prisma.registerShift.findFirst({ where: { id, businessId: BigInt(businessId) } });
   if (!found) throw new AppError(404, "Shift not found");
   const s = await prisma.registerShift.update({ where: { id }, data: { managerNote: note || null }, include: { opener: true, closer: true } });
@@ -142,9 +146,11 @@ export async function setManagerNote(businessId: string, actorUserId: string, id
   return format(s);
 }
 
-function shiftId(text: string): bigint {
-  if (!/^[1-9]\d{0,17}$/.test(text)) throw new AppError(400, "Invalid shift id");
-  return BigInt(text);
+/** The internal id for the public shift id in the URL (400 if not a UUID, 404 if not this business's). */
+async function shiftId(businessId: bigint, text: string): Promise<bigint> {
+  const row = await prisma.registerShift.findFirst({ where: { publicId: requirePublicId(text, "A valid shift ID is required"), businessId }, select: { id: true } });
+  if (!row) throw new AppError(404, "Shift not found");
+  return row.id;
 }
 
 async function audit(businessId: bigint, userId: string, action: string, entityId: bigint, details: object, tx: Tx | typeof prisma = prisma) {

@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
 import prisma from "../lib/prisma.js";
+import { requirePublicId } from "../lib/public-id.js";
 import { AppError } from "../lib/errors.js";
 import { sendResetLinkTo } from "../auth/password-reset.js";
 import { encryptSecret, newTotpSecret, otpauthUri } from "./totp.js";
@@ -48,7 +49,7 @@ type Row = Record<string, string | number | boolean | Date | null>;
 /** Counts, dates and sale totals only: no customer names, no individual sales, no prices. */
 export async function overview() {
   const rows = await prisma.$queryRaw<Row[]>`
-    select b.id::text as id, b.name, b.business_type, b.is_active, b.approval_status, b.created_at, b.vat_registered,
+    select b.public_id::text as id, b.name, b.business_type, b.is_active, b.approval_status, b.created_at, b.vat_registered,
            o.name as owner_name, o.email as owner_email,
            (select count(*) from business_users bu where bu.business_id = b.id and bu.is_active)::int as users,
            (select count(*) from products p where p.business_id = b.id)::int as products,
@@ -87,8 +88,8 @@ function cleanReason(reason: unknown): string {
   return r;
 }
 async function business(idText: string) {
-  if (!/^[1-9]\d{0,17}$/.test(idText)) throw new AppError(400, "Invalid business id");
-  const b = await prisma.business.findUnique({ where: { id: BigInt(idText) }, include: { owner: true } });
+  const publicId = requirePublicId(idText, "A valid business ID is required");
+  const b = await prisma.business.findUnique({ where: { publicId }, include: { owner: true } });
   if (!b) throw new AppError(404, "Business not found");
   return b;
 }
@@ -101,7 +102,7 @@ export async function setBusinessActive(adminId: bigint, idText: string, active:
     prisma.business.update({ where: { id: b.id }, data: { isActive: active } }),
     prisma.platformAuditLog.create({ data: { adminId, action: active ? "business.reactivate" : "business.suspend", businessId: b.id, reason, details: { name: b.name } } }),
   ]);
-  return { id: b.id.toString(), isActive: active };
+  return { id: b.publicId, isActive: active };
 }
 
 export async function setBusinessApproval(adminId: bigint, idText: string, approve: boolean, reasonIn: unknown) {
@@ -113,7 +114,7 @@ export async function setBusinessApproval(adminId: bigint, idText: string, appro
     prisma.business.update({ where: { id: b.id }, data: { approvalStatus: next } }),
     prisma.platformAuditLog.create({ data: { adminId, action: approve ? "business.approve" : "business.reject", businessId: b.id, reason, details: { name: b.name, was: b.approvalStatus } } }),
   ]);
-  return { id: b.id.toString(), approvalStatus: next };
+  return { id: b.publicId, approvalStatus: next };
 }
 
 export async function resetOwnerAccess(adminId: bigint, idText: string, reasonIn: unknown) {
@@ -137,5 +138,7 @@ export async function resetOwnerAccess(adminId: bigint, idText: string, reasonIn
 
 export async function auditTrail(limit = 100) {
   const rows = await prisma.platformAuditLog.findMany({ orderBy: { createdAt: "desc" }, take: Math.min(Math.max(limit, 1), 500), include: { admin: { select: { name: true } } } });
-  return rows.map((r) => ({ id: r.id.toString(), action: r.action, businessId: r.businessId?.toString() ?? null, reason: r.reason, adminName: r.admin.name, createdAt: r.createdAt, details: r.details }));
+  const bizIds = [...new Set(rows.map((r) => r.businessId).filter((v): v is bigint => v !== null))];
+  const pub = new Map((await prisma.business.findMany({ where: { id: { in: bizIds } }, select: { id: true, publicId: true } })).map((b) => [b.id, b.publicId]));
+  return rows.map((r) => ({ id: r.id.toString(), action: r.action, businessId: r.businessId ? pub.get(r.businessId) ?? null : null, reason: r.reason, adminName: r.admin.name, createdAt: r.createdAt, details: r.details }));
 }

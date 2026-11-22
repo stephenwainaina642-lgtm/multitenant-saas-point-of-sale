@@ -136,7 +136,7 @@ export async function registerUser(input: RegisterInput) {
     },
     businesses: [
       {
-        id: result.business.id.toString(),
+        id: result.business.publicId,
         name: result.business.name,
         role: result.role.name,
       },

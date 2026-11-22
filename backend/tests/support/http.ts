@@ -7,7 +7,7 @@ export type ApiResult<T = any> = {
   body: { success?: boolean; message?: string; data?: T } & Record<string, any>;
 };
 
-export type Session = { token: string; businessId: string };
+export type Session = { token: string; businessId: string; /** The id the API shows; sent as X-Business-ID when present. */ businessPublicId?: string };
 
 export async function api<T = any>(
   method: string,
@@ -17,7 +17,7 @@ export async function api<T = any>(
   // Tests read the token from the body, so they ask for bearer mode (browsers get an httpOnly cookie instead).
   const headers: Record<string, string> = { "content-type": "application/json", "x-auth-mode": "bearer" };
   if (opts.session?.token) headers.authorization = `Bearer ${opts.session.token}`;
-  if (opts.session?.businessId) headers["x-business-id"] = opts.session.businessId;
+  if (opts.session?.businessId) headers["x-business-id"] = opts.session.businessPublicId ?? opts.session.businessId;
 
   Object.assign(headers, opts.headers);
 
