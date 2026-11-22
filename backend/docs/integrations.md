@@ -77,3 +77,22 @@ amount *we requested*. Statuses: `pending`, `paid`, `failed`, `cancelled`, `expi
 * A callback whose receipt is missing/malformed still leads to `paid` if Safaricom confirms, but with no receipt number stored.
 * Safaricom does not sign callbacks and its source IPs are not enforced here; protection is the secret URL plus the status query.
 * No automatic background reconciliation yet: a lost callback is repaired when someone opens/polls the request.
+
+---
+
+# Milestone 2b — using a confirmed M-PESA payment at the till
+
+* `GET /api/integrations/mpesa/status` (`payments.create`) returns only `{enabled, environment}` so a till knows whether to offer "Send request to phone".
+* `POST /api/sales` accepts `mpesaPaymentRequestId`. Inside the sale's own transaction the server requires that request to belong to the
+  business, be `paid`, equal the sale's `amountPaid` exactly, and be unused; it then links it (`mpesa_payment_requests.sale_id`, unique) and stores the
+  Safaricom receipt as the payment reference (`STK-XXXXXXXX` if the callback carried no receipt). Three tills racing on one payment: exactly one sale wins.
+* The method must be `mpesa`. A failed check creates no sale and leaves the payment unspent.
+* Manual M-Pesa codes remain, unchanged, as the fallback (and the only option offline).
+* Till UI: "Send request to phone" (waiting, then confirmed) or "Enter code manually". While a request is pending/paid the amount and method are locked. Complete sale is blocked until `paid`.
+* Migration `20261213090000_link_mpesa_request_to_sale`: nullable `sale_id` (unique FK, RESTRICT) plus a trigger so only a **paid** request can be linked, and only to a sale of the same business.
+
+## Known gaps
+* A customer who paid but whose sale was never completed leaves a confirmed, unlinked request. There is no screen for these yet (find them with `select * from mpesa_payment_requests where status = 'paid' and sale_id is null`).
+* Refunds of STK-paid sales are still recorded manually, as before; nothing is refunded through Safaricom.
+* A sale queued offline with a request id is sent when the till reconnects; if the payment was spent elsewhere meanwhile it is rejected and appears as needing attention.
+* Verified against a local fake Safaricom only, not the live sandbox.

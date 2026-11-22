@@ -118,6 +118,7 @@ export async function createSaleController(
       amountPaid,
       paymentMethod,
       paymentReference,
+      mpesaPaymentRequestId,
       channel,
       notes,
       items,
@@ -158,6 +159,10 @@ export async function createSaleController(
 
         ...(paymentReference !== undefined && {
           paymentReference: String(paymentReference),
+        }),
+
+        ...(mpesaPaymentRequestId !== undefined && mpesaPaymentRequestId !== null && {
+          mpesaPaymentRequestId: String(mpesaPaymentRequestId),
         }),
 
         ...(channel !== undefined && channel !== null && {

@@ -8,6 +8,8 @@ import ReceiptModal, { type ReceiptData } from "./ReceiptModal";
 import { Plus, Printer, ReceiptText, Search } from "lucide-react";
 import { checkName, checkPhone, cleanName, cleanPhone, PHONE_PROPS } from "./validation";
 import { money, plainAmount } from "./money";
+import MpesaStkPanel, { type StkMode, type StkRequest } from "./integrations/MpesaStkPanel";
+import "./integrations/integrations.css";
 
 type Product = {
   id: string;
@@ -49,6 +51,11 @@ export default function PointOfSaleWorkspace() {
   const [amountPaidManuallyEdited, setAmountPaidManuallyEdited] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [mpesaCode, setMpesaCode] = useState("");
+  // "Send request to phone": only offered when the business has M-PESA enabled and this till is online.
+  const [mpesaOn, setMpesaOn] = useState(false);
+  const [online, setOnline] = useState(navigator.onLine);
+  const [stkMode, setStkMode] = useState<StkMode>("phone");
+  const [stkRequest, setStkRequest] = useState<StkRequest | null>(null);
   const [notes, setNotes] = useState("");
   const [channel, setChannel] = useState("walk_in");
   const [loading, setLoading] = useState(true);
@@ -151,6 +158,18 @@ export default function PointOfSaleWorkspace() {
     }
   }
 
+  useEffect(() => {
+    const up = () => setOnline(true), down = () => setOnline(false);
+    window.addEventListener("online", up); window.addEventListener("offline", down);
+    return () => { window.removeEventListener("online", up); window.removeEventListener("offline", down); };
+  }, []);
+  useEffect(() => {
+    if (!token || !businessId) return;
+    apiRequest<{ enabled: boolean }>("/integrations/mpesa/status", { token, businessId })
+      .then((r) => setMpesaOn(r.data?.enabled === true))
+      .catch(() => setMpesaOn(false)); // no permission or offline: the manual code path is always there
+  }, [token, businessId]);
+
   // When the server confirms a queued sale: show its real receipt number, and refresh stock from the server
   // (once things settle, so a busy till does not reload the catalogue after every single sale).
   useEffect(() => {
@@ -165,6 +184,12 @@ export default function PointOfSaleWorkspace() {
     });
     return () => { setSyncedHandler(null); if (refresh) clearTimeout(refresh); };
   }, [loadProducts, loadCustomers]);
+
+  const stkLocked = stkRequest?.status === "pending" || stkRequest?.status === "paid";
+  const useStk = mpesaOn && online && paymentMethod === "mpesa" && stkMode === "phone";
+  useEffect(() => {
+    if (stkRequest?.status === "paid") { setAmountPaidManuallyEdited(true); setAmountPaid(plainAmount(Number(stkRequest.amount))); }
+  }, [stkRequest?.status, stkRequest?.amount]);
 
   const discountValue = Number(discount);
   const vatOn = vat?.registered === true;
@@ -341,7 +366,17 @@ export default function PointOfSaleWorkspace() {
       return;
     }
 
-    if (paid > 0 && paymentMethod === "mpesa") {
+    const stkPaid = useStk && stkRequest?.status === "paid" ? stkRequest : null;
+    if (paid > 0 && paymentMethod === "mpesa" && useStk) {
+      if (!stkPaid) {
+        setError(stkRequest?.status === "pending" ? "Still waiting for the customer to pay on their phone." : "Send the M-PESA request and wait for it to be confirmed, or enter the code manually.");
+        return;
+      }
+      if (Math.round(Number(stkPaid.amount) * 100) !== Math.round(paid * 100)) {
+        setError(`The confirmed M-PESA payment is ${money(Number(stkPaid.amount))}. Amount paid must be exactly that.`);
+        return;
+      }
+    } else if (paid > 0 && paymentMethod === "mpesa") {
       const problem = mpesaCodeError(mpesaCode);
       if (problem) {
         setError(problem);
@@ -369,7 +404,9 @@ export default function PointOfSaleWorkspace() {
       paymentMethod,
       channel,
       ...(customerId && { customerId }),
-      ...(paid > 0 && paymentMethod === "mpesa" && { paymentReference: normalizeMpesaCode(mpesaCode) }),
+      ...(stkPaid
+        ? { mpesaPaymentRequestId: stkPaid.id }
+        : paid > 0 && paymentMethod === "mpesa" && { paymentReference: normalizeMpesaCode(mpesaCode) }),
       notes: notes.trim(),
       items: cart.map((item) => ({
         productId: item.product.id,
@@ -391,7 +428,7 @@ export default function PointOfSaleWorkspace() {
       subtotal, discount: discountValue, tax: taxValue, pricesIncludeVat: vat?.inclusive, total,
       amountPaid: paid, balanceDue: Math.max(0, total - paid),
       paymentMethod: paid > 0 ? paymentMethod : undefined,
-      paymentReference: paid > 0 && paymentMethod === "mpesa" ? normalizeMpesaCode(mpesaCode) : null,
+      paymentReference: stkPaid ? stkPaid.mpesaReceipt : paid > 0 && paymentMethod === "mpesa" ? normalizeMpesaCode(mpesaCode) : null,
       notes: notes.trim() || null,
     };
     const key = crypto.randomUUID();
@@ -412,6 +449,7 @@ export default function PointOfSaleWorkspace() {
     setTax("0");
     setNotes("");
     setMpesaCode("");
+    setStkRequest(null);
     setCustomerId("");
     setAmountPaidManuallyEdited(false);
     searchRef.current?.focus();
@@ -653,12 +691,12 @@ export default function PointOfSaleWorkspace() {
 
           <label className="inventory-field">
             Amount paid (KSh)
-            <input type="number" min="0" step="0.01" max={Math.max(0, total)} value={amountPaid} onChange={(event) => { setAmountPaidManuallyEdited(true); setAmountPaid(event.target.value); }} required />
+            <input type="number" min="0" step="0.01" max={Math.max(0, total)} value={amountPaid} disabled={stkLocked} title={stkLocked ? "Locked while an M-PESA request is in progress" : undefined} onChange={(event) => { setAmountPaidManuallyEdited(true); setAmountPaid(event.target.value); }} required />
           </label>
 
           <label className="inventory-field">
             Payment method
-            <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}>
+            <select value={paymentMethod} disabled={stkLocked} onChange={(event) => setPaymentMethod(event.target.value)}>
               <option value="cash">Cash</option>
               <option value="mpesa">M-Pesa</option>
               <option value="card">Card</option>
@@ -666,7 +704,11 @@ export default function PointOfSaleWorkspace() {
             </select>
           </label>
 
-          {paymentMethod === "mpesa" && Number(amountPaid) > 0 && (
+          {paymentMethod === "mpesa" && Number(amountPaid) > 0 && mpesaOn && online && (
+            <MpesaStkPanel token={token} businessId={businessId} amount={Number(amountPaid)} mode={stkMode} request={stkRequest} onMode={setStkMode} onRequest={setStkRequest} />
+          )}
+
+          {paymentMethod === "mpesa" && Number(amountPaid) > 0 && !useStk && (
             <label className="inventory-field">
               M-Pesa transaction code
               <input

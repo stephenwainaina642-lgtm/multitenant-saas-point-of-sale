@@ -250,3 +250,9 @@ export async function handleCallback(token: string, body: any): Promise<boolean>
   }
   return true;
 }
+
+/** All a till needs to know: can it offer "send request to phone"? Says nothing about credentials or settings. */
+export async function mpesaStatusForTill(businessId: bigint) {
+  const c = await prisma.integrationConnection.findUnique({ where: { businessId_provider: { businessId, provider: "mpesa" } }, select: { isEnabled: true, environment: true } });
+  return { enabled: !!c?.isEnabled, environment: c?.isEnabled ? c.environment : null };
+}

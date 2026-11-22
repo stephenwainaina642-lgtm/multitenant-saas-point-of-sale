@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import { query, resetData } from "../support/db.js";
 import { loadTestConfig } from "../support/env.js";
 import { startServer, waitForHealth, type RunningServer } from "../support/server.js";
-import { addEmployee, registerTenant, type Tenant } from "../support/seed.js";
+import { addEmployee, createCustomer, createProduct, registerTenant, type Tenant } from "../support/seed.js";
 
 const cfg = loadTestConfig();
 const KEY = crypto.randomBytes(32).toString("base64");
@@ -274,5 +274,113 @@ describe("M-PESA STK Push (milestone 2a: backend only)", () => {
 
   it("never logs a credential or a callback token", async () => {
     for (const s of [GOOD_KEY, GOOD_SECRET, PASSKEY, KEY, ...pushes.map(tokenOf)]) expect(server.logs()).not.toContain(s);
+  });
+
+  // ---------------- 2b: using a confirmed payment for a sale ----------------
+  const confirmed = async (t: Tenant, amount: string, receipt: string) => {
+    const r = await pay(t, { amount });
+    const p = lastPush();
+    queryState.set(p.checkoutId, "success");
+    await callbackTo(p, success(Number(amount), receipt));
+    const g = await call("GET", `/integrations/mpesa/payment-requests/${r.body.data.id}`, t);
+    expect(g.body.data.status).toBe("paid");
+    return g.body.data.id as string;
+  };
+  const sale = (t: Tenant, productId: string, qty: number, over: Record<string, unknown> = {}, extra: Record<string, string> = {}) =>
+    call("POST", "/sales", t, { amountPaid: qty * 1000, paymentMethod: "mpesa", items: [{ productId, quantity: qty, unitPrice: 1000 }], ...over }, extra);
+  const salesCount = async (t: Tenant) => Number((await query<{ c: string }>(`select count(*) c from sales where business_id = $1`, [t.businessId]))[0]!.c);
+
+  describe("sale linking", () => {
+    let product: string;
+    beforeAll(async () => { product = (await createProduct(owner, { name: "Link Item", costPrice: 100, sellingPrice: 1000, stockQuantity: 500 })).id; });
+
+    it("tells a till only whether M-PESA is on, and nothing else", async () => {
+      const r = await call("GET", "/integrations/mpesa/status", cashier);
+      expect(r.status).toBe(200);
+      expect(Object.keys(r.body.data).sort()).toEqual(["enabled", "environment"]);
+      expect(r.body.data.enabled).toBe(true);
+      expect((await call("GET", "/integrations/mpesa/status", nobody)).status).toBe(403);
+      const fresh = await registerTenant("No Pay Shop");
+      expect((await call("GET", "/integrations/mpesa/status", fresh)).body.data).toEqual({ enabled: false, environment: null });
+    });
+
+    it("a confirmed payment becomes the sale's payment, with the Safaricom receipt", async () => {
+      const id = await confirmed(owner, "2000", "LINKRCPT01");
+      const r = await sale(owner, product, 2, { mpesaPaymentRequestId: id });
+      expect(r.status, JSON.stringify(r.body)).toBe(201);
+      const pays = await query<{ method: string; reference: string; amount: string }>(
+        `select p.method, p.reference, p.amount::text from payments p join sales s on s.id = p.sale_id where s.public_id = $1::uuid`, [r.body.data.id]);
+      expect(pays).toEqual([{ method: "mpesa", reference: "LINKRCPT01", amount: "2000.00" }]);
+      const link = await query<{ ok: boolean }>(`select (sale_id = (select id from sales where public_id = $1::uuid)) ok from mpesa_payment_requests where public_id = $2::uuid`, [r.body.data.id, id]);
+      expect(link[0]!.ok).toBe(true);
+    });
+
+    it("the same confirmed payment cannot be spent twice, not even at the same moment", async () => {
+      const id = await confirmed(owner, "1000", "RACEPAY001");
+      const before = await salesCount(owner);
+      const results = await Promise.all([1, 2, 3].map(() => sale(owner, product, 1, { mpesaPaymentRequestId: id })));
+      expect(results.filter((x) => x.status === 201).length).toBe(1);
+      expect(results.filter((x) => x.status === 409).length).toBe(2);
+      expect(await salesCount(owner)).toBe(before + 1);
+      const again = await sale(owner, product, 1, { mpesaPaymentRequestId: id });
+      expect(again.status).toBe(409);
+      expect(again.body.message).toMatch(/already used/);
+    });
+
+    it("refuses an unconfirmed, mismatched, wrong-method, foreign or malformed payment, and creates no sale", async () => {
+      const before = await salesCount(owner);
+      const pending = await pay(owner, { amount: "1000" });
+      const pr = await sale(owner, product, 1, { mpesaPaymentRequestId: pending.body.data.id });
+      expect(pr.status).toBe(409);
+      expect(pr.body.message).toMatch(/not been confirmed/);
+
+      const paid = await confirmed(owner, "1000", "MISMATCH001");
+      const wrongAmount = await sale(owner, product, 2, { mpesaPaymentRequestId: paid });
+      expect(wrongAmount.status).toBe(409);
+      expect(wrongAmount.body.message).toMatch(/exactly that/);
+      expect((await sale(owner, product, 1, { mpesaPaymentRequestId: paid, paymentMethod: "cash" })).status).toBe(400);
+      expect((await sale(other, product, 1, { mpesaPaymentRequestId: paid })).status).toBeGreaterThanOrEqual(400);
+      expect((await sale(owner, product, 1, { mpesaPaymentRequestId: "nope" })).status).toBe(400);
+      expect((await sale(owner, product, 1, { mpesaPaymentRequestId: crypto.randomUUID() })).status).toBe(404);
+      expect(await salesCount(owner)).toBe(before);
+      // ...and the payment is still unspent: the right sale can still use it.
+      expect((await sale(owner, product, 1, { mpesaPaymentRequestId: paid })).status).toBe(201);
+    });
+
+    it("a part-payment by M-PESA leaves the rest owing, as before", async () => {
+      const c = await createCustomer(owner, "Credit Customer", "0722000111");
+      const id = await confirmed(owner, "500", "PARTPAY001");
+      const r = await sale(owner, product, 2, { customerId: c.id, amountPaid: 500, mpesaPaymentRequestId: id });
+      expect(r.status, JSON.stringify(r.body)).toBe(201);
+      const [row] = await query<{ b: string }>(`select balance_due::text b from sales where public_id = $1::uuid`, [r.body.data.id]);
+      expect(row!.b).toBe("1500.00");
+    });
+
+    it("a retried sale (same Idempotency-Key) returns the same sale instead of failing", async () => {
+      const id = await confirmed(owner, "1000", "IDEMPOTNT1");
+      const hdr = { "Idempotency-Key": "sale-idem-0001-abcdef" };
+      const a = await sale(owner, product, 1, { mpesaPaymentRequestId: id }, hdr);
+      const b = await sale(owner, product, 1, { mpesaPaymentRequestId: id }, hdr);
+      expect(a.status).toBe(201);
+      expect(b.body.data.id).toBe(a.body.data.id);
+    });
+
+    it("manual M-Pesa codes still work exactly as before", async () => {
+      const r = await sale(owner, product, 1, { paymentReference: "MANUALCODE" });
+      expect(r.status, JSON.stringify(r.body)).toBe(201);
+      expect((await sale(owner, product, 1, { paymentReference: "MANUALCODE" })).status).toBe(409); // old duplicate-code rule intact
+    });
+
+    it("the database only links a PAID request to a sale of the same business", async () => {
+      const pending = await pay(owner, { amount: "100" });
+      const [s] = await query<{ id: string }>(`select id from sales where business_id = $1 limit 1`, [owner.businessId]);
+      await expect(query(`update mpesa_payment_requests set sale_id = $1 where public_id = $2::uuid`, [s!.id, pending.body.data.id])).rejects.toThrow(/only a paid/);
+      const paidOther = await confirmed(owner, "100", "CROSSBIZ001");
+      const otherSale = await createProduct(other, { name: "Other Item", costPrice: 1, sellingPrice: 10, stockQuantity: 5 });
+      const os = await call("POST", "/sales", other, { amountPaid: 10, paymentMethod: "cash", items: [{ productId: otherSale.id, quantity: 1, unitPrice: 10 }] });
+      expect(os.status).toBe(201);
+      const [osRow] = await query<{ id: string }>(`select id from sales where public_id = $1::uuid`, [os.body.data.id]);
+      await expect(query(`update mpesa_payment_requests set sale_id = $1 where public_id = $2::uuid`, [osRow!.id, paidOther])).rejects.toThrow(/different businesses/);
+    });
   });
 });

@@ -385,6 +385,7 @@ model PurchaseItem {
 
 model Sale {
   id               BigInt   @id @default(autoincrement())
+  mpesaPaymentRequest MpesaPaymentRequest?
   publicId         String   @unique @default(dbgenerated("gen_random_uuid()")) @map("public_id") @db.Uuid
   businessId       BigInt   @map("business_id")
   branchId         BigInt   @map("branch_id")
@@ -910,11 +911,14 @@ model MpesaPaymentRequest {
   expiresAt         DateTime  @map("expires_at") @db.Timestamptz(6)
   lastCheckedAt     DateTime? @map("last_checked_at") @db.Timestamptz(6)
   paidAt            DateTime? @map("paid_at") @db.Timestamptz(6)
+  /// The sale this confirmed payment was used for. One request pays at most one sale.
+  saleId            BigInt?   @unique @map("sale_id")
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   business   Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
   connection IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Restrict)
+  sale       Sale?                 @relation(fields: [saleId], references: [id], onDelete: Restrict)
 
   @@unique([businessId, idempotencyKey])
   @@index([businessId, createdAt])

@@ -7,6 +7,7 @@ import {
   priceSale,
   enteredSaleDiscount,
   type RawSaleItem,
+  type Tx,
   aggregateByProduct,
 } from "./sale-calc.js";
 import {
@@ -41,6 +42,8 @@ type SaleData = {
   amountPaid?: number;
   paymentMethod?: string;
   paymentReference?: string;
+  /** A confirmed (paid) M-PESA STK request used as this sale's payment. */
+  mpesaPaymentRequestId?: string;
   channel?: string;
   notes?: string;
   items: SaleItemData[];
@@ -484,13 +487,19 @@ export async function createBusinessSale(
 
       if (amountPaid > 0n) {
         const method = data.paymentMethod!.trim().toLowerCase();
+        let reference: string | null;
+        if (data.mpesaPaymentRequestId !== undefined) {
+          reference = await claimMpesaRequest(tx, bizId, sale.id, method, amountPaid, data.mpesaPaymentRequestId);
+        } else {
+          reference = await checkedPaymentReference(tx, bizId, method, data.paymentReference);
+        }
         await tx.payment.create({
           data: {
             businessId: bizId,
             saleId: sale.id,
             amount: centsToString(amountPaid),
             method,
-            reference: await checkedPaymentReference(tx, bizId, method, data.paymentReference),
+            reference,
             notes: "Initial payment for sale",
             createdBy: BigInt(salespersonId),
           },
@@ -562,4 +571,23 @@ export async function previewBusinessSale(
       })),
     };
   });
+}
+
+/**
+ * Uses a CONFIRMED M-PESA STK payment as a sale's payment. Runs inside the sale's own transaction, and the
+ * conditional update is what stops two sales (or two tills) from spending the same payment twice.
+ * Returns the reference to store on the payment row.
+ */
+async function claimMpesaRequest(tx: Tx, businessId: bigint, saleId: bigint, method: string, amountPaid: bigint, publicId: string): Promise<string> {
+  if (method !== "mpesa") throw new AppError(400, "An M-PESA payment request can only be used with the M-Pesa payment method");
+  if (typeof publicId !== "string" || !/^[0-9a-f-]{36}$/i.test(publicId)) throw new AppError(400, "Invalid M-PESA payment request id");
+  const req = await tx.mpesaPaymentRequest.findFirst({ where: { publicId, businessId } });
+  if (!req) throw new AppError(404, "M-PESA payment request not found");
+  if (req.status !== "paid") throw new AppError(409, "That M-PESA payment has not been confirmed by Safaricom yet");
+  if (req.amountCents !== amountPaid) {
+    throw new AppError(409, `The confirmed M-PESA payment is KES ${centsToString(req.amountCents)}. Set Amount paid to exactly that.`);
+  }
+  const claimed = await tx.mpesaPaymentRequest.updateMany({ where: { id: req.id, saleId: null, status: "paid" }, data: { saleId, updatedAt: new Date() } });
+  if (claimed.count !== 1) throw new AppError(409, "That M-PESA payment was already used for another sale");
+  return req.mpesaReceipt ?? `STK-${req.publicId.slice(0, 8).toUpperCase()}`;
 }

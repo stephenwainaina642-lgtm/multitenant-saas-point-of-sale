@@ -59,3 +59,23 @@
 @media (max-width: 520px) { .int-form-actions { flex-direction: column-reverse; } .int-form-actions .int-btn { width: 100%; } }
 .int-note svg, .int-etims svg { flex: none; margin-top: 2px; }
 .int-etims strong { display: block; }
+
+/* Till: M-PESA request panel */
+.stk-panel { display: grid; gap: 10px; padding: 12px; border: 1px solid #d9e6dd; border-radius: 10px; background: #f6fbf8; }
+.stk-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.stk-tabs button { display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px; border: 1px solid #cfdcd3; border-radius: 8px; background: #fff; font: inherit; font-size: 12.5px; font-weight: 700; color: #3c4a41; }
+.stk-tabs button.on { background: #21845a; border-color: #21845a; color: #fff; }
+.stk-tabs button:disabled { opacity: .5; cursor: not-allowed; }
+.stk-body { display: grid; gap: 10px; }
+.stk-status { display: grid; gap: 8px; padding: 10px 12px; border-radius: 8px; background: #fff; font-size: 13px; }
+.stk-status p { margin: 0; display: flex; gap: 8px; align-items: flex-start; line-height: 1.45; }
+.stk-status svg { flex: none; margin-top: 2px; }
+.stk-paid { background: #e3f4e9; color: #176443; }
+.stk-failed, .stk-cancelled, .stk-expired, .stk-unconfirmed { background: #fdf0f0; color: #a12626; }
+.stk-pending { background: #fff9e8; color: #6b4a00; }
+.stk-hint { font-size: 12px; opacity: .85; }
+.stk-bad { margin: 0; color: #a12626; font-size: 12.5px; font-weight: 600; }
+.stk-link { justify-self: start; border: 0; background: none; padding: 0; color: inherit; font: inherit; font-size: 12.5px; font-weight: 700; text-decoration: underline; }
+.stk-spin { animation: int-spin .9s linear infinite; }
+
+.pos-payment-form input:disabled, .pos-payment-form select:disabled, .inventory-field input:disabled, .inventory-field select:disabled { background: #eef2ef; color: #5a665e; cursor: not-allowed; }
