@@ -16,7 +16,7 @@ describe("employee profile", () => {
       expect(r.status).toBe(201);
     }
     const list = (await get("/employees", owner)).body.data as { id: string; userId: string }[];
-    memberId = list.find((e) => e.userId === seller.userId)!.id;
+    memberId = list.find((e) => e.userId === seller.userPublicId)!.id;
   });
 
   it("shows details and that person's own sales figures", async () => {
@@ -31,6 +31,7 @@ describe("employee profile", () => {
   it("is manager-only and never crosses businesses", async () => {
     expect((await get(`/employees/${memberId}/profile`, seller)).status).toBe(403);
     expect((await get(`/employees/${memberId}/profile`, other)).status).toBe(404);
-    expect((await get(`/employees/abc/profile`, owner)).status).toBe(404);
+    expect((await get(`/employees/abc/profile`, owner)).status).toBe(400);
+    expect((await get(`/employees/1/profile`, owner)).status).toBe(400); // a sequential id is refused
   });
 });

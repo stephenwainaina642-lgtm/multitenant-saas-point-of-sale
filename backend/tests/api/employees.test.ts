@@ -140,7 +140,9 @@ describe("employees", () => {
     expect((await get("/employees", other)).body.data.map((e: any) => e.id)).not.toContain(add.body.data.id);
     expect((await post(`/employees/${add.body.data.id}/deactivate`, other, {})).status).toBe(404);
     expect((await put(`/employees/${add.body.data.id}`, other, { roleName: "cashier" })).status).toBe(404);
-    expect((await post(`/employees/abc/deactivate`, s.t, {})).status).toBe(404);
+    expect((await post(`/employees/abc/deactivate`, s.t, {})).status).toBe(400);
+    expect((await post(`/employees/1/deactivate`, s.t, {})).status).toBe(400); // a sequential id is refused
+    expect((await post(`/employees/3f2b1c1e-9d4a-4c55-8a1e-0b9f6d7e1a42/deactivate`, s.t, {})).status).toBe(404);
   });
 
   it("permissions: manager and cashier cannot manage employees by default", async () => {

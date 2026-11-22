@@ -6,7 +6,10 @@ let counter = 0;
 const uniq = () => `${Date.now().toString(36)}${(counter++).toString(36)}`;
 
 export type Tenant = Session & {
+  /** Internal numeric id (for SQL in tests). */
   userId: string;
+  /** The id the API shows. */
+  userPublicId: string;
   email: string;
   password: string;
   businessName: string;
@@ -34,7 +37,8 @@ export async function registerTenant(
   return {
     token: data.token,
     businessId: data.businesses[0].id,
-    userId: data.user.id,
+    userId: String((await query<{ id: string }>(`select id from users where public_id = $1::uuid`, [data.user.id]))[0]!.id),
+    userPublicId: data.user.id,
     email,
     password: PASSWORD,
     businessName,

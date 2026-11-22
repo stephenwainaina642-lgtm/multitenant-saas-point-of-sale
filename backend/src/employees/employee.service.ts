@@ -18,13 +18,13 @@ function tempPassword(): string {
 }
 
 function format(m: {
-  id: bigint; userId: bigint; isActive: boolean; createdAt: Date; branch?: { publicId: string } | null;
-  user: { name: string; email: string; phone: string | null; isActive: boolean };
+  id: bigint; publicId: string; userId: bigint; isActive: boolean; createdAt: Date; branch?: { publicId: string } | null;
+  user: { publicId: string; name: string; email: string; phone: string | null; isActive: boolean };
   role: { publicId: string; name: string };
 }, ownerUserId: bigint | null) {
   return {
-    id: m.id.toString(),
-    userId: m.userId.toString(),
+    id: m.publicId,
+    userId: m.user.publicId,
     name: m.user.name,
     email: m.user.email,
     phone: m.user.phone,
@@ -74,8 +74,8 @@ async function resolveRole(businessId: bigint, roleId: unknown, roleName: unknow
 }
 
 async function findMember(businessId: bigint, idText: string) {
-  if (!/^[1-9]\d*$/.test(idText)) throw new AppError(404, "Employee not found");
-  const m = await prisma.businessUser.findFirst({ where: { id: BigInt(idText), businessId }, include });
+  const publicId = requirePublicId(idText, "A valid employee ID is required");
+  const m = await prisma.businessUser.findFirst({ where: { publicId, businessId }, include });
   if (!m) throw new AppError(404, "Employee not found");
   return m;
 }

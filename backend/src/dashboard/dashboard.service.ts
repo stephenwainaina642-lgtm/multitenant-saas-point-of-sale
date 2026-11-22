@@ -97,7 +97,7 @@ export async function getDashboard(scope: DashboardScope) {
           where: { businessId: bid, status: "completed", ...saleScope },
           select: {
             id: true, total: true, amountPaid: true, balanceDue: true, salespersonId: true,
-            salesperson: { select: { name: true, email: true } },
+            salesperson: { select: { publicId: true, name: true, email: true } },
           },
         })
       : Promise.resolve([]),
@@ -166,7 +166,7 @@ export async function getDashboard(scope: DashboardScope) {
     if (scope.seeAllSales) {
       const map = new Map<string, { id: string; name: string; email: string; salesCount: number; revenue: bigint; collected: bigint; outstanding: bigint }>();
       for (const s of receivableSales) {
-        const id = s.salespersonId ? s.salespersonId.toString() : "unassigned";
+        const id = s.salesperson?.publicId ?? "unassigned";
         const cur = map.get(id) || {
           id, name: s.salesperson?.name || "Unassigned salesperson", email: s.salesperson?.email || "",
           salesCount: 0, revenue: 0n, collected: 0n, outstanding: 0n,

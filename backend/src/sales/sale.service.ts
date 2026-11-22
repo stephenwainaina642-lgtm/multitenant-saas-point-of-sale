@@ -67,7 +67,7 @@ export async function getBusinessSales(
       },
       salesperson: {
         select: {
-          id: true,
+          publicId: true,
           name: true,
           email: true,
         },
@@ -95,7 +95,7 @@ export async function getBusinessSales(
     id: sale.publicId,
     customerId: sale.customer?.publicId ?? null,
     customerName: sale.customer?.name || null,
-    salespersonId: sale.salesperson?.id.toString() || null,
+    salespersonId: sale.salesperson?.publicId || null,
     salespersonName: sale.salesperson?.name || null,
     salespersonEmail: sale.salesperson?.email || null,
     receiptNumber: sale.receiptNumber,
@@ -154,7 +154,7 @@ export async function getBusinessSaleById(
       },
       salesperson: {
         select: {
-          id: true,
+          publicId: true,
           name: true,
           email: true,
         },
@@ -193,7 +193,7 @@ export async function getBusinessSaleById(
     id: sale.publicId,
     customerId: sale.customer?.publicId ?? null,
     customerName: sale.customer?.name || null,
-    salespersonId: sale.salesperson?.id.toString() || null,
+    salespersonId: sale.salesperson?.publicId || null,
     salespersonName: sale.salesperson?.name || null,
     salespersonEmail: sale.salesperson?.email || null,    customerPhone: sale.customer?.phone || null,
     customerEmail: sale.customer?.email || null,

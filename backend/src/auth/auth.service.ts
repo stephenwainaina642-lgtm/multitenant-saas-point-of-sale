@@ -52,7 +52,7 @@ export async function loginUser(
   return {
     token,
     user: {
-      id: user.id.toString(),
+      id: user.publicId,
       name: user.name,
       email: user.email,
     },

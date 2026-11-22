@@ -130,7 +130,7 @@ export async function registerUser(input: RegisterInput) {
   return {
     token,
     user: {
-      id: result.user.id.toString(),
+      id: result.user.publicId,
       name: result.user.name,
       email: result.user.email,
     },

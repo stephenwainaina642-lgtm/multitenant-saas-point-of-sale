@@ -1,5 +1,5 @@
 import prisma from "../lib/prisma.js";
-import { branchIdFromPublic, productIdFromPublic } from "../lib/public-id.js";
+import { branchIdFromPublic, productIdFromPublic, requirePublicId } from "../lib/public-id.js";
 import { AppError } from "../lib/errors.js";
 import { addBranchStock, takeBranchStockOrFail } from "./branch-stock.js";
 import { milliToString, parseQuantity } from "../lib/money.js";
@@ -89,7 +89,10 @@ export async function updateBranch(businessId: bigint, userId: string, idText: u
 
 /** Assign a staff member to a branch (null = not tied to one). */
 export async function assignStaff(businessId: bigint, actorId: string, userIdText: unknown, branchIdValue: unknown) {
-  const userId = idOf(userIdText, "user id");
+  const userPublicId = requirePublicId(userIdText, "A valid user ID is required");
+  const person = await prisma.user.findFirst({ where: { publicId: userPublicId, memberships: { some: { businessId } } }, select: { id: true } });
+  if (!person) throw new AppError(404, "Staff member not found");
+  const userId = person.id;
   const branchId = branchIdValue === null || branchIdValue === undefined || branchIdValue === "" ? null : await branchIdFromPublic(prisma, businessId, branchIdValue, "branch");
   const branchPublic = branchId ? (await prisma.branch.findFirst({ where: { id: branchId, businessId }, select: { publicId: true } }))?.publicId ?? null : null;
   const member = await prisma.businessUser.findFirst({ where: { businessId, userId, isActive: true } });
@@ -102,7 +105,7 @@ export async function assignStaff(businessId: bigint, actorId: string, userIdTex
     prisma.businessUser.update({ where: { id: member.id }, data: { branchId, updatedAt: new Date() } }),
     prisma.auditLog.create({ data: { businessId, userId: BigInt(actorId), action: "branch.assign_staff", entity: "user", entityId: userId, details: { branchId: branchId?.toString() ?? null } } }),
   ]);
-  return { userId: userId.toString(), branchId: branchPublic };
+  return { userId: userPublicId, branchId: branchPublic };
 }
 
 /** Quantity per branch for every product that is held somewhere the caller may see. */

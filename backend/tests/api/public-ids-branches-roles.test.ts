@@ -33,7 +33,7 @@ describe("branches, roles and stock transfers use random public ids", () => {
     const emp = await addEmployee(a, "Cashier");
     const staff = (await get("/employees", a)).body.data as { role: { id: string }; branchId: string | null }[];
     for (const e of staff) expect(e.role.id).toMatch(UUID);
-    const assigned = await api("PUT", `/branches/staff/${emp.userId}`, { session: a, body: { branchId: second.body.data.id } });
+    const assigned = await api("PUT", `/branches/staff/${emp.userPublicId}`, { session: a, body: { branchId: second.body.data.id } });
     expect(assigned.status, JSON.stringify(assigned.body)).toBe(200);
     expect(assigned.body.data.branchId).toBe(second.body.data.id);
     expect(((await get("/employees", a)).body.data as { branchId: string | null }[]).some((e) => e.branchId === second.body.data.id)).toBe(true);

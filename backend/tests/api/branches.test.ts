@@ -118,7 +118,7 @@ describe("branches with their own stock", () => {
 
   it("keeps staff assigned to a branch inside it, and the database refuses direct edits of the total", async () => {
     const clerk = await addEmployee(owner, "branch clerk", ["sales.create", "products.view", "inventory.view"]);
-    const asg = await api("PUT", `/branches/staff/${clerk.userId}`, { session: owner, body: { branchId: westlands } });
+    const asg = await api("PUT", `/branches/staff/${clerk.userPublicId}`, { session: owner, body: { branchId: westlands } });
     expect(asg.status, JSON.stringify(asg.body)).toBe(200);
     // The clerk asks for Main but is kept in Westlands.
     const list = (await inBranch(clerk, main, "GET", "/branches")).body.data;
@@ -189,7 +189,7 @@ describe("reports by branch", () => {
     expect(one.totalExpenses).toBe(70);
     expect(other.totalExpenses).toBe(0);
     const acct = await addEmployee(t, "branch accountant", ["reports.view"]);
-    await api("PUT", `/branches/staff/${acct.userId}`, { session: t, body: { branchId: main } });
+    await api("PUT", `/branches/staff/${acct.userPublicId}`, { session: t, body: { branchId: main } });
     const mine = (await get(`/reports?${range}&branchId=${b}`, acct)).body.data.summary;
     expect(mine.totalSales).toBe(200); // asked for Annex, still sees only their own branch
   });

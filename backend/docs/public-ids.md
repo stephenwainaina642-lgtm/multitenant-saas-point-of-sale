@@ -26,7 +26,8 @@ working on the migrated database (the column is only added), so there is no brok
 | sales | DONE (migration `20261205090000_add_public_id_sales`): own routes (read, edit, void), payments (`saleId`), invoices (`saleId`), customer debt and settle-debt allocations, quotation `convertedSaleId` and conversion, reports, dashboard recent sales, employee profile recent sales |
 | purchases, invoices, customer payments, supplier payments | DONE (migration `20261206090000_add_public_id_purchases_invoices_payments`): purchases and invoices have their own routes; payment ids appear only in responses |
 | branches, roles, stock transfers | DONE (migration `20261207090000_add_public_id_branches_roles_transfers`): branch routes, transfer bodies, `X-Branch-ID`, the reports `branchId` filter, employee `branchId` and `role.id`, role routes |
-| employees/users, businesses | not yet |
+| users and employee memberships | DONE (migration `20261208090000_add_public_id_users_memberships`): `/employees/:id`, branch staff `:userId`, `userId`/`salespersonId` on sales and the dashboard, `user.id` in sign-in and registration responses. The login token still carries the internal id (signed, HttpOnly, never in a body), so nobody is signed out |
+| businesses, audit-log `entityId`/`userId` (inputs and outputs together) | not yet |
 
 ## Products: one thing to do before deploying
 A sale saved on a device while offline keeps the product ids it was made with. After this change those ids must be the new
