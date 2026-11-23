@@ -168,6 +168,14 @@ positive amount, paid-complete, contact present, dismissal complete) and two tri
   e.g. by an IPN).
 - Reversals after a sale is complete are only noticed when Pesapal notifies us or the request is checked again; there is no
   scheduled background check.
-- No dismiss/restore for Pesapal items yet, and the attention list for Pesapal has an API but no screen yet.
 - No refunds through Pesapal: refunding the customer is done in your Pesapal dashboard.
 - A manual "Pesapal" payment recorded outside the till flow is not verified by anything.
+
+### Pesapal payments needing attention (screen, dismiss and restore)
+Settings → Integrations shows "Pesapal payments needing attention" when there is something to look at: paid but no sale
+was completed, could not confirm (30 days), and reversed by Pesapal (30 days). A user with `integrations.manage` can
+**dismiss** an item with a written reason (5-300 characters) and **restore** it later. Dismissing never deletes anything and
+never changes the payment's status or money; who, when and why are kept and audited. Only those three kinds can be
+dismissed (a pending or already-used payment cannot). Viewing the list needs `payments.view`.
+Limits: Pesapal refunds are done in Pesapal's dashboard; this list does not refund anything or fix a sale that was
+completed before a later reversal.

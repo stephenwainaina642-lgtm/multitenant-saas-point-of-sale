@@ -78,7 +78,7 @@ export const mpesaRestoreController = wrap(async (req, res) => {
   res.json({ success: true, data: await restoreRequest(actor(req), String(req.params.id)) });
 });
 
-import { createPesapalRequest, getPesapalRequest, handlePesapalIpn, listPesapalAttention, pesapalStatusForTill, registerPesapalIpn } from "./pesapal-payments.service.js";
+import { createPesapalRequest, dismissPesapalRequest, restorePesapalRequest, getPesapalRequest, handlePesapalIpn, listPesapalAttention, pesapalStatusForTill, registerPesapalIpn } from "./pesapal-payments.service.js";
 
 export const pesapalRegisterIpnController = wrap(async (req, res) => {
   res.json({ success: true, data: await registerPesapalIpn(actor(req)) });
@@ -117,3 +117,9 @@ export const pesapalReturnController = (_req: import("express").Request, res: Re
     `<p>Your payment is being confirmed. You can close this page; the shop will see the result shortly.</p></body></html>`
   );
 };
+export const pesapalDismissController = wrap(async (req, res) => {
+  res.json({ success: true, data: await dismissPesapalRequest(actor(req), String(req.params.id), req.body?.note) });
+});
+export const pesapalRestoreController = wrap(async (req, res) => {
+  res.json({ success: true, data: await restorePesapalRequest(actor(req), String(req.params.id)) });
+});

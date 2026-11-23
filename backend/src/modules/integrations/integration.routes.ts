@@ -3,7 +3,7 @@ import { rateLimit } from "express-rate-limit";
 import { authenticate } from "../../auth/auth.middleware.js";
 import { requireBusinessAccess } from "../../auth/business.middleware.js";
 import { requirePermission } from "../../auth/permissions.js";
-import { createPaymentController, getPaymentController, mpesaTillStatusController, mpesaAttentionController, mpesaDismissController, mpesaRestoreController, mpesaCallbackController, pesapalRegisterIpnController, pesapalCreateController, pesapalGetController, pesapalTillStatusController, pesapalAttentionController, pesapalIpnController, pesapalReturnController, disableController, enableController, getController, listController, saveController, testController } from "./integration.controller.js";
+import { createPaymentController, getPaymentController, mpesaTillStatusController, mpesaAttentionController, mpesaDismissController, mpesaRestoreController, mpesaCallbackController, pesapalRegisterIpnController, pesapalCreateController, pesapalGetController, pesapalTillStatusController, pesapalAttentionController, pesapalDismissController, pesapalRestoreController, pesapalIpnController, pesapalReturnController, disableController, enableController, getController, listController, saveController, testController } from "./integration.controller.js";
 
 const limit = (max: number, windowMs: number, message: string) =>
   rateLimit({
@@ -50,6 +50,10 @@ router.get("/pesapal/status", ...payGuard, pesapalTillStatusController);
 router.get("/pesapal/attention", authenticate, requireBusinessAccess, requirePermission("payments.view"), pesapalAttentionController);
 router.post("/pesapal/payment-requests", ...payGuard, payLimiter, pesapalCreateController);
 router.get("/pesapal/payment-requests/:id", ...payGuard, pesapalGetController);
+
+// Closing a payment is a money decision: owner / people explicitly given integrations.manage only.
+router.post("/pesapal/payment-requests/:id/dismiss", ...guard, writeLimiter, pesapalDismissController);
+router.post("/pesapal/payment-requests/:id/restore", ...guard, writeLimiter, pesapalRestoreController);
 
 router.get("/", ...guard, listController);
 router.get("/:provider", ...guard, getController);

@@ -6,6 +6,7 @@ import { notify } from "./toast";
 import EtimsSettings from "./integrations/EtimsSettings";
 import IntegrationCard from "./integrations/IntegrationCard";
 import MpesaAttention from "./integrations/MpesaAttention";
+import PesapalAttention from "./integrations/PesapalAttention";
 import MpesaSettings from "./integrations/MpesaSettings";
 import PesapalSettings from "./integrations/PesapalSettings";
 import { session, type Integration, type IntegrationList } from "./integrations/types";
@@ -111,6 +112,7 @@ export default function IntegrationsWorkspace() {
       </div>
 
       <MpesaAttention />
+      <PesapalAttention />
 
       {editing && (
         <div className="int-modal" role="dialog" aria-modal="true" aria-label={`Configure ${editing.label}`} onClick={(e) => { if (e.target === e.currentTarget && !saving) setEditing(null); }}>

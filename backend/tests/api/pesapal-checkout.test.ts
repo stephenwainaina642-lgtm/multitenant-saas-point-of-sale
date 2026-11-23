@@ -300,6 +300,32 @@ describe("Pesapal hosted checkout", () => {
     });
   });
 
+  it("dismiss and restore: a person closes a payment with a reason; nothing is deleted or re-statused", async () => {
+    const id = await confirmed(owner, "1234", "DISMISSPS01");
+    const url = `/integrations/pesapal/payment-requests/${id}`;
+    expect((await call("POST", `${url}/dismiss`, owner, { note: "ok" })).status).toBe(400);
+    expect((await call("POST", `${url}/dismiss`, cashier, { note: "Refunded in Pesapal, ref 123" })).status).toBe(403);
+    expect((await call("POST", `${url}/dismiss`, other, { note: "Refunded in Pesapal, ref 123" })).status).toBe(404);
+    const d = await call("POST", `${url}/dismiss`, owner, { note: "Refunded in Pesapal, ref 123" });
+    expect(d.status, JSON.stringify(d.body)).toBe(200);
+    expect((await call("POST", `${url}/dismiss`, owner, { note: "Refunded in Pesapal, ref 123" })).status).toBe(409);
+    let list = (await call("GET", "/integrations/pesapal/attention", owner)).body.data;
+    expect(list.unlinked.map((x: any) => x.id)).not.toContain(id);
+    const shown = list.dismissed.find((x: any) => x.id === id);
+    expect(shown.dismissedNote).toBe("Refunded in Pesapal, ref 123");
+    expect(shown.dismissedBy).toBeTruthy();
+    const [row] = await query<{ status: string }>(`select status from pesapal_payment_requests where public_id = $1::uuid`, [id]);
+    expect(row!.status).toBe("paid");
+    expect((await call("POST", `${url}/restore`, cashier)).status).toBe(403);
+    expect((await call("POST", `${url}/restore`, owner)).status).toBe(200);
+    list = (await call("GET", "/integrations/pesapal/attention", owner)).body.data;
+    expect(list.unlinked.map((x: any) => x.id)).toContain(id);
+    expect(list.dismissed.map((x: any) => x.id)).not.toContain(id);
+    // a pending request is not "needing attention": it cannot be dismissed
+    const pend = await create(owner, { amount: "100" });
+    expect((await call("POST", `/integrations/pesapal/payment-requests/${pend.body.data.id}/dismiss`, owner, { note: "Not needed anymore" })).status).toBe(409);
+  });
+
   it("is isolated between businesses", async () => {
     const mine = await create(owner, { amount: "330" });
     expect((await get(other, mine.body.data.id)).status).toBe(404);

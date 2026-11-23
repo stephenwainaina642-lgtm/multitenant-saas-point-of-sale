@@ -294,13 +294,61 @@ export async function pesapalStatusForTill(businessId: bigint) {
   return { enabled, environment: enabled ? c!.environment : null };
 }
 
-/** Read-only: paid-but-unused, unconfirmed, and reversed payments that a person must look at. */
+/** What needs a person: paid-but-unused, unconfirmed, and reversed payments; plus what was already dismissed. */
 export async function listPesapalAttention(businessId: bigint) {
   const since = new Date(Date.now() - 30 * 86400_000);
-  const [unlinked, review, reversed] = await Promise.all([
+  const [unlinked, review, reversed, dismissed] = await Promise.all([
     prisma.pesapalPaymentRequest.findMany({ where: { businessId, status: "paid", saleId: null, reversalNoticedAt: null, dismissedAt: null }, orderBy: { paidAt: "desc" }, take: 100 }),
     prisma.pesapalPaymentRequest.findMany({ where: { businessId, status: "unconfirmed", dismissedAt: null, createdAt: { gte: since } }, orderBy: { createdAt: "desc" }, take: 100 }),
     prisma.pesapalPaymentRequest.findMany({ where: { businessId, OR: [{ reversalNoticedAt: { not: null } }, { status: "reversed" }], dismissedAt: null, createdAt: { gte: since } }, orderBy: { createdAt: "desc" }, take: 100 }),
+    prisma.pesapalPaymentRequest.findMany({ where: { businessId, dismissedAt: { not: null } }, orderBy: { dismissedAt: "desc" }, take: 50 }),
   ]);
-  return { unlinked: unlinked.map(present), review: review.map(present), reversed: reversed.map(present) };
+  const ids = [...new Set([...unlinked, ...review, ...reversed, ...dismissed].flatMap((r) => [r.createdByUserId, r.dismissedByUserId]).filter((x): x is bigint => x !== null))];
+  const users = ids.length ? await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } }) : [];
+  const name = new Map(users.map((u) => [u.id, u.name]));
+  const row = (r: Row) => ({
+    ...present(r), requestedBy: r.createdByUserId ? name.get(r.createdByUserId) ?? null : null,
+    dismissedAt: r.dismissedAt, dismissedNote: r.dismissedNote, dismissedBy: r.dismissedByUserId ? name.get(r.dismissedByUserId) ?? null : null,
+  });
+  return { unlinked: unlinked.map(row), review: review.map(row), reversed: reversed.map(row), dismissed: dismissed.map(row) };
+}
+
+function cleanNote(raw: unknown): string {
+  const note = String(raw ?? "").replace(/[\u0000-\u001f]/g, " ").trim();
+  if (note.length < 5) throw new AppError(400, "Write a reason of at least 5 characters (for example: refunded the customer in Pesapal, ref ...)");
+  if (note.length > 300) throw new AppError(400, "The reason can be at most 300 characters");
+  return note;
+}
+
+/** Closes a payment that needs attention. Never deletes anything or changes its status: who, when and why are kept. */
+export async function dismissPesapalRequest(actor: IntegrationActor, publicId: string, rawNote: unknown) {
+  if (!/^[0-9a-f-]{36}$/i.test(publicId)) throw new AppError(400, "Invalid payment request id");
+  const note = cleanNote(rawNote);
+  const done = await prisma.pesapalPaymentRequest.updateMany({
+    where: {
+      publicId, businessId: actor.businessId, dismissedAt: null,
+      OR: [{ status: "paid", saleId: null }, { status: "unconfirmed" }, { status: "reversed" }, { reversalNoticedAt: { not: null } }],
+    },
+    data: { dismissedAt: new Date(), dismissedByUserId: actor.userId, dismissedNote: note, updatedAt: new Date() },
+  });
+  if (done.count !== 1) {
+    const r = await prisma.pesapalPaymentRequest.findFirst({ where: { publicId, businessId: actor.businessId } });
+    if (!r) throw new AppError(404, "Payment request not found");
+    throw new AppError(409, r.dismissedAt ? "That payment is already dismissed" : "Only a confirmed-but-unused, unconfirmed or reversed payment can be dismissed");
+  }
+  const row = await prisma.pesapalPaymentRequest.findFirstOrThrow({ where: { publicId, businessId: actor.businessId } });
+  await recordIntegrationAudit(actor, "pesapal", row.connectionId, "payment_dismissed", { requestId: row.publicId, amountCents: String(row.amountCents), code: row.confirmationCode, note });
+  return present(row);
+}
+
+export async function restorePesapalRequest(actor: IntegrationActor, publicId: string) {
+  if (!/^[0-9a-f-]{36}$/i.test(publicId)) throw new AppError(400, "Invalid payment request id");
+  const done = await prisma.pesapalPaymentRequest.updateMany({
+    where: { publicId, businessId: actor.businessId, dismissedAt: { not: null } },
+    data: { dismissedAt: null, dismissedByUserId: null, dismissedNote: null, updatedAt: new Date() },
+  });
+  if (done.count !== 1) throw new AppError(404, "No dismissed payment with that id");
+  const row = await prisma.pesapalPaymentRequest.findFirstOrThrow({ where: { publicId, businessId: actor.businessId } });
+  await recordIntegrationAudit(actor, "pesapal", row.connectionId, "payment_restored", { requestId: row.publicId, amountCents: String(row.amountCents) });
+  return present(row);
 }
