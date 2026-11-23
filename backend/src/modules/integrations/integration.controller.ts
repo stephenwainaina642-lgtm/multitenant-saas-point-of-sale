@@ -123,3 +123,26 @@ export const pesapalDismissController = wrap(async (req, res) => {
 export const pesapalRestoreController = wrap(async (req, res) => {
   res.json({ success: true, data: await restorePesapalRequest(actor(req), String(req.params.id)) });
 });
+
+import { handleC2bConfirmation, handleC2bValidation, listStatement, registerC2b, simulateC2bPayment } from "./mpesa-c2b.service.js";
+
+export const c2bRegisterController = wrap(async (req, res) => {
+  res.json({ success: true, data: await registerC2b(actor(req), req.body?.acknowledgeOneTime === true) });
+});
+export const c2bSimulateController = wrap(async (req, res) => {
+  res.json({ success: true, data: await simulateC2bPayment(actor(req), req.body?.amount, req.body?.billRef) });
+});
+export const c2bStatementController = wrap(async (req, res) => {
+  res.json({ success: true, data: await listStatement(req.businessId!, { limit: req.query.limit, before: req.query.before, q: req.query.q }) });
+});
+/** Public (Safaricom calls these). No session; the secret in the path is the credential. */
+export const c2bConfirmationController = (req: import("express").Request, res: Response, next: NextFunction) => {
+  handleC2bConfirmation(String(req.params.connectionId), String(req.params.token), req.body)
+    .then((r) => { if (!r) { res.status(404).json({ success: false, message: "Not found" }); return; } res.json(r); })
+    .catch(next);
+};
+export const c2bValidationController = (req: import("express").Request, res: Response, next: NextFunction) => {
+  handleC2bValidation(String(req.params.connectionId), String(req.params.token))
+    .then((r) => { if (!r) { res.status(404).json({ success: false, message: "Not found" }); return; } res.json(r); })
+    .catch(next);
+};

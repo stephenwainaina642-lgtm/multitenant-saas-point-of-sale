@@ -15,13 +15,14 @@ import ExpensesWorkspace from "./ExpensesWorkspace";
 import InvoicesWorkspace from "./InvoicesWorkspace";
 import QuotationsWorkspace from "./QuotationsWorkspace";
 import ReportsWorkspace from "./ReportsWorkspace";
+import MpesaStatementWorkspace from "./MpesaStatementWorkspace";
 import BusinessSettingsWorkspace from "./BusinessSettingsWorkspace";
 import IntegrationsWorkspace from "./IntegrationsWorkspace";
 import ChangePasswordPanel from "./ChangePasswordPanel";
 import EmployeesWorkspace from "./EmployeesWorkspace";
 import { apiRequest } from "./api/client";
 import { notify } from "./toast";
-import { AlertTriangle, Bell, BarChart3, Banknote, Boxes, Clock, FileSpreadsheet, FileText, LayoutDashboard, Package, Receipt, Settings, ShoppingBag, ShoppingCart, Store, Truck, UserCog, Users, Wallet, ClipboardList } from "lucide-react";
+import { AlertTriangle, Bell, Radio, BarChart3, Banknote, Boxes, Clock, FileSpreadsheet, FileText, LayoutDashboard, Package, Receipt, Settings, ShoppingBag, ShoppingCart, Store, Truck, UserCog, Users, Wallet, ClipboardList } from "lucide-react";
 import { can, storePermissions } from "./permissions";
 import SyncBadge from "./SyncBadge";
 import { flushOutbox, unsyncedCount } from "./salesOutbox";
@@ -41,6 +42,7 @@ const navigationPermissions: Record<string, string[]> = {
   Invoices: ["invoices.view"],
   Expenses: ["expenses.view"],
   Reports: ["reports.view"],
+  "M-PESA Statement": ["payments.view"],
   Shifts: ["shifts.use", "shifts.view_all"],
   Branches: ["branches.manage", "branches.all", "stock.transfer"],
 };
@@ -60,6 +62,7 @@ const navigation = [
   { name: "Expenses", icon: <Wallet size={18} strokeWidth={1.9} /> },
   { name: "Shifts", icon: <Clock size={18} strokeWidth={1.9} /> },
   { name: "Branches", icon: <Store size={18} strokeWidth={1.9} /> },
+  { name: "M-PESA Statement", icon: <Radio size={18} strokeWidth={1.9} /> },
   { name: "Reports", icon: <BarChart3 size={18} strokeWidth={1.9} /> },
   { name: "Settings", icon: <Settings size={18} strokeWidth={1.9} /> },
 ];
@@ -342,6 +345,8 @@ function App() {
             <ShiftsWorkspace />
           ) : activePage === "Branches" ? (
             <BranchesWorkspace />
+          ) : activePage === "M-PESA Statement" ? (
+            <div className="settings-workspace"><MpesaStatementWorkspace /></div>
           ) : activePage === "Reports" ? (
             <ReportsWorkspace />
           ) : activePage === "Settings" ? (

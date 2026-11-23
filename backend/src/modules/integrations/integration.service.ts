@@ -1,3 +1,4 @@
+import { c2bRegistered } from "./mpesa-c2b.service.js";
 import { Prisma } from "../../generated/prisma/client.js";
 import prisma from "../../lib/prisma.js";
 import { AppError } from "../../lib/errors.js";
@@ -45,6 +46,7 @@ function present(def: ProviderDefinition, c: Conn | null) {
   for (const k of def.readOnlyConfig ?? []) shown[k] = cfg[k] ?? "not_registered";
   // A Pesapal notification address belongs to one set of credentials/environment: after those change it must be registered again.
   if (def.id === "pesapal") shown.ipnStatus = cfg.ipnId && c && Number(cfg.ipnVersion) === c.settingsVersion ? "registered" : "not_registered";
+  if (def.id === "mpesa") shown.c2bStatus = c && c2bRegistered(c) ? "registered" : "not_registered";
   const secrets: Record<string, { set: boolean; hint: string | null }> = {};
   for (const f of def.fields) {
     if (f.kind !== "secret") continue;

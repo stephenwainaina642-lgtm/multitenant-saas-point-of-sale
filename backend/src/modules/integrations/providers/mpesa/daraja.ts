@@ -104,3 +104,28 @@ export async function stkQuery(c: DarajaCreds, checkoutRequestId: string): Promi
   // Daraja answers an unfinished push with an error ("being processed"), so anything else is "not decided yet".
   return { kind: "processing" };
 }
+
+export type RegisterUrlsOutcome = { ok: true } | { ok: false; message: string };
+
+/**
+ * Tells Safaricom where to send payment notifications for a shortcode. In production this is effectively one-time per
+ * shortcode (Safaricom refuses to overwrite URLs that are already registered), so callers must make that clear first.
+ */
+export async function registerC2bUrls(c: DarajaCreds, confirmationUrl: string, validationUrl: string): Promise<RegisterUrlsOutcome> {
+  const r = await post(c, "/mpesa/c2b/v1/registerurl", {
+    ShortCode: c.shortcode, ResponseType: "Completed", ConfirmationURL: confirmationUrl, ValidationURL: validationUrl,
+  });
+  if (r.status >= 500) throw new DarajaNetworkError("Safaricom is unavailable");
+  if (r.status === 200 && String(r.json?.ResponseCode ?? r.json?.ResponseDescription).toLowerCase().match(/^(0|success)/)) return { ok: true };
+  return { ok: false, message: String(r.json?.errorMessage ?? r.json?.ResponseDescription ?? "Safaricom did not accept the notification addresses").slice(0, 200) };
+}
+
+/** Sandbox only: asks Safaricom to pretend a customer paid, so the notification path can be tried. */
+export async function simulateC2b(c: DarajaCreds, amountKes: number, billRef: string, commandId: string): Promise<RegisterUrlsOutcome> {
+  const r = await post(c, "/mpesa/c2b/v1/simulate", {
+    ShortCode: c.shortcode, CommandID: commandId, Amount: amountKes, Msisdn: "254708374149", BillRefNumber: billRef,
+  });
+  if (r.status >= 500) throw new DarajaNetworkError("Safaricom is unavailable");
+  if (r.status === 200 && String(r.json?.ResponseCode ?? r.json?.ResponseDescription).toLowerCase().match(/^(0|accept|success)/)) return { ok: true };
+  return { ok: false, message: String(r.json?.errorMessage ?? r.json?.ResponseDescription ?? "Safaricom did not accept the test payment").slice(0, 200) };
+}

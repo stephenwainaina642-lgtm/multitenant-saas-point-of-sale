@@ -3,7 +3,7 @@ import { rateLimit } from "express-rate-limit";
 import { authenticate } from "../../auth/auth.middleware.js";
 import { requireBusinessAccess } from "../../auth/business.middleware.js";
 import { requirePermission } from "../../auth/permissions.js";
-import { createPaymentController, getPaymentController, mpesaTillStatusController, mpesaAttentionController, mpesaDismissController, mpesaRestoreController, mpesaCallbackController, pesapalRegisterIpnController, pesapalCreateController, pesapalGetController, pesapalTillStatusController, pesapalAttentionController, pesapalDismissController, pesapalRestoreController, pesapalIpnController, pesapalReturnController, disableController, enableController, getController, listController, saveController, testController } from "./integration.controller.js";
+import { createPaymentController, getPaymentController, mpesaTillStatusController, mpesaAttentionController, mpesaDismissController, mpesaRestoreController, mpesaCallbackController, c2bRegisterController, c2bSimulateController, c2bStatementController, c2bConfirmationController, c2bValidationController, pesapalRegisterIpnController, pesapalCreateController, pesapalGetController, pesapalTillStatusController, pesapalAttentionController, pesapalDismissController, pesapalRestoreController, pesapalIpnController, pesapalReturnController, disableController, enableController, getController, listController, saveController, testController } from "./integration.controller.js";
 
 const limit = (max: number, windowMs: number, message: string) =>
   rateLimit({
@@ -28,6 +28,9 @@ const guard = [authenticate, requireBusinessAccess, requirePermission("integrati
 const callbackLimiter = rateLimit({ windowMs: 60_000, limit: Number(process.env.MPESA_CALLBACK_LIMIT) || 120, standardHeaders: "draft-7", legacyHeaders: false, handler: (_q, r) => { r.status(429).json({ success: false, message: "Too many requests" }); } });
 router.post("/callbacks/mpesa/:token", callbackLimiter, mpesaCallbackController);
 // Pesapal's notification (IPN, GET or POST) and the customer's return page: public, same protections.
+// Safaricom's C2B notifications (a statement of payments made to the shortcode): public, secret token in the path.
+router.post("/callbacks/c2b/:connectionId/:token/confirmation", callbackLimiter, c2bConfirmationController);
+router.post("/callbacks/c2b/:connectionId/:token/validation", callbackLimiter, c2bValidationController);
 router.all("/callbacks/pesapal/:connectionId/:token", callbackLimiter, pesapalIpnController);
 router.get("/pesapal/return", callbackLimiter, pesapalReturnController);
 
@@ -45,6 +48,9 @@ router.post("/mpesa/payment-requests/:id/dismiss", ...guard, writeLimiter, mpesa
 router.post("/mpesa/payment-requests/:id/restore", ...guard, writeLimiter, mpesaRestoreController);
 
 // Pesapal hosted checkout. Registering the notification address is a settings job; asking a customer to pay is a till job.
+router.post("/mpesa/c2b/register", ...guard, writeLimiter, c2bRegisterController);
+router.post("/mpesa/c2b/simulate", ...guard, writeLimiter, c2bSimulateController);
+router.get("/mpesa/statement", authenticate, requireBusinessAccess, requirePermission("payments.view"), c2bStatementController);
 router.post("/pesapal/register-ipn", ...guard, writeLimiter, pesapalRegisterIpnController);
 router.get("/pesapal/status", ...payGuard, pesapalTillStatusController);
 router.get("/pesapal/attention", authenticate, requireBusinessAccess, requirePermission("payments.view"), pesapalAttentionController);

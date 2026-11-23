@@ -79,7 +79,7 @@ export default function IntegrationsWorkspace() {
 
   const form = (item: Integration) => {
     const p = { item, saving, onSave: (b: SaveBody) => void save(item, b), onCancel: () => setEditing(null) };
-    return item.provider === "mpesa" ? <MpesaSettings {...p} /> : <PesapalSettings {...p} onChanged={() => void load()} />;
+    return item.provider === "mpesa" ? <MpesaSettings {...p} onChanged={() => void load()} /> : <PesapalSettings {...p} onChanged={() => void load()} />;
   };
 
   return (

@@ -37,6 +37,7 @@ model Business {
   integrationAuditLogs   IntegrationAuditLog[]
   mpesaPaymentRequests   MpesaPaymentRequest[]
   pesapalPaymentRequests PesapalPaymentRequest[]
+  mpesaC2bPayments       MpesaC2bPayment[]
   owner              User?               @relation("BusinessOwner", fields: [ownerUserId], references: [id])
   categories         Category[]
   products           Product[]
@@ -820,6 +821,7 @@ model IntegrationConnection {
   audit    IntegrationAuditLog[]
   mpesaRequests MpesaPaymentRequest[]
   pesapalRequests PesapalPaymentRequest[]
+  mpesaC2bPayments MpesaC2bPayment[]
 
   @@unique([businessId, provider])
   @@map("integration_connections")
@@ -974,4 +976,32 @@ model PesapalPaymentRequest {
   @@unique([businessId, idempotencyKey])
   @@index([businessId, createdAt])
   @@map("pesapal_payment_requests")
+}
+
+/// A payment Safaricom told us about (C2B confirmation). A record of a notification, never linked to a sale.
+model MpesaC2bPayment {
+  id            BigInt   @id @default(autoincrement())
+  publicId      String   @unique @default(dbgenerated("gen_random_uuid()")) @map("public_id") @db.Uuid
+  businessId    BigInt   @map("business_id")
+  connectionId  BigInt   @map("connection_id")
+  environment   String   @db.VarChar(12)
+  transId       String   @map("trans_id") @db.VarChar(10)
+  transType     String?  @map("trans_type") @db.VarChar(40)
+  transTime     DateTime @map("trans_time") @db.Timestamptz(6)
+  amountCents   BigInt   @map("amount_cents")
+  shortCode     String   @map("short_code") @db.VarChar(20)
+  billRef       String?  @map("bill_ref") @db.VarChar(60)
+  invoiceNumber String?  @map("invoice_number") @db.VarChar(60)
+  msisdn        String?  @db.VarChar(30)
+  firstName     String?  @map("first_name") @db.VarChar(60)
+  middleName    String?  @map("middle_name") @db.VarChar(60)
+  lastName      String?  @map("last_name") @db.VarChar(60)
+  receivedAt    DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
+
+  business   Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  connection IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Restrict)
+
+  @@unique([businessId, transId])
+  @@index([businessId, transTime(sort: Desc)])
+  @@map("mpesa_c2b_payments")
 }

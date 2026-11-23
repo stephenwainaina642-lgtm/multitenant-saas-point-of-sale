@@ -179,3 +179,50 @@ never changes the payment's status or money; who, when and why are kept and audi
 dismissed (a pending or already-used payment cannot). Viewing the list needs `payments.view`.
 Limits: Pesapal refunds are done in Pesapal's dashboard; this list does not refund anything or fix a sale that was
 completed before a later reversal.
+
+## M-PESA live statement (C2B notifications)
+
+Status: **built and tested against a local fake Safaricom only. Not yet tried against the real Safaricom sandbox or production.**
+
+### What it does
+A new page, **M-PESA Statement** (needs `payments.view`; owners and managers have it, cashiers do not by default), lists every
+payment Safaricom tells us about for the business's shortcode, **including payments nobody prompted for**, refreshing every
+5 seconds (paused while the tab is hidden), with today's total and count, search by receipt/phone/name/account, and paging.
+Payments that also went through a till prompt are marked "Till prompt" / "Till sale". Sandbox rows are marked "Test".
+
+Switch it on in Settings → Integrations → M-PESA → **Live statement** (needs a passing connection test; `integrations.manage`).
+That calls Safaricom's `registerurl` with
+`<PUBLIC_API_URL>/api/integrations/callbacks/c2b/<connection id>/<64-hex token>/confirmation` (and `/validation`). The token is
+only kept as a SHA-256 hash and compared in constant time; it is hex so it can never contain words Safaricom forbids in
+addresses (mpesa, safaricom, exec, cmd, sql, query); registration is refused if the server's own address contains one.
+In the sandbox there is a **Send a test payment** button that makes Safaricom's simulator call the real notification path.
+
+### What it deliberately does NOT do
+- **A statement row never creates, changes or settles a sale, payment or STK request.** Safaricom does not sign these
+  notifications and there is no query to double-check them (unlike STK Push), so they are *reports*. The only thing standing
+  between a forged notification and a fake row is the secret address. Compare with the Safaricom portal for official records.
+- The account balance Safaricom sends (`OrgAccountBalance`) is not stored.
+- Safaricom masks the customer's phone number (e.g. `25470****149`); it is shown as received.
+
+### Rules
+- One Safaricom receipt is recorded once per business (unique index); Safaricom's retries (up to about 24 hours) are harmless.
+- Junk behind a valid token (wrong shortcode, bad receipt, amount or time) is acknowledged but not stored, and logged as a
+  rejected event. An unknown or wrong token gets 404 and nothing is recorded.
+- The registration is tied to the environment and shortcode: change either and the old address stops being accepted until
+  you switch it on again.
+- Database: migration `20261216090000_add_mpesa_c2b_payments`, one new table with CHECKs (positive amount, receipt format),
+  a same-business trigger, and a unique (business, receipt). Additive only.
+
+### Safaricom limits you must know (from Safaricom's published docs)
+- **Production registration is effectively one-time per shortcode.** Safaricom will not replace addresses already registered
+  by another system (a bank, another POS). Changing them means deleting them in the Daraja portal's URL management or
+  emailing Safaricom. The screen makes you acknowledge this before registering in production.
+- Production addresses must be HTTPS. Whether a **Till** (Buy Goods) is registered with the same shortcode as STK Push is not
+  clear from the docs: check with Safaricom when you go live.
+- "Notifications are real time" is best effort: Safaricom can deliver late (it retries) and, rarely, not at all.
+
+### Not verified / not built
+- Not run against real Safaricom (sandbox or production). In particular `registerurl`/`simulate` response wording and the
+  Till behaviour are untested.
+- "Till prompt/Till sale" marking is code-reviewed but has no automated test.
+- No export (CSV) of the statement yet; no push notification or sound when a payment arrives.
