@@ -119,3 +119,55 @@ Migration `20261214090000_mpesa_request_dismissal` adds three nullable columns t
 * `POST /api/integrations/mpesa/payment-requests/:id/dismiss` `{note}` and `.../restore` need `integrations.manage` (not cashiers).
 * Only a paid-but-unlinked or an unconfirmed request can be dismissed. Nothing is deleted; who/when/why stay on the row and in the audit log.
 * `GET /api/integrations/mpesa/attention` now also returns `dismissed`, so a dismissal can be restored.
+
+## Pesapal hosted checkout (milestone 3)
+
+Status: **built and tested against a local fake Pesapal only. Not yet verified against a real Pesapal sandbox account.**
+
+### What it does
+- Settings → Integrations → Pesapal: save your own Consumer Key/Secret and merchant name, run a connection test, enable.
+  Then press **Register notification address** (needs a passing test first). That calls Pesapal's `RegisterIPN` with
+  `https://<PUBLIC_API_URL>/api/integrations/callbacks/pesapal/<connection id>/<secret token>` and stores Pesapal's `ipn_id`.
+  The token is kept only as a SHA-256 hash and is compared in constant time. Changing the keys or environment makes the
+  registration stale (status goes back to "not registered") and it must be registered again.
+- At the till, a business with Pesapal enabled **and** registered, and an online till, gets a "Pesapal" payment method. The
+  cashier enters the customer's phone or email and gets a payment link, a copy button and a QR code (drawn in the browser,
+  the link is never sent to a QR service). The customer pays on Pesapal's page (card, M-PESA or bank, whatever the merchant
+  account offers).
+- The sale is completed with `pesapalPaymentRequestId` and `paymentMethod: "pesapal"`; the payment reference is
+  Pesapal's confirmation code (or `PSP-XXXXXXXX` if Pesapal gave none).
+
+### When is a payment "paid"?
+Only when **Pesapal's own `GetTransactionStatus`** answers COMPLETED and all of these match: currency is KES, the
+`merchant_reference` is the one we sent, and the amount equals the request exactly. An IPN, the customer's return page or
+anything in a query string is only a hint to ask Pesapal; none of them can set "paid". A mismatching COMPLETED answer
+becomes `unconfirmed` (and can still upgrade to paid on a later correct answer).
+
+### Safety rules (same as M-PESA)
+- A paid request never changes status. A later REVERSED answer sets `reversal_noticed_at` and shows on
+  `GET /integrations/pesapal/attention`; a flagged payment cannot be used for a sale.
+- One request pays at most one sale (unique `sale_id`, conditional update, database trigger: only `paid`, same business).
+- One confirmation code settles at most one request per business (partial unique index).
+- Creating an order needs an `Idempotency-Key`; a retry returns the same request. Network failure while creating the
+  order gives `unconfirmed` (no tracking id exists to ask about) and never claims a page was created.
+- Credentials are encrypted like every integration secret and are only ever sent to Pesapal's fixed base URLs.
+- Rate limits: payment requests 20/min per user (`MPESA_REQUEST_LIMIT`), IPN 120/min per IP (`MPESA_CALLBACK_LIMIT`),
+  status re-check no more than every 8 s per request (`PESAPAL_RECHECK_MS`).
+
+### Database
+Migration `20261215090000_add_pesapal_payment_requests`: one new table `pesapal_payment_requests` with CHECKs (status,
+positive amount, paid-complete, contact present, dismissal complete) and two triggers. Additive only.
+
+### Honest limits / not verified
+- **Not run against a real Pesapal sandbox.** Field names for the order and status calls follow Pesapal's published API 3.0
+  documentation, but a real account may differ in detail (for example, the exact IPN query parameter names:
+  `OrderTrackingId`, `OrderMerchantReference`, `OrderNotificationType` are what we read; the docs do not list them).
+  Even if they differ, payments are still confirmed by the status poll while the till waits.
+- The till polls every 3 s while the customer pays. If the cashier closes the till before the customer pays, the payment
+  appears on the attention list as "paid, no sale" once Pesapal confirms it (the list refreshes when the request is checked,
+  e.g. by an IPN).
+- Reversals after a sale is complete are only noticed when Pesapal notifies us or the request is checked again; there is no
+  scheduled background check.
+- No dismiss/restore for Pesapal items yet, and the attention list for Pesapal has an API but no screen yet.
+- No refunds through Pesapal: refunding the customer is done in your Pesapal dashboard.
+- A manual "Pesapal" payment recorded outside the till flow is not verified by anything.

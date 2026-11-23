@@ -95,3 +95,9 @@
 .int-btn-small { min-height: 30px; padding: 0 10px; font-size: 12px; }
 .int-attn-note { white-space: normal; min-width: 180px; }
 .int-field textarea { width: 100%; padding: 10px 12px; border: 1px solid #d9dfdb; border-radius: 9px; font: inherit; resize: vertical; }
+
+.psp-share{display:flex;gap:1rem;align-items:center;flex-wrap:wrap;margin:.5rem 0}
+.psp-share img{border:1px solid #d7e5db;border-radius:8px;background:#fff;padding:4px}
+.psp-links{display:flex;flex-direction:column;gap:.5rem}
+.psp-links .pos-secondary-button{display:inline-flex;gap:.4rem;align-items:center;text-decoration:none}
+.int-ipn{display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;margin:.25rem 0 .75rem}

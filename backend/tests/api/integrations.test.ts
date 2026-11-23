@@ -260,7 +260,7 @@ describe("integrations settings (M-PESA / Pesapal / eTIMS)", () => {
     await call("PUT", "/integrations/pesapal", owner, body(GOOD_KEY));
     const ok = await call("POST", "/integrations/pesapal/test", owner);
     expect(ok.body.data.ok).toBe(true);
-    expect(ok.body.data.message).toMatch(/IPN registration is not done/);
+    expect(ok.body.data.message).toMatch(/register the notification address/);
     const g = await call("GET", "/integrations/pesapal", owner);
     expect(g.body.data.config.ipnStatus).toBe("not_registered");
   });

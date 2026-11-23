@@ -36,7 +36,7 @@ const present = (r: Row) => ({
 
 const sha256 = (v: string) => crypto.createHash("sha256").update(v).digest("hex");
 
-function callbackBase(): string {
+export function callbackBase(): string {
   const base = (process.env.PUBLIC_API_URL || process.env.APP_URL || "").trim().replace(/\/+$/, "");
   if (!/^https:\/\//.test(base) && !(process.env.NODE_ENV === "test" && base)) {
     throw new AppError(503, "The server's public HTTPS address is not set (PUBLIC_API_URL or APP_URL), so M-PESA cannot call back.");

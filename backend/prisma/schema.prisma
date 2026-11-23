@@ -36,6 +36,7 @@ model Business {
   integrationEvents      IntegrationEvent[]
   integrationAuditLogs   IntegrationAuditLog[]
   mpesaPaymentRequests   MpesaPaymentRequest[]
+  pesapalPaymentRequests PesapalPaymentRequest[]
   owner              User?               @relation("BusinessOwner", fields: [ownerUserId], references: [id])
   categories         Category[]
   products           Product[]
@@ -386,6 +387,7 @@ model PurchaseItem {
 model Sale {
   id               BigInt   @id @default(autoincrement())
   mpesaPaymentRequest MpesaPaymentRequest?
+  pesapalPaymentRequest PesapalPaymentRequest?
   publicId         String   @unique @default(dbgenerated("gen_random_uuid()")) @map("public_id") @db.Uuid
   businessId       BigInt   @map("business_id")
   branchId         BigInt   @map("branch_id")
@@ -817,6 +819,7 @@ model IntegrationConnection {
   events   IntegrationEvent[]
   audit    IntegrationAuditLog[]
   mpesaRequests MpesaPaymentRequest[]
+  pesapalRequests PesapalPaymentRequest[]
 
   @@unique([businessId, provider])
   @@map("integration_connections")
@@ -927,4 +930,48 @@ model MpesaPaymentRequest {
   @@unique([businessId, idempotencyKey])
   @@index([businessId, createdAt])
   @@map("mpesa_payment_requests")
+}
+
+model PesapalPaymentRequest {
+  id                BigInt    @id @default(autoincrement())
+  publicId          String    @unique @default(dbgenerated("gen_random_uuid()")) @map("public_id") @db.Uuid
+  businessId        BigInt    @map("business_id")
+  connectionId      BigInt    @map("connection_id")
+  environment       String    @db.VarChar(12)
+  amountCents       BigInt    @map("amount_cents")
+  currency          String    @default("KES") @db.VarChar(3)
+  description       String    @db.VarChar(100)
+  customerPhone     String?   @map("customer_phone") @db.VarChar(20)
+  customerEmail     String?   @map("customer_email") @db.VarChar(254)
+  /// Our id for the order sent to Pesapal (NX + public id without dashes).
+  merchantReference String    @unique @map("merchant_reference") @db.VarChar(50)
+  orderTrackingId   String?   @unique @map("order_tracking_id") @db.VarChar(80)
+  redirectUrl       String?   @map("redirect_url") @db.VarChar(1000)
+  /// pending | paid | failed | reversed | expired | unconfirmed
+  status            String    @default("pending") @db.VarChar(12)
+  resultDesc        String?   @map("result_desc") @db.VarChar(200)
+  confirmationCode  String?   @map("confirmation_code") @db.VarChar(60)
+  payMethod         String?   @map("pay_method") @db.VarChar(60)
+  paidAmountCents   BigInt?   @map("paid_amount_cents")
+  idempotencyKey    String    @map("idempotency_key") @db.VarChar(100)
+  createdByUserId   BigInt?   @map("created_by_user_id")
+  expiresAt         DateTime  @map("expires_at") @db.Timestamptz(6)
+  lastCheckedAt     DateTime? @map("last_checked_at") @db.Timestamptz(6)
+  paidAt            DateTime? @map("paid_at") @db.Timestamptz(6)
+  /// Pesapal later reported this paid order as reversed. The status stays "paid" (money history is never rewritten); a person must look.
+  reversalNoticedAt DateTime? @map("reversal_noticed_at") @db.Timestamptz(6)
+  saleId            BigInt?   @unique @map("sale_id")
+  dismissedAt       DateTime? @map("dismissed_at") @db.Timestamptz(6)
+  dismissedByUserId BigInt?   @map("dismissed_by_user_id")
+  dismissedNote     String?   @map("dismissed_note") @db.VarChar(300)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  business   Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  connection IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Restrict)
+  sale       Sale?                 @relation(fields: [saleId], references: [id], onDelete: Restrict)
+
+  @@unique([businessId, idempotencyKey])
+  @@index([businessId, createdAt])
+  @@map("pesapal_payment_requests")
 }

@@ -3,7 +3,7 @@ import { rateLimit } from "express-rate-limit";
 import { authenticate } from "../../auth/auth.middleware.js";
 import { requireBusinessAccess } from "../../auth/business.middleware.js";
 import { requirePermission } from "../../auth/permissions.js";
-import { createPaymentController, getPaymentController, mpesaTillStatusController, mpesaAttentionController, mpesaDismissController, mpesaRestoreController, mpesaCallbackController, disableController, enableController, getController, listController, saveController, testController } from "./integration.controller.js";
+import { createPaymentController, getPaymentController, mpesaTillStatusController, mpesaAttentionController, mpesaDismissController, mpesaRestoreController, mpesaCallbackController, pesapalRegisterIpnController, pesapalCreateController, pesapalGetController, pesapalTillStatusController, pesapalAttentionController, pesapalIpnController, pesapalReturnController, disableController, enableController, getController, listController, saveController, testController } from "./integration.controller.js";
 
 const limit = (max: number, windowMs: number, message: string) =>
   rateLimit({
@@ -27,6 +27,9 @@ const guard = [authenticate, requireBusinessAccess, requirePermission("integrati
 // Safaricom's callback: public on purpose, protected by the unguessable token in the URL and an IP rate limit.
 const callbackLimiter = rateLimit({ windowMs: 60_000, limit: Number(process.env.MPESA_CALLBACK_LIMIT) || 120, standardHeaders: "draft-7", legacyHeaders: false, handler: (_q, r) => { r.status(429).json({ success: false, message: "Too many requests" }); } });
 router.post("/callbacks/mpesa/:token", callbackLimiter, mpesaCallbackController);
+// Pesapal's notification (IPN, GET or POST) and the customer's return page: public, same protections.
+router.all("/callbacks/pesapal/:connectionId/:token", callbackLimiter, pesapalIpnController);
+router.get("/pesapal/return", callbackLimiter, pesapalReturnController);
 
 // Asking a customer to pay is a till job, so it follows the payments permission, not integrations.manage.
 const payGuard = [authenticate, requireBusinessAccess, requirePermission("payments.create")];
@@ -40,6 +43,13 @@ router.get("/mpesa/payment-requests/:id", ...payGuard, getPaymentController);
 // Closing a payment is a money decision: owner / people explicitly given integrations.manage only.
 router.post("/mpesa/payment-requests/:id/dismiss", ...guard, writeLimiter, mpesaDismissController);
 router.post("/mpesa/payment-requests/:id/restore", ...guard, writeLimiter, mpesaRestoreController);
+
+// Pesapal hosted checkout. Registering the notification address is a settings job; asking a customer to pay is a till job.
+router.post("/pesapal/register-ipn", ...guard, writeLimiter, pesapalRegisterIpnController);
+router.get("/pesapal/status", ...payGuard, pesapalTillStatusController);
+router.get("/pesapal/attention", authenticate, requireBusinessAccess, requirePermission("payments.view"), pesapalAttentionController);
+router.post("/pesapal/payment-requests", ...payGuard, payLimiter, pesapalCreateController);
+router.get("/pesapal/payment-requests/:id", ...payGuard, pesapalGetController);
 
 router.get("/", ...guard, listController);
 router.get("/:provider", ...guard, getController);

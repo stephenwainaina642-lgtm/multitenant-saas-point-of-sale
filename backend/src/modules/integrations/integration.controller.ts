@@ -77,3 +77,43 @@ export const mpesaDismissController = wrap(async (req, res) => {
 export const mpesaRestoreController = wrap(async (req, res) => {
   res.json({ success: true, data: await restoreRequest(actor(req), String(req.params.id)) });
 });
+
+import { createPesapalRequest, getPesapalRequest, handlePesapalIpn, listPesapalAttention, pesapalStatusForTill, registerPesapalIpn } from "./pesapal-payments.service.js";
+
+export const pesapalRegisterIpnController = wrap(async (req, res) => {
+  res.json({ success: true, data: await registerPesapalIpn(actor(req)) });
+});
+export const pesapalCreateController = wrap(async (req, res) => {
+  const key = parseIdempotencyKey(req.header("idempotency-key"));
+  if (!key) throw new AppError(400, "Send an Idempotency-Key header so a retry cannot create two payment pages");
+  const r = await createPesapalRequest(actor(req), req.body ?? {}, key);
+  res.status(r.replayed ? 200 : 201).json({ success: true, data: r.request, replayed: r.replayed });
+});
+export const pesapalGetController = wrap(async (req, res) => {
+  res.json({ success: true, data: await getPesapalRequest(req.businessId!, String(req.params.id)) });
+});
+export const pesapalTillStatusController = wrap(async (req, res) => {
+  res.json({ success: true, data: await pesapalStatusForTill(req.businessId!) });
+});
+export const pesapalAttentionController = wrap(async (req, res) => {
+  res.json({ success: true, data: await listPesapalAttention(req.businessId!) });
+});
+
+/** Public (Pesapal calls it). No session; the secret token in the path is the credential. */
+export const pesapalIpnController = (req: import("express").Request, res: Response, next: NextFunction) => {
+  handlePesapalIpn(String(req.params.connectionId), String(req.params.token), { ...(req.body && typeof req.body === "object" ? req.body : {}), ...req.query })
+    .then((reply) => {
+      if (!reply) { res.status(404).json({ success: false, message: "Not found" }); return; }
+      res.json(reply);
+    })
+    .catch(next);
+};
+
+/** Where the customer lands after paying. A plain page: nothing in it comes from the request and it proves nothing. */
+export const pesapalReturnController = (_req: import("express").Request, res: Response) => {
+  res.status(200).type("html").send(
+    `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Payment submitted</title>` +
+    `<body style="font-family:system-ui,sans-serif;max-width:28rem;margin:4rem auto;padding:0 1rem;text-align:center"><h1 style="font-size:1.4rem">Thank you</h1>` +
+    `<p>Your payment is being confirmed. You can close this page; the shop will see the result shortly.</p></body></html>`
+  );
+};

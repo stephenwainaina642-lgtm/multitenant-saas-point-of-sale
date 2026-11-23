@@ -14,7 +14,7 @@ export const PESAPAL_FIELDS: FieldSpec[] = [
 /**
  * Connection test = request an API 3.0 access token and discard it. Pesapal can answer HTTP 200 with an error
  * object for bad credentials, so success means a token is present AND no error is reported.
- * IPN registration is a separate, later step: its status is always reported as "not registered" for now.
+ * IPN registration is a separate step (POST /integrations/pesapal/register-ipn).
  */
 export const pesapal: ProviderDefinition = {
   id: "pesapal",
@@ -31,7 +31,7 @@ export const pesapal: ProviderDefinition = {
         body: JSON.stringify({ consumer_key: secrets.consumerKey, consumer_secret: secrets.consumerSecret }),
       });
       if (r.status === 200 && typeof r.json?.token === "string" && r.json.token && !r.json.error) {
-        return { ok: true, message: `Pesapal accepted the Consumer Key and Secret (${environment}). IPN registration is not done yet.` };
+        return { ok: true, message: `Pesapal accepted the Consumer Key and Secret (${environment}). Next, register the notification address.` };
       }
       if (r.json?.error || r.status === 400 || r.status === 401 || r.status === 403) {
         return { ok: false, message: `Pesapal rejected these credentials for ${environment}. Check they belong to a ${environment} account.` };

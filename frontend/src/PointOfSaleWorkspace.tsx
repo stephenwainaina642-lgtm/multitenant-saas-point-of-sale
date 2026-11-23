@@ -8,6 +8,7 @@ import ReceiptModal, { type ReceiptData } from "./ReceiptModal";
 import { Plus, Printer, ReceiptText, Search } from "lucide-react";
 import { checkName, checkPhone, cleanName, cleanPhone, PHONE_PROPS } from "./validation";
 import { money, plainAmount } from "./money";
+import PesapalCheckoutPanel, { type PesapalRequest } from "./integrations/PesapalCheckoutPanel";
 import MpesaStkPanel, { type StkMode, type StkRequest } from "./integrations/MpesaStkPanel";
 import "./integrations/integrations.css";
 
@@ -56,6 +57,9 @@ export default function PointOfSaleWorkspace() {
   const [online, setOnline] = useState(navigator.onLine);
   const [stkMode, setStkMode] = useState<StkMode>("phone");
   const [stkRequest, setStkRequest] = useState<StkRequest | null>(null);
+  // Pesapal hosted checkout: same rule as M-PESA, only offered when enabled (and registered) and this till is online.
+  const [pesapalOn, setPesapalOn] = useState(false);
+  const [pspRequest, setPspRequest] = useState<PesapalRequest | null>(null);
   const [notes, setNotes] = useState("");
   const [channel, setChannel] = useState("walk_in");
   const [loading, setLoading] = useState(true);
@@ -170,6 +174,13 @@ export default function PointOfSaleWorkspace() {
       .catch(() => setMpesaOn(false)); // no permission or offline: the manual code path is always there
   }, [token, businessId]);
 
+  useEffect(() => {
+    if (!token || !businessId) return;
+    apiRequest<{ enabled: boolean }>("/integrations/pesapal/status", { token, businessId })
+      .then((r) => setPesapalOn(r.data?.enabled === true))
+      .catch(() => setPesapalOn(false));
+  }, [token, businessId]);
+
   // When the server confirms a queued sale: show its real receipt number, and refresh stock from the server
   // (once things settle, so a busy till does not reload the catalogue after every single sale).
   useEffect(() => {
@@ -185,7 +196,12 @@ export default function PointOfSaleWorkspace() {
     return () => { setSyncedHandler(null); if (refresh) clearTimeout(refresh); };
   }, [loadProducts, loadCustomers]);
 
-  const stkLocked = stkRequest?.status === "pending" || stkRequest?.status === "paid";
+  const pspLocked = pspRequest?.status === "pending" || pspRequest?.status === "paid";
+  const usePsp = pesapalOn && online && paymentMethod === "pesapal";
+  useEffect(() => {
+    if (pspRequest?.status === "paid") { setAmountPaidManuallyEdited(true); setAmountPaid(plainAmount(Number(pspRequest.amount))); }
+  }, [pspRequest?.status, pspRequest?.amount]);
+  const stkLocked = stkRequest?.status === "pending" || stkRequest?.status === "paid" || pspLocked;
   const useStk = mpesaOn && online && paymentMethod === "mpesa" && stkMode === "phone";
   useEffect(() => {
     if (stkRequest?.status === "paid") { setAmountPaidManuallyEdited(true); setAmountPaid(plainAmount(Number(stkRequest.amount))); }
@@ -366,6 +382,17 @@ export default function PointOfSaleWorkspace() {
       return;
     }
 
+    const pspPaid = usePsp && pspRequest?.status === "paid" ? pspRequest : null;
+    if (paid > 0 && paymentMethod === "pesapal") {
+      if (!pspPaid) {
+        setError(pspRequest?.status === "pending" ? "Still waiting for the customer to pay on the Pesapal page." : "Create the Pesapal payment link and wait for it to be confirmed.");
+        return;
+      }
+      if (Math.round(Number(pspPaid.amount) * 100) !== Math.round(paid * 100)) {
+        setError(`The confirmed Pesapal payment is ${money(Number(pspPaid.amount))}. Amount paid must be exactly that.`);
+        return;
+      }
+    }
     const stkPaid = useStk && stkRequest?.status === "paid" ? stkRequest : null;
     if (paid > 0 && paymentMethod === "mpesa" && useStk) {
       if (!stkPaid) {
@@ -404,7 +431,9 @@ export default function PointOfSaleWorkspace() {
       paymentMethod,
       channel,
       ...(customerId && { customerId }),
-      ...(stkPaid
+      ...(pspPaid
+        ? { pesapalPaymentRequestId: pspPaid.id }
+        : stkPaid
         ? { mpesaPaymentRequestId: stkPaid.id }
         : paid > 0 && paymentMethod === "mpesa" && { paymentReference: normalizeMpesaCode(mpesaCode) }),
       notes: notes.trim(),
@@ -428,7 +457,7 @@ export default function PointOfSaleWorkspace() {
       subtotal, discount: discountValue, tax: taxValue, pricesIncludeVat: vat?.inclusive, total,
       amountPaid: paid, balanceDue: Math.max(0, total - paid),
       paymentMethod: paid > 0 ? paymentMethod : undefined,
-      paymentReference: stkPaid ? stkPaid.mpesaReceipt : paid > 0 && paymentMethod === "mpesa" ? normalizeMpesaCode(mpesaCode) : null,
+      paymentReference: pspPaid ? pspPaid.confirmationCode : stkPaid ? stkPaid.mpesaReceipt : paid > 0 && paymentMethod === "mpesa" ? normalizeMpesaCode(mpesaCode) : null,
       notes: notes.trim() || null,
     };
     const key = crypto.randomUUID();
@@ -450,6 +479,7 @@ export default function PointOfSaleWorkspace() {
     setNotes("");
     setMpesaCode("");
     setStkRequest(null);
+    setPspRequest(null);
     setCustomerId("");
     setAmountPaidManuallyEdited(false);
     searchRef.current?.focus();
@@ -699,6 +729,7 @@ export default function PointOfSaleWorkspace() {
             <select value={paymentMethod} disabled={stkLocked} onChange={(event) => setPaymentMethod(event.target.value)}>
               <option value="cash">Cash</option>
               <option value="mpesa">M-Pesa</option>
+              {pesapalOn && online && <option value="pesapal">Pesapal (card / M-PESA / bank)</option>}
               <option value="card">Card</option>
               <option value="bank_transfer">Bank transfer</option>
             </select>
@@ -706,6 +737,10 @@ export default function PointOfSaleWorkspace() {
 
           {paymentMethod === "mpesa" && Number(amountPaid) > 0 && mpesaOn && online && (
             <MpesaStkPanel token={token} businessId={businessId} amount={Number(amountPaid)} mode={stkMode} request={stkRequest} onMode={setStkMode} onRequest={setStkRequest} />
+          )}
+
+          {paymentMethod === "pesapal" && usePsp && Number(amountPaid) > 0 && (
+            <PesapalCheckoutPanel token={token} businessId={businessId} amount={Number(amountPaid)} request={pspRequest} onRequest={setPspRequest} />
           )}
 
           {paymentMethod === "mpesa" && Number(amountPaid) > 0 && !useStk && (

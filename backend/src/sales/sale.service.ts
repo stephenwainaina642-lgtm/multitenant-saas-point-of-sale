@@ -44,6 +44,8 @@ type SaleData = {
   paymentReference?: string;
   /** A confirmed (paid) M-PESA STK request used as this sale's payment. */
   mpesaPaymentRequestId?: string;
+  /** A confirmed (paid) Pesapal request used as this sale's payment. Method must be "pesapal". */
+  pesapalPaymentRequestId?: string;
   channel?: string;
   notes?: string;
   items: SaleItemData[];
@@ -488,7 +490,11 @@ export async function createBusinessSale(
       if (amountPaid > 0n) {
         const method = data.paymentMethod!.trim().toLowerCase();
         let reference: string | null;
-        if (data.mpesaPaymentRequestId !== undefined) {
+        if (data.mpesaPaymentRequestId !== undefined && data.pesapalPaymentRequestId !== undefined) {
+          throw new AppError(400, "A sale can be paid by one online payment request only");
+        } else if (data.pesapalPaymentRequestId !== undefined) {
+          reference = await claimPesapalRequest(tx, bizId, sale.id, method, amountPaid, data.pesapalPaymentRequestId);
+        } else if (data.mpesaPaymentRequestId !== undefined) {
           reference = await claimMpesaRequest(tx, bizId, sale.id, method, amountPaid, data.mpesaPaymentRequestId);
         } else {
           reference = await checkedPaymentReference(tx, bizId, method, data.paymentReference);
@@ -598,4 +604,24 @@ async function claimMpesaRequest(tx: Tx, businessId: bigint, saleId: bigint, met
   const claimed = await tx.mpesaPaymentRequest.updateMany({ where: { id: req.id, saleId: null, status: "paid" }, data: { saleId, updatedAt: new Date() } });
   if (claimed.count !== 1) throw new AppError(409, "That M-PESA payment was already used for another sale");
   return req.mpesaReceipt ?? `STK-${req.publicId.slice(0, 8).toUpperCase()}`;
+}
+
+/**
+ * Uses a confirmed Pesapal payment as a sale's payment. Same rules as M-PESA: only PAID, same business, exact amount,
+ * and the conditional update makes sure two sales racing for one payment cannot both win.
+ * A payment Pesapal has since flagged as reversed is refused.
+ */
+async function claimPesapalRequest(tx: Tx, businessId: bigint, saleId: bigint, method: string, amountPaid: bigint, publicId: string): Promise<string> {
+  if (method !== "pesapal") throw new AppError(400, "A Pesapal payment request can only be used with the Pesapal payment method");
+  if (typeof publicId !== "string" || !/^[0-9a-f-]{36}$/i.test(publicId)) throw new AppError(400, "Invalid Pesapal payment request id");
+  const req = await tx.pesapalPaymentRequest.findFirst({ where: { publicId, businessId } });
+  if (!req) throw new AppError(404, "Pesapal payment request not found");
+  if (req.status !== "paid") throw new AppError(409, "That Pesapal payment has not been confirmed yet");
+  if (req.reversalNoticedAt) throw new AppError(409, "Pesapal reported that payment as reversed. It cannot be used for a sale.");
+  if (req.amountCents !== amountPaid) {
+    throw new AppError(409, `The confirmed Pesapal payment is KES ${centsToString(req.amountCents)}. Set Amount paid to exactly that.`);
+  }
+  const claimed = await tx.pesapalPaymentRequest.updateMany({ where: { id: req.id, saleId: null, status: "paid", reversalNoticedAt: null }, data: { saleId, updatedAt: new Date() } });
+  if (claimed.count !== 1) throw new AppError(409, "That Pesapal payment was already used for another sale");
+  return req.confirmationCode ?? `PSP-${req.publicId.slice(0, 8).toUpperCase()}`;
 }

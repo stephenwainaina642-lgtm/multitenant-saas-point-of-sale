@@ -78,7 +78,7 @@ export default function IntegrationsWorkspace() {
 
   const form = (item: Integration) => {
     const p = { item, saving, onSave: (b: SaveBody) => void save(item, b), onCancel: () => setEditing(null) };
-    return item.provider === "mpesa" ? <MpesaSettings {...p} /> : <PesapalSettings {...p} />;
+    return item.provider === "mpesa" ? <MpesaSettings {...p} /> : <PesapalSettings {...p} onChanged={() => void load()} />;
   };
 
   return (
@@ -119,7 +119,7 @@ export default function IntegrationsWorkspace() {
               <h3>Configure {editing.label}</h3>
               <button type="button" className="int-eye" aria-label="Close" onClick={() => !saving && setEditing(null)}><X size={18} /></button>
             </div>
-            {form(editing)}
+            {form(data?.integrations.find((i) => i.provider === editing.provider) ?? editing)}
           </div>
         </div>
       )}

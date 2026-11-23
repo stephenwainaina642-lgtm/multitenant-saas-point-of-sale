@@ -43,6 +43,8 @@ function present(def: ProviderDefinition, c: Conn | null) {
   const shown: Record<string, string> = {};
   for (const f of def.fields) if (f.kind === "config") shown[f.name] = cfg[f.name] ?? "";
   for (const k of def.readOnlyConfig ?? []) shown[k] = cfg[k] ?? "not_registered";
+  // A Pesapal notification address belongs to one set of credentials/environment: after those change it must be registered again.
+  if (def.id === "pesapal") shown.ipnStatus = cfg.ipnId && c && Number(cfg.ipnVersion) === c.settingsVersion ? "registered" : "not_registered";
   const secrets: Record<string, { set: boolean; hint: string | null }> = {};
   for (const f of def.fields) {
     if (f.kind !== "secret") continue;
