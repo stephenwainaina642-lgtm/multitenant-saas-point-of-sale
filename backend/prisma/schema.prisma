@@ -913,6 +913,10 @@ model MpesaPaymentRequest {
   paidAt            DateTime? @map("paid_at") @db.Timestamptz(6)
   /// The sale this confirmed payment was used for. One request pays at most one sale.
   saleId            BigInt?   @unique @map("sale_id")
+  /// A person looked at this and closed it (e.g. refunded outside the app). Never deleted; can be restored.
+  dismissedAt       DateTime? @map("dismissed_at") @db.Timestamptz(6)
+  dismissedByUserId BigInt?   @map("dismissed_by_user_id")
+  dismissedNote     String?   @map("dismissed_note") @db.VarChar(300)
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
 

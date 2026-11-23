@@ -3,7 +3,7 @@ import { rateLimit } from "express-rate-limit";
 import { authenticate } from "../../auth/auth.middleware.js";
 import { requireBusinessAccess } from "../../auth/business.middleware.js";
 import { requirePermission } from "../../auth/permissions.js";
-import { createPaymentController, getPaymentController, mpesaTillStatusController, mpesaAttentionController, mpesaCallbackController, disableController, enableController, getController, listController, saveController, testController } from "./integration.controller.js";
+import { createPaymentController, getPaymentController, mpesaTillStatusController, mpesaAttentionController, mpesaDismissController, mpesaRestoreController, mpesaCallbackController, disableController, enableController, getController, listController, saveController, testController } from "./integration.controller.js";
 
 const limit = (max: number, windowMs: number, message: string) =>
   rateLimit({
@@ -36,6 +36,10 @@ router.get("/mpesa/status", ...payGuard, mpesaTillStatusController);
 router.get("/mpesa/attention", authenticate, requireBusinessAccess, requirePermission("payments.view"), mpesaAttentionController);
 router.post("/mpesa/payment-requests", ...payGuard, payLimiter, createPaymentController);
 router.get("/mpesa/payment-requests/:id", ...payGuard, getPaymentController);
+
+// Closing a payment is a money decision: owner / people explicitly given integrations.manage only.
+router.post("/mpesa/payment-requests/:id/dismiss", ...guard, writeLimiter, mpesaDismissController);
+router.post("/mpesa/payment-requests/:id/restore", ...guard, writeLimiter, mpesaRestoreController);
 
 router.get("/", ...guard, listController);
 router.get("/:provider", ...guard, getController);

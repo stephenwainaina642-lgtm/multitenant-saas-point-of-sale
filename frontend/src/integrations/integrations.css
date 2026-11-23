@@ -91,3 +91,7 @@
 .int-attn th, .int-attn td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #f0e6c8; white-space: nowrap; }
 .int-attn th { font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: #7a6a3a; }
 .int-attn .num { text-align: right; }
+
+.int-btn-small { min-height: 30px; padding: 0 10px; font-size: 12px; }
+.int-attn-note { white-space: normal; min-width: 180px; }
+.int-field textarea { width: 100%; padding: 10px 12px; border: 1px solid #d9dfdb; border-radius: 9px; font: inherit; resize: vertical; }

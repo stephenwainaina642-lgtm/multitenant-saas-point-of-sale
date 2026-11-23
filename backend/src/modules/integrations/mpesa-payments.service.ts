@@ -263,13 +263,58 @@ export async function mpesaStatusForTill(businessId: bigint) {
  *  - review:   "unconfirmed" requests: we could not tell whether the customer paid.
  */
 export async function listAttention(businessId: bigint) {
-  const [unlinked, review] = await Promise.all([
-    prisma.mpesaPaymentRequest.findMany({ where: { businessId, status: "paid", saleId: null }, orderBy: { paidAt: "desc" }, take: 100 }),
-    prisma.mpesaPaymentRequest.findMany({ where: { businessId, status: "unconfirmed", createdAt: { gte: new Date(Date.now() - 30 * 86400_000) } }, orderBy: { createdAt: "desc" }, take: 100 }),
+  const [unlinked, review, dismissed] = await Promise.all([
+    prisma.mpesaPaymentRequest.findMany({ where: { businessId, status: "paid", saleId: null, dismissedAt: null }, orderBy: { paidAt: "desc" }, take: 100 }),
+    prisma.mpesaPaymentRequest.findMany({ where: { businessId, status: "unconfirmed", dismissedAt: null, createdAt: { gte: new Date(Date.now() - 30 * 86400_000) } }, orderBy: { createdAt: "desc" }, take: 100 }),
+    prisma.mpesaPaymentRequest.findMany({ where: { businessId, dismissedAt: { not: null }, saleId: null }, orderBy: { dismissedAt: "desc" }, take: 50 }),
   ]);
-  const ids = [...new Set([...unlinked, ...review].map((r) => r.createdByUserId).filter((x): x is bigint => x !== null))];
+  const ids = [...new Set([...unlinked, ...review, ...dismissed].flatMap((r) => [r.createdByUserId, r.dismissedByUserId]).filter((x): x is bigint => x !== null))];
   const users = ids.length ? await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } }) : [];
   const name = new Map(users.map((u) => [u.id, u.name]));
-  const row = (r: Row) => ({ ...present(r), paidAt: r.paidAt, requestedBy: r.createdByUserId ? name.get(r.createdByUserId) ?? null : null });
-  return { unlinked: unlinked.map(row), review: review.map(row) };
+  const row = (r: Row) => ({
+    ...present(r), paidAt: r.paidAt, requestedBy: r.createdByUserId ? name.get(r.createdByUserId) ?? null : null,
+    dismissedAt: r.dismissedAt, dismissedNote: r.dismissedNote, dismissedBy: r.dismissedByUserId ? name.get(r.dismissedByUserId) ?? null : null,
+  });
+  return { unlinked: unlinked.map(row), review: review.map(row), dismissed: dismissed.map(row) };
+}
+
+const NOTE_MIN = 5;
+function cleanNote(raw: unknown): string {
+  const note = String(raw ?? "").replace(/[\u0000-\u001f]/g, " ").trim();
+  if (note.length < NOTE_MIN) throw new AppError(400, `Write a reason of at least ${NOTE_MIN} characters (for example: refunded the customer, ref ...)`);
+  if (note.length > 300) throw new AppError(400, "The reason can be at most 300 characters");
+  return note;
+}
+
+/** Closes a payment that needs attention. Never deletes anything: who, when and why are kept, and it can be restored. */
+export async function dismissRequest(actor: IntegrationActor, publicId: string, rawNote: unknown) {
+  if (!/^[0-9a-f-]{36}$/i.test(publicId)) throw new AppError(400, "Invalid payment request id");
+  const note = cleanNote(rawNote);
+  const done = await prisma.mpesaPaymentRequest.updateMany({
+    where: {
+      publicId, businessId: actor.businessId, dismissedAt: null,
+      OR: [{ status: "paid", saleId: null }, { status: "unconfirmed" }],
+    },
+    data: { dismissedAt: new Date(), dismissedByUserId: actor.userId, dismissedNote: note, updatedAt: new Date() },
+  });
+  if (done.count !== 1) {
+    const r = await prisma.mpesaPaymentRequest.findFirst({ where: { publicId, businessId: actor.businessId } });
+    if (!r) throw new AppError(404, "Payment request not found");
+    throw new AppError(409, r.dismissedAt ? "That payment is already dismissed" : "Only a confirmed-but-unused payment or an unconfirmed request can be dismissed");
+  }
+  const row = await prisma.mpesaPaymentRequest.findFirstOrThrow({ where: { publicId, businessId: actor.businessId } });
+  await recordIntegrationAudit(actor, "mpesa", row.connectionId, "payment_dismissed", { requestId: row.publicId, amountCents: String(row.amountCents), receipt: row.mpesaReceipt, note });
+  return present(row);
+}
+
+export async function restoreRequest(actor: IntegrationActor, publicId: string) {
+  if (!/^[0-9a-f-]{36}$/i.test(publicId)) throw new AppError(400, "Invalid payment request id");
+  const done = await prisma.mpesaPaymentRequest.updateMany({
+    where: { publicId, businessId: actor.businessId, dismissedAt: { not: null } },
+    data: { dismissedAt: null, dismissedByUserId: null, dismissedNote: null, updatedAt: new Date() },
+  });
+  if (done.count !== 1) throw new AppError(404, "No dismissed payment with that id");
+  const row = await prisma.mpesaPaymentRequest.findFirstOrThrow({ where: { publicId, businessId: actor.businessId } });
+  await recordIntegrationAudit(actor, "mpesa", row.connectionId, "payment_restored", { requestId: row.publicId, amountCents: String(row.amountCents) });
+  return present(row);
 }

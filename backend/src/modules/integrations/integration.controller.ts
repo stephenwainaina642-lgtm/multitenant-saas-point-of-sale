@@ -44,7 +44,7 @@ export const disableController = wrap(async (req, res) => {
   res.json({ success: true, data: await setIntegrationEnabled(actor(req), providerOf(req), false, req.body?.confirm) });
 });
 
-import { createPaymentRequest, getPaymentRequest, handleCallback, listAttention, mpesaStatusForTill } from "./mpesa-payments.service.js";
+import { createPaymentRequest, getPaymentRequest, dismissRequest, handleCallback, listAttention, restoreRequest, mpesaStatusForTill } from "./mpesa-payments.service.js";
 
 export const createPaymentController = wrap(async (req, res) => {
   const key = parseIdempotencyKey(req.header("idempotency-key"));
@@ -70,4 +70,10 @@ export const mpesaTillStatusController = wrap(async (req, res) => {
 });
 export const mpesaAttentionController = wrap(async (req, res) => {
   res.json({ success: true, data: await listAttention(req.businessId!) });
+});
+export const mpesaDismissController = wrap(async (req, res) => {
+  res.json({ success: true, data: await dismissRequest(actor(req), String(req.params.id), req.body?.note) });
+});
+export const mpesaRestoreController = wrap(async (req, res) => {
+  res.json({ success: true, data: await restoreRequest(actor(req), String(req.params.id)) });
 });

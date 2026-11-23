@@ -108,3 +108,14 @@ Clearing an unlinked payment: ring the sale up with method M-Pesa and type the r
 service then links that confirmed payment automatically. A different amount is still accepted as a manual code (as before) but the payment stays
 listed for a person to look at. There is deliberately no "dismiss" button yet: that would need new columns to record who dismissed what and why,
 which should be agreed first.
+
+---
+
+# Dismissing M-PESA payments that need attention
+
+Migration `20261214090000_mpesa_request_dismissal` adds three nullable columns to `mpesa_payment_requests`
+(`dismissed_at`, `dismissed_by_user_id`, `dismissed_note`) and a CHECK that a dismissal always has a time and a reason of 5+ characters.
+
+* `POST /api/integrations/mpesa/payment-requests/:id/dismiss` `{note}` and `.../restore` need `integrations.manage` (not cashiers).
+* Only a paid-but-unlinked or an unconfirmed request can be dismissed. Nothing is deleted; who/when/why stay on the row and in the audit log.
+* `GET /api/integrations/mpesa/attention` now also returns `dismissed`, so a dismissal can be restored.

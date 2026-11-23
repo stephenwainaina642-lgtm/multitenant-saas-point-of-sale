@@ -420,5 +420,61 @@ describe("M-PESA STK Push (milestone 2a: backend only)", () => {
       const row = await query<{ ok: boolean }>(`select (sale_id = (select id from sales where public_id = $1::uuid)) ok from mpesa_payment_requests where public_id = $2::uuid`, [ok.body.data.id, id]);
       expect(row[0]!.ok).toBe(true);
     });
+
+    it("an owner can dismiss a payment with a written reason, see it, and restore it; nothing is deleted", async () => {
+      const id = await confirmed(owner, "640", "DISMISSME1");
+      const dismiss = (t: Tenant, note?: unknown, rid = id) => call("POST", `/integrations/mpesa/payment-requests/${rid}/dismiss`, t, note === undefined ? {} : { note });
+      const lists = async () => (await call("GET", "/integrations/mpesa/attention", owner)).body.data;
+      // who may: not a cashier, not someone who can only view payments
+      expect((await dismiss(cashier, "refunded the customer in person")).status).toBe(403);
+      expect((await dismiss(nobody, "refunded the customer in person")).status).toBe(403);
+      // a real reason is required
+      expect((await dismiss(owner)).status).toBe(400);
+      expect((await dismiss(owner, "no")).status).toBe(400);
+      expect((await dismiss(owner, "x".repeat(301))).status).toBe(400);
+      expect((await dismiss(other, "refunded the customer in person")).status).toBe(404); // another business
+      expect((await dismiss(owner, "refunded the customer in person", "not-a-uuid")).status).toBe(400);
+
+      const ok = await dismiss(owner, "  Refunded customer by M-PESA reversal, ref ABC123  ");
+      expect(ok.status, JSON.stringify(ok.body)).toBe(200);
+      let d = await lists();
+      expect(d.unlinked.some((x: any) => x.id === id)).toBe(false);
+      const gone = d.dismissed.find((x: any) => x.id === id);
+      expect(gone).toMatchObject({ dismissedNote: "Refunded customer by M-PESA reversal, ref ABC123", mpesaReceipt: "DISMISSME1" });
+      expect(gone.dismissedBy).toBeTruthy();
+      expect((await dismiss(owner, "dismissing twice should fail")).status).toBe(409);
+
+      // still in the database, with who/when/why, and audited
+      const row = await query<{ n: string; w: string | null; u: string | null }>(`select dismissed_note n, dismissed_at::text w, dismissed_by_user_id::text u from mpesa_payment_requests where public_id = $1::uuid`, [id]);
+      expect(row[0]!.n).toMatch(/ABC123/);
+      expect(row[0]!.w).toBeTruthy();
+      expect(row[0]!.u).toBe(owner.userId);
+      const audit = await query<{ c: string }>(`select count(*) c from integration_audit_logs where action = 'payment_dismissed' and business_id = $1`, [owner.businessId]);
+      expect(Number(audit[0]!.c)).toBeGreaterThanOrEqual(1);
+
+      // restore brings it back; only the owner can
+      expect((await call("POST", `/integrations/mpesa/payment-requests/${id}/restore`, cashier)).status).toBe(403);
+      expect((await call("POST", `/integrations/mpesa/payment-requests/${id}/restore`, owner)).status).toBe(200);
+      d = await lists();
+      expect(d.unlinked.some((x: any) => x.id === id)).toBe(true);
+      expect(d.dismissed.some((x: any) => x.id === id)).toBe(false);
+      expect((await call("POST", `/integrations/mpesa/payment-requests/${id}/restore`, owner)).status).toBe(404);
+    });
+
+    it("only payments that need attention can be dismissed", async () => {
+      const pending = await pay(owner, { amount: "20" });
+      const r = await call("POST", `/integrations/mpesa/payment-requests/${pending.body.data.id}/dismiss`, owner, { note: "trying to hide a live request" });
+      expect(r.status).toBe(409);
+      // a paid payment that already paid for a sale is settled, not 'attention'
+      const used = await confirmed(owner, "1000", "USEDALREADY");
+      expect((await sale(owner, product, 1, { mpesaPaymentRequestId: used })).status).toBe(201);
+      expect((await call("POST", `/integrations/mpesa/payment-requests/${used}/dismiss`, owner, { note: "already used for a sale" })).status).toBe(409);
+    });
+
+    it("the database refuses a dismissal without a real reason", async () => {
+      const id = await confirmed(owner, "30", "DBRULEONE1");
+      await expect(query(`update mpesa_payment_requests set dismissed_at = now(), dismissed_note = 'ab' where public_id = $1::uuid`, [id])).rejects.toThrow(/dismissal_complete/);
+      await expect(query(`update mpesa_payment_requests set dismissed_at = now() where public_id = $1::uuid`, [id])).rejects.toThrow(/dismissal_complete/);
+    });
   });
 });
