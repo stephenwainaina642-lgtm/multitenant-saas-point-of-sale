@@ -1,0 +1,25 @@
+.hotel { display: grid; gap: 18px; }
+.hotel-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.hotel-tables { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.hotel-table { text-align: left; border: 1px solid var(--border, #dfe3eb); background: #f4fbf6; border-radius: 12px; padding: 12px; cursor: pointer; display: grid; gap: 4px; font: inherit; color: inherit; }
+.hotel-table span { font-size: 12px; color: var(--muted, #697386); }
+.hotel-table.busy { background: #fff4e0; border-color: #e8c766; }
+.hotel-table.active { outline: 2px solid #16a34a; }
+.hotel-order { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.hotel-cats { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0; }
+.hotel-cat { border: 1px solid var(--border, #dfe3eb); background: #fff; border-radius: 999px; padding: 5px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+.hotel-cat.active { background: #16a34a; color: #fff; border-color: #16a34a; }
+.hotel-menu { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.hotel-item { text-align: left; border: 1px solid var(--border, #dfe3eb); background: #fff; border-radius: 10px; padding: 10px; font: inherit; color: inherit; cursor: pointer; display: grid; gap: 4px; }
+.hotel-item span { font-size: 13px; color: #15803d; font-weight: 600; }
+.hotel-item:disabled { opacity: .5; cursor: not-allowed; }
+.hotel-lines { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 8px; }
+.hotel-lines li { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--border, #eef0f4); padding-bottom: 8px; }
+.hotel-lines li.void { opacity: .55; text-decoration: line-through; }
+.hotel-line-right { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.hotel-total { display: flex; justify-content: space-between; font-size: 18px; margin: 8px 0; }
+.hotel-bill { display: grid; gap: 10px; }
+@media (max-width: 860px) { .hotel-order { grid-template-columns: 1fr; } }
+
+.hotel-addons { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
+.hotel-sub { font-size: 13px; opacity: .85; }

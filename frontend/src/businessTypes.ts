@@ -13,6 +13,8 @@ export const BUSINESS_TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: "building_materials", label: "Building materials" },
   { value: "timber", label: "Timber & wood" },
   { value: "furniture", label: "Furniture" },
+  { value: "hotel", label: "Hotel & guest house" },
+  { value: "restaurant", label: "Restaurant & cafe" },
   { value: "wholesale", label: "Wholesale" },
   { value: "other", label: "Other" },
 ];
