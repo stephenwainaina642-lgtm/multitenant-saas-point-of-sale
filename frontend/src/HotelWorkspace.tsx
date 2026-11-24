@@ -11,7 +11,7 @@ import "./hotel.css";
 type TableRow = { id: string; name: string; seats: number | null; openOrder: null | { id: string; guestName: string | null; covers: number | null; openedAt: string; itemCount: number; runningTotal: string } };
 type MenuItem = { id: string; name: string; description: string | null; price: string; available: boolean; madeToOrder: boolean; unit: string; category: string };
 type Addon = { id: string; name: string; price: string };
-type OrderItem = { id: string; name: string; addons: { name: string; price: string }[]; unitPrice: string; quantity: string; note: string | null; sentAt: string | null; voidedAt: string | null; voidReason: string | null; lineTotal: string };
+type OrderItem = { id: string; name: string; addons: { name: string; price: string }[]; unitPrice: string; quantity: string; note: string | null; sentAt: string | null; voidedAt: string | null; voidReason: string | null; lineTotal: string; billedReceipt: string | null };
 type Order = { id: string; status: string; tableName: string; guestName: string | null; covers: number | null; openedAt: string; runningTotal: string; serviceChargeRate: string; cateringLevyRate: string; serviceCharge: string; cateringLevy: string; estimatedTotal: string; items: OrderItem[] };
 type Sale = { id: string; receiptNumber: string; subtotal: string; discount: string; tax: string; total: string; amountPaid: string; balanceDue: string; pricesIncludeVat: boolean };
 
@@ -40,6 +40,7 @@ export default function HotelWorkspace() {
   const [busy, setBusy] = useState(false);
   const [billing, setBilling] = useState(false);
   const [method, setMethod] = useState("cash");
+  const [chosen, setChosen] = useState<string[]>([]); // lines included in this bill (split bill)
   const [code, setCode] = useState("");
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
   const [addons, setAddons] = useState<Addon[]>([]);
@@ -65,7 +66,7 @@ export default function HotelWorkspace() {
   const categories = useMemo(() => ["All", ...Array.from(new Set(menu.map((m) => m.category))).sort()], [menu]);
   const shown = menu.filter((m) => (cat === "All" || m.category === cat) && (!search.trim() || m.name.toLowerCase().includes(search.trim().toLowerCase())));
   const table = tables.find((t) => t.id === tableId) ?? null;
-  const live = order?.items.filter((i) => !i.voidedAt) ?? [];
+  const live = order?.items.filter((i) => !i.voidedAt && !i.billedReceipt) ?? [];
   const unsent = live.filter((i) => !i.sentAt).length;
 
   async function pick(t: TableRow) {
@@ -119,26 +120,34 @@ export default function HotelWorkspace() {
     if (!sent && !window.confirm("Cancel this order?")) return;
     void run(() => call<Order>(`/orders/${order.id}/cancel`, "POST", { reason }), () => { setOrder(null); notify.success("Order cancelled."); });
   };
+  const cents = (v: string | number) => Math.round(Number(v) * 100);
+  const pctOf = (base: number, rate: string) => Math.round((base * Math.round(Number(rate) * 100)) / 10000);
   function bill() {
     if (!order) return;
+    const picked = live.filter((i) => chosen.includes(i.id));
+    if (picked.length === 0) { notify.error("Choose at least one item to bill."); return; }
+    const all = picked.length === live.length;
     if (method === "mpesa") { const p = mpesaCodeError(code); if (p) { notify.error(p); return; } }
-    void run(() => call<{ order: Order; sale: Sale }>(`/orders/${order.id}/bill`, "POST", { paymentMethod: method, ...(method === "mpesa" && { paymentReference: normalizeMpesaCode(code) }) }), (r) => {
+    void run(() => call<{ order: Order; sale: Sale; partBill?: boolean }>(`/orders/${order.id}/bill`, "POST", { ...(!all && { itemIds: picked.map((i) => i.id) }), paymentMethod: method, ...(method === "mpesa" && { paymentReference: normalizeMpesaCode(code) }) }), (r) => {
       const s = r.sale;
+      const base = picked.reduce((sum, i) => sum + cents(i.lineTotal), 0);
+      const service = pctOf(base, r.order.serviceChargeRate) / 100, levy = pctOf(base, r.order.cateringLevyRate) / 100;
       setReceipt({
         receiptNumber: s.receiptNumber, date: new Date(), customerName: null, servedBy: sessionStorage.getItem("pos_user_name") || null,
         items: [
-          ...r.order.items.filter((i) => !i.voidedAt).map((i) => ({
+          ...picked.map((i) => ({
             name: i.addons.length ? `${i.name} (+ ${i.addons.map((a) => a.name).join(", ")})` : i.name,
             quantity: Number(i.quantity), unitPrice: Number(i.lineTotal) / Number(i.quantity), total: Number(i.lineTotal),
           })),
-          ...(Number(r.order.serviceCharge) > 0 ? [{ name: `Service charge (${Number(r.order.serviceChargeRate)}%)`, quantity: 1, unitPrice: Number(r.order.serviceCharge), total: Number(r.order.serviceCharge) }] : []),
-          ...(Number(r.order.cateringLevy) > 0 ? [{ name: `Catering levy (${Number(r.order.cateringLevyRate)}%)`, quantity: 1, unitPrice: Number(r.order.cateringLevy), total: Number(r.order.cateringLevy) }] : []),
+          ...(service > 0 ? [{ name: `Service charge (${Number(r.order.serviceChargeRate)}%)`, quantity: 1, unitPrice: service, total: service }] : []),
+          ...(levy > 0 ? [{ name: `Catering levy (${Number(r.order.cateringLevyRate)}%)`, quantity: 1, unitPrice: levy, total: levy }] : []),
         ],
         subtotal: Number(s.subtotal), discount: Number(s.discount), tax: Number(s.tax), pricesIncludeVat: s.pricesIncludeVat, total: Number(s.total),
         amountPaid: Number(s.amountPaid), balanceDue: Number(s.balanceDue), paymentMethod: method, paymentReference: method === "mpesa" ? normalizeMpesaCode(code) : null,
-        notes: `${r.order.tableName}${r.order.guestName ? ` · ${r.order.guestName}` : ""}`,
+        notes: `${r.order.tableName}${r.order.guestName ? ` · ${r.order.guestName}` : ""}${r.order.status === "billed" ? "" : " (part bill)"}`,
       });
-      setOrder(null); setBilling(false); setCode(""); setTableId(null);
+      setCode(""); setBilling(false); setChosen([]);
+      if (r.order.status === "billed") { setOrder(null); setTableId(null); } else { setOrder(r.order); notify.success("Part bill paid. The rest of the table is still open."); }
     });
   }
 
@@ -222,11 +231,11 @@ export default function HotelWorkspace() {
                   <div>
                     <strong>{Number(i.quantity)} × {i.name}</strong>
                     {i.addons.length > 0 && <div className="inventory-muted" style={{ margin: 0 }}>+ {i.addons.map((a) => a.name).join(", ")}</div>}
-                    <div className="inventory-muted" style={{ margin: 0 }}>{i.voidedAt ? `Removed: ${i.voidReason}` : i.sentAt ? "Sent to kitchen" : "Not sent yet"}{i.note ? ` · ${i.note}` : ""}</div>
+                    <div className="inventory-muted" style={{ margin: 0 }}>{i.voidedAt ? `Removed: ${i.voidReason}` : i.billedReceipt ? `Paid · receipt ${i.billedReceipt}` : i.sentAt ? "Sent to kitchen" : "Not sent yet"}{i.note ? ` · ${i.note}` : ""}</div>
                   </div>
                   <div className="hotel-line-right">
                     <span>{money(Number(i.lineTotal))}</span>
-                    {!i.voidedAt && (
+                    {!i.voidedAt && !i.billedReceipt && (
                       <>
                         {!i.sentAt && <button type="button" aria-label="One less" className="pos-secondary-button" disabled={busy || Number(i.quantity) <= 1} onClick={() => more(i, -1)}>−</button>}
                         {!i.sentAt && <button type="button" aria-label="One more" className="pos-secondary-button" disabled={busy} onClick={() => more(i, 1)}>+</button>}
@@ -250,11 +259,35 @@ export default function HotelWorkspace() {
             {!billing ? (
               <div className="hotel-row">
                 <button type="button" className="pos-secondary-button" disabled={busy || unsent === 0} onClick={() => void send()}><Send size={14} /> Send to kitchen{unsent ? ` (${unsent})` : ""}</button>
-                <button type="button" className="pos-primary-button" disabled={busy || live.length === 0} onClick={() => setBilling(true)}>Bill</button>
+                <button type="button" className="pos-primary-button" disabled={busy || live.length === 0} onClick={() => { setChosen(live.map((i) => i.id)); setBilling(true); }}>Bill</button>
                 <button type="button" className="pos-secondary-button" disabled={busy} onClick={cancel}>Cancel order</button>
               </div>
             ) : (
               <div className="hotel-bill">
+                <div>
+                  <strong>Include in this bill</strong>
+                  <p className="inventory-muted" style={{ margin: "2px 0 6px" }}>Tick one guest's items to bill them on their own receipt; the rest of the table stays open.</p>
+                  <ul className="hotel-pick">
+                    {live.map((i) => (
+                      <li key={i.id}>
+                        <label>
+                          <input type="checkbox" checked={chosen.includes(i.id)} onChange={() => setChosen((c) => (c.includes(i.id) ? c.filter((x) => x !== i.id) : [...c, i.id]))} />
+                          {Number(i.quantity)} × {i.name}{i.addons.length ? ` (+ ${i.addons.map((a) => a.name).join(", ")})` : ""}
+                        </label>
+                        <span>{money(Number(i.lineTotal))}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="hotel-row">
+                    <button type="button" className="pos-secondary-button" onClick={() => setChosen(live.map((i) => i.id))}>All</button>
+                    <button type="button" className="pos-secondary-button" onClick={() => setChosen([])}>None</button>
+                    {(() => {
+                      const base = live.filter((i) => chosen.includes(i.id)).reduce((sum, i) => sum + cents(i.lineTotal), 0);
+                      const est = base + pctOf(base, order.serviceChargeRate) + pctOf(base, order.cateringLevyRate);
+                      return <strong style={{ marginLeft: "auto" }}>This bill: {money(est / 100)}</strong>;
+                    })()}
+                  </div>
+                </div>
                 <label className="inventory-field">Paid by
                   <select value={method} onChange={(e) => setMethod(e.target.value)}>
                     <option value="cash">Cash</option><option value="mpesa">M-PESA (type the code)</option><option value="card">Card</option>
@@ -263,7 +296,7 @@ export default function HotelWorkspace() {
                 {method === "mpesa" && <label className="inventory-field">M-PESA code<input value={code} maxLength={12} placeholder="QGH7XK2LMN" onChange={(e) => setCode(e.target.value)} /></label>}
                 <p className="inventory-muted">Bills are paid in full here. For part payment or credit, use the Point of Sale screen.</p>
                 <div className="hotel-row">
-                  <button type="button" className="pos-primary-button" disabled={busy} onClick={bill}>Confirm payment &amp; print receipt</button>
+                  <button type="button" className="pos-primary-button" disabled={busy} onClick={bill}>Confirm payment &amp; print receipt{chosen.length < live.length ? " (part bill)" : ""}</button>
                   <button type="button" className="pos-secondary-button" disabled={busy} onClick={() => setBilling(false)}>Back</button>
                 </div>
               </div>
