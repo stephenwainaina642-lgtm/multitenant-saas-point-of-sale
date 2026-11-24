@@ -1,4 +1,4 @@
-import { takeBranchStockOrFail } from "../branches/branch-stock.js";
+import { takeBranchStockClamped, takeBranchStockOrFail } from "../branches/branch-stock.js";
 import prisma from "../lib/prisma.js";
 import { requirePublicId } from "../lib/public-id.js";
 import { AppError } from "../lib/errors.js";
@@ -48,6 +48,8 @@ type SaleData = {
   pesapalPaymentRequestId?: string;
   channel?: string;
   notes?: string;
+  /** The till was offline when this was rung up (client clock; bounded). Stock shortfalls are then recorded, not refused. */
+  offlineSoldAt?: Date;
   items: SaleItemData[];
 };
 
@@ -434,9 +436,20 @@ export async function createBusinessSale(
         options.branchId ??
         (await tx.branch.findFirstOrThrow({ where: { businessId: bizId, isMain: true } })).id;
 
+      // Quantity actually taken per product and any shortfall (offline sales only: the customer was already served).
+      const taken = new Map<bigint, string>();
+      const shortfalls: { productId: bigint; short: string }[] = [];
       for (const [productId, entry] of orderedProducts) {
         // Stock is taken from the selling branch only.
-        await takeBranchStockOrFail(tx, bizId, branchId, productId, milliToString(entry.quantity), entry.name);
+        if (data.offlineSoldAt) {
+          const r = await takeBranchStockClamped(tx, bizId, branchId, productId, milliToString(entry.quantity));
+          if (!r) throw new AppError(400, `Insufficient stock for product: ${entry.name}`);
+          taken.set(productId, r.taken);
+          if (Number(r.short) > 0) shortfalls.push({ productId, short: r.short });
+        } else {
+          await takeBranchStockOrFail(tx, bizId, branchId, productId, milliToString(entry.quantity), entry.name);
+          taken.set(productId, milliToString(entry.quantity));
+        }
       }
 
       // Per-business sequential receipt number.
@@ -468,6 +481,7 @@ export async function createBusinessSale(
           paymentStatus,
           status: "completed",
           channel: saleChannel(data.channel),
+          offlineSoldAt: data.offlineSoldAt ?? null,
           idempotencyKey,
           notes: data.notes || null,
           items: {
@@ -520,21 +534,26 @@ export async function createBusinessSale(
         });
       }
 
-      for (const [productId, entry] of orderedProducts) {
+      for (const [productId] of orderedProducts) {
+        const qty = taken.get(productId)!;
+        if (Number(qty) <= 0) continue; // nothing was on the shelf to take: the shortfall row says so
         await tx.inventoryMovement.create({
           data: {
             businessId: bizId,
             branchId,
             productId,
             type: "OUT",
-            quantity: milliToString(entry.quantity),
+            quantity: qty,
             reference: `SALE-${sale.id.toString()}`,
-            notes: `Stock sold${customer ? ` to ${customer.name}` : ""}`,
+            notes: `Stock sold${customer ? ` to ${customer.name}` : ""}${data.offlineSoldAt ? " (offline sale)" : ""}`,
           },
         });
       }
+      for (const f of shortfalls) {
+        await tx.offlineStockShortfall.create({ data: { businessId: bizId, branchId, productId: f.productId, saleId: sale.id, quantityShort: f.short } });
+      }
 
-      return formatCreatedSale(sale, customer, false);
+      return { ...formatCreatedSale(sale, customer, false), stockShortfall: shortfalls.length > 0 };
     });
   } catch (error) {
     // Two requests with the same idempotency key raced: return the winner.

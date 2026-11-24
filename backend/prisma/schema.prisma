@@ -396,6 +396,9 @@ model Sale {
   salespersonId    BigInt?  @map("salesperson_id")
   receiptNumber    String   @map("receipt_number") @db.VarChar(100)
   saleDate         DateTime @default(now()) @map("sale_date") @db.Timestamptz(6)
+  /// When the till says this was rung up with no internet (null for online sales).
+  offlineSoldAt    DateTime? @map("offline_sold_at") @db.Timestamptz(6)
+  stockShortfalls  OfflineStockShortfall[]
   subtotal         Decimal  @default(0) @db.Decimal(12, 2)
   discount         Decimal  @default(0) @db.Decimal(12, 2)
   tax              Decimal  @default(0) @db.Decimal(12, 2)
@@ -1004,4 +1007,24 @@ model MpesaC2bPayment {
   @@unique([businessId, transId])
   @@index([businessId, transTime(sort: Desc)])
   @@map("mpesa_c2b_payments")
+}
+
+/// An offline sale that arrived after the stock had run out. The sale is recorded; stock was taken down to zero.
+model OfflineStockShortfall {
+  id               BigInt    @id @default(autoincrement())
+  publicId         String    @unique @default(dbgenerated("gen_random_uuid()")) @map("public_id") @db.Uuid
+  businessId       BigInt    @map("business_id")
+  branchId         BigInt    @map("branch_id")
+  productId        BigInt    @map("product_id")
+  saleId           BigInt    @map("sale_id")
+  quantityShort    Decimal   @map("quantity_short") @db.Decimal(12, 3)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  resolvedAt       DateTime? @map("resolved_at") @db.Timestamptz(6)
+  resolvedByUserId BigInt?   @map("resolved_by_user_id")
+  resolvedNote     String?   @map("resolved_note") @db.VarChar(300)
+
+  sale Sale @relation(fields: [saleId], references: [id], onDelete: Restrict)
+
+  @@unique([saleId, productId])
+  @@map("offline_stock_shortfalls")
 }

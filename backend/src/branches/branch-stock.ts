@@ -1,6 +1,9 @@
 import { AppError } from "../lib/errors.js";
 
-type Db = { $executeRaw: (q: TemplateStringsArray, ...v: unknown[]) => Promise<number> };
+type Db = {
+  $executeRaw: (q: TemplateStringsArray, ...v: unknown[]) => Promise<number>;
+  $queryRaw?: <T = unknown>(q: TemplateStringsArray, ...v: unknown[]) => Promise<T>;
+};
 
 /**
  * All stock changes go through branch_stock. A database trigger adds each change to
@@ -43,4 +46,32 @@ export async function takeBranchStockOrFail(
   if (!(await takeBranchStock(tx, businessId, branchId, productId, quantity, options))) {
     throw new AppError(400, `Insufficient stock for product: ${label}`);
   }
+}
+
+/**
+ * For a sale that was rung up offline and has already happened: take what the branch holds, never more, and report the
+ * rest as a shortfall. Stock never goes below zero (the database forbids it); the shortfall is for a manager to review.
+ * Returns null when the product is inactive or missing (that is still an error).
+ */
+export async function takeBranchStockClamped(
+  tx: Db, businessId: bigint, branchId: bigint, productId: bigint, quantity: string
+): Promise<{ taken: string; short: string } | null> {
+  const prod = await tx.$queryRaw!<{ active: boolean }[]>`
+    SELECT is_active AS active FROM products WHERE id = ${productId} AND business_id = ${businessId}`;
+  if (!prod[0] || !prod[0].active) return null;
+  // Lock the shelf row so a sale at the same moment cannot take the same units.
+  const rows = await tx.$queryRaw!<{ held: string }[]>`
+    SELECT quantity::text AS held FROM branch_stock
+     WHERE branch_id = ${branchId} AND product_id = ${productId} AND business_id = ${businessId} FOR UPDATE`;
+  const row = { held: rows[0]?.held ?? "0" };
+  const held = Number(row.held ?? "0");
+  const want = Number(quantity);
+  const taken = Math.max(0, Math.min(held, want));
+  if (taken > 0) {
+    const n = await tx.$executeRaw`
+      UPDATE branch_stock SET quantity = quantity - ${taken.toFixed(3)}::numeric, updated_at = now()
+       WHERE branch_id = ${branchId} AND product_id = ${productId} AND business_id = ${businessId} AND quantity >= ${taken.toFixed(3)}::numeric`;
+    if (n === 0) return null;
+  }
+  return { taken: taken.toFixed(3), short: Math.max(0, want - taken).toFixed(3) };
 }

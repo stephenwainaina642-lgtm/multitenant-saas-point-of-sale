@@ -120,6 +120,7 @@ export async function createSaleController(
       paymentReference,
       mpesaPaymentRequestId,
       pesapalPaymentRequestId,
+      offlineSoldAt,
       channel,
       notes,
       items,
@@ -169,6 +170,8 @@ export async function createSaleController(
         ...(pesapalPaymentRequestId !== undefined && pesapalPaymentRequestId !== null && {
           pesapalPaymentRequestId: String(pesapalPaymentRequestId),
         }),
+
+        ...(offlineSoldAt !== undefined && offlineSoldAt !== null && { offlineSoldAt: parseOfflineSoldAt(offlineSoldAt) }),
 
         ...(channel !== undefined && channel !== null && {
           channel: String(channel),
@@ -357,4 +360,14 @@ export async function previewSaleController(req: BusinessRequest, res: Response,
   } catch (error) {
     next(error);
   }
+}
+
+/** The till's claim of when an offline sale happened: a real time, not in the future, not older than 14 days. */
+function parseOfflineSoldAt(raw: unknown): Date {
+  const t = new Date(String(raw));
+  const now = Date.now();
+  if (Number.isNaN(t.getTime()) || t.getTime() > now + 5 * 60_000 || t.getTime() < now - 14 * 86400_000) {
+    throw new AppError(400, "offlineSoldAt must be a recent time (within the last 14 days)");
+  }
+  return t;
 }
