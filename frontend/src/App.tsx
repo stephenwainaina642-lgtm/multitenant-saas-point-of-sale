@@ -25,6 +25,8 @@ import { notify } from "./toast";
 import { AlertTriangle, Bell, Radio, BarChart3, Banknote, Boxes, Clock, FileSpreadsheet, FileText, LayoutDashboard, Package, Receipt, Settings, ShoppingBag, ShoppingCart, Store, Truck, UserCog, Users, Wallet, ClipboardList } from "lucide-react";
 import { can, storePermissions } from "./permissions";
 import SyncBadge from "./SyncBadge";
+import OfflineBanner from "./OfflineBanner";
+import { clearOfflineCache } from "./offlineCache";
 import { flushOutbox, unsyncedCount } from "./salesOutbox";
 import { money } from "./money";
 
@@ -200,6 +202,7 @@ function App() {
     } catch {
       /* offline: the cookie still expires on its own */
     }
+    clearOfflineCache();
     try {
       sessionStorage.clear();
     } catch {
@@ -266,6 +269,7 @@ function App() {
       </aside>
 
       <main className="main-content">
+        <OfflineBanner />
         <header className="topbar">
           <button type="button" className="menu-button" aria-label="Open menu" aria-expanded={menuOpen} aria-controls="main-menu" onClick={() => setMenuOpen((o) => !o)}>
             <span /><span /><span />

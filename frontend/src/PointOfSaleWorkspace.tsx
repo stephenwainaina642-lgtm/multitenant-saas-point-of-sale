@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { mpesaCodeError, normalizeMpesaCode } from "./mpesa";
-import { apiRequest } from "./api/client";
+import { ApiError, apiRequest } from "./api/client";
 import { can } from "./permissions";
 import { notify } from "./toast";
 import { enqueueSale, setSyncedHandler } from "./salesOutbox";
+import { readOfflineCache, saveOfflineCache } from "./offlineCache";
 import ReceiptModal, { type ReceiptData } from "./ReceiptModal";
 import { Plus, Printer, ReceiptText, Search } from "lucide-react";
 import { checkName, checkPhone, cleanName, cleanPhone, PHONE_PROPS } from "./validation";
@@ -101,15 +102,23 @@ export default function PointOfSaleWorkspace() {
         /* older server: fall back to the product totals */
         for (const p of response.data ?? []) held.set(p.id, Number(p.stockQuantity));
       }
-      setProducts(
-        (response.data ?? []).filter((product) => product.isActive).map((p) => ({ ...p, stockQuantity: held.get(p.id) ?? 0 }))
-      );
+      const fresh = (response.data ?? []).filter((product) => product.isActive).map((p) => ({ ...p, stockQuantity: held.get(p.id) ?? 0 }));
+      setProducts(fresh);
+      saveOfflineCache(businessId, { products: fresh });
       setSelectedProductId((current) =>
         current || (response.data ?? []).find((product) => product.isActive)?.id || ""
       );
       setError("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load products.");
+      // No connection (not a refusal from the server): carry on with the copy saved on this device.
+      const saved = !(err instanceof ApiError) ? readOfflineCache<Product, PosCustomer>(businessId) : null;
+      if (saved?.products) {
+        setProducts(saved.products);
+        setSelectedProductId((current) => current || saved.products?.[0]?.id || "");
+        notify.info(`You're offline. Showing the prices and stock saved on this device (${new Date(saved.savedAt).toLocaleString()}). Sales are kept and sent when you're back online.`);
+      } else {
+        setError(err instanceof Error ? err.message : "Could not load products.");
+      }
     } finally {
       setLoading(false);
     }
@@ -134,8 +143,11 @@ export default function PointOfSaleWorkspace() {
     try {
       const response = await apiRequest<PosCustomer[]>("/customers", { token, businessId });
       setCustomers(response.data ?? []);
-    } catch {
-      /* the till still works for walk-in customers */
+      saveOfflineCache(businessId, { customers: response.data ?? [] });
+    } catch (err) {
+      // Offline: use the saved names; walk-in customers always work.
+      const saved = !(err instanceof ApiError) ? readOfflineCache<Product, PosCustomer>(businessId) : null;
+      if (saved?.customers) setCustomers(saved.customers);
     }
   }, [token, businessId]);
   useEffect(() => { void loadCustomers(); }, [loadCustomers]);
@@ -217,8 +229,16 @@ export default function PointOfSaleWorkspace() {
     const businessId = sessionStorage.getItem("pos_business_id");
     if (!token || !businessId) return;
     apiRequest<{ vatRegistered: boolean; vatRate: string; pricesIncludeVat?: boolean }>("/businesses/current", { token, businessId })
-      .then((r) => { if (r.data) setVat({ registered: r.data.vatRegistered, rate: r.data.vatRate, inclusive: r.data.vatRegistered && r.data.pricesIncludeVat === true }); })
-      .catch(() => undefined);
+      .then((r) => {
+        if (!r.data) return;
+        const v = { registered: r.data.vatRegistered, rate: r.data.vatRate, inclusive: r.data.vatRegistered && r.data.pricesIncludeVat === true };
+        setVat(v);
+        saveOfflineCache(businessId, { vat: v });
+      })
+      .catch((err) => {
+        const saved = !(err instanceof ApiError) ? readOfflineCache<Product, PosCustomer>(businessId) : null;
+        if (saved?.vat) setVat(saved.vat);
+      });
   }, []);
 
   useEffect(() => {
@@ -344,6 +364,17 @@ export default function PointOfSaleWorkspace() {
       return;
     }
 
+    if (!navigator.onLine) {
+      if (vatOn) {
+        setError("This business charges VAT, and VAT totals are worked out by the server. Selling offline is not available for VAT-registered businesses yet. Please reconnect to sell.");
+        return;
+      }
+      if (paymentMethod === "pesapal") {
+        setError("Card / online checkout needs a connection. Choose cash or M-PESA (enter the code), or reconnect.");
+        return;
+      }
+    }
+
     if (cart.length === 0) {
       setError("Add at least one product to the cart.");
       return;
@@ -461,6 +492,9 @@ export default function PointOfSaleWorkspace() {
       notes: notes.trim() || null,
     };
     const key = crypto.randomUUID();
+    // Rung up with no connection: tell the server when it really happened, so it records the sale even if
+    // another till sold the same stock in the meantime (the difference is flagged for the manager to review).
+    if (!navigator.onLine) (payload as Record<string, unknown>).offlineSoldAt = new Date().toISOString();
     enqueueSale({
       key, businessId, branchId: sessionStorage.getItem(`pos_branch_${businessId}`),
       userName: sessionStorage.getItem("pos_user_name"), payload, receipt,

@@ -98,3 +98,6 @@
   .metrics-grid { grid-template-columns: minmax(0, 1fr); }
   h1 { font-size: 19px; }
 }
+
+/* Offline till */
+.offline-banner { position: sticky; top: 0; z-index: 60; display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: #fff7e0; color: #6b4a00; border-bottom: 1px solid #e8c766; font-size: 13px; }

@@ -51,3 +51,8 @@ createRoot(document.getElementById("root")!).render(
     <Root />
   </StrictMode>
 );
+
+// Lets the till open with no internet (production only, so local development never serves stale files).
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => { navigator.serviceWorker.register("/sw.js").catch(() => undefined); });
+}

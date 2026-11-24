@@ -2,6 +2,7 @@ import { can } from "./permissions";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
 import { useNotify } from "./useNotify";
+import OfflineShortfallsPanel from "./OfflineShortfallsPanel";
 
 type Product = {
   id: string;
@@ -200,6 +201,8 @@ export default function InventoryWorkspace() {
           <strong>{loading ? "—" : movements.length}</strong>
         </div>
       </section>
+
+      {can("inventory.view") && <OfflineShortfallsPanel />}
 
       <section className="inventory-panel">
         <h2>Record a stock movement</h2>
