@@ -141,7 +141,15 @@ export async function createProductController(
       unitOfMeasure,
       taxClass,
       categoryId,
+      tracksStock,
+      isAvailable,
     } = req.body;
+
+    for (const [label, v] of [["tracksStock", tracksStock], ["isAvailable", isAvailable]] as const) {
+      if (v !== undefined && typeof v !== "boolean") {
+        return res.status(400).json({ success: false, message: `${label} must be true or false` });
+      }
+    }
 
     const parsedName = typeof name === "string" ? name.trim() : "";
 
@@ -241,6 +249,8 @@ export async function createProductController(
         minimumStock: parsedMinimumStock,
         unitOfMeasure: parsedUnitOfMeasure,
         ...(taxClass !== undefined && { taxClass }),
+        ...(tracksStock !== undefined && { tracksStock }),
+        ...(isAvailable !== undefined && { isAvailable }),
         ...(categoryId !== undefined && { categoryId: await resolveCategoryId(req.businessId.toString(), categoryId) }),
         ...(parsedSku !== undefined && parsedSku !== "" && { sku: parsedSku }),
         ...(parsedBarcode !== undefined && parsedBarcode !== "" && {
@@ -307,7 +317,17 @@ export async function updateProductController(
       unitOfMeasure?: string;
       taxClass?: string;
       categoryId?: bigint | null;
+      tracksStock?: boolean;
+      isAvailable?: boolean;
     } = {};
+
+    for (const [label, v] of [["tracksStock", req.body.tracksStock], ["isAvailable", req.body.isAvailable]] as const) {
+      if (v === undefined) continue;
+      if (typeof v !== "boolean") {
+        return res.status(400).json({ success: false, message: `${label} must be true or false` });
+      }
+      productData[label] = v;
+    }
 
     if (name !== undefined) {
       const parsedName = typeof name === "string" ? name.trim() : "";

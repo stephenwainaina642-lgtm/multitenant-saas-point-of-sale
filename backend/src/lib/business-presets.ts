@@ -22,6 +22,8 @@ export const BUSINESS_PRESETS: Record<string, BusinessPreset> = {
   timber: { label: "Timber & wood", units: ["piece", "foot", "metre", "sheet"], categories: ["Timber", "Plywood & Boards", "Mouldings", "Fasteners", "Varnish & Finishes", "Other"] },
   furniture: { label: "Furniture", units: ["piece", "set"], categories: ["Beds & Mattresses", "Sofas & Seating", "Tables", "Wardrobes & Storage", "Office Furniture", "Fittings & Accessories", "Other"] },
   wholesale: { label: "Wholesale", units: ["carton", "bag", "kg", "dozen", "piece"], categories: ["Beverages", "Cooking Oils & Fats", "Flour & Grains", "Sugar & Sweeteners", "Household Goods", "Toiletries", "Packaging", "Other"] },
+  hotel: { label: "Hotel & guest house", units: ["plate", "portion", "cup", "glass", "bottle", "piece"], categories: ["Breakfast", "Starters", "Mains", "Sides", "Desserts", "Hot Drinks", "Soft Drinks", "Beer, Wine & Spirits", "Room Service", "Other"] },
+  restaurant: { label: "Restaurant & cafe", units: ["plate", "portion", "cup", "glass", "bottle", "piece"], categories: ["Breakfast", "Starters", "Mains", "Sides", "Desserts", "Hot Drinks", "Soft Drinks", "Beer, Wine & Spirits", "Other"] },
   general: { label: "General", units: GENERIC_UNITS, categories: ["General"] },
   other: { label: "Other", units: GENERIC_UNITS, categories: ["General"] },
 };

@@ -1,4 +1,4 @@
-import { takeBranchStockClamped, takeBranchStockOrFail } from "../branches/branch-stock.js";
+import { takeBranchStockClamped, takeBranchStockOrFail, untrackedProductIds } from "../branches/branch-stock.js";
 import prisma from "../lib/prisma.js";
 import { requirePublicId } from "../lib/public-id.js";
 import { AppError } from "../lib/errors.js";
@@ -257,6 +257,8 @@ type CreateSaleOptions = {
   pricesIncludeVat?: boolean | undefined;
   /** The branch selling; defaults to the business's Main branch. */
   branchId?: bigint | undefined;
+  /** Internal (table billing): accept the prices given instead of catalogue prices. */
+  trustedPrices?: boolean | undefined;
 };
 
 type SaleRecord = {
@@ -384,6 +386,7 @@ export async function createBusinessSale(
         vat,
       } = await priceSale(tx, bizId, data.items, data.discount, data.tax, {
         ...(options.pricesIncludeVat !== undefined && { pricesIncludeVat: options.pricesIncludeVat }),
+        ...(options.trustedPrices && { trustedPrices: true }),
       });
       const amountPaid = parseMoney(data.amountPaid ?? 0, "Amount paid");
 
@@ -439,7 +442,9 @@ export async function createBusinessSale(
       // Quantity actually taken per product and any shortfall (offline sales only: the customer was already served).
       const taken = new Map<bigint, string>();
       const shortfalls: { productId: bigint; short: string }[] = [];
+      const untracked = await untrackedProductIds(tx, bizId, orderedProducts.map(([id]) => id));
       for (const [productId, entry] of orderedProducts) {
+        if (untracked.has(productId)) { taken.set(productId, "0"); continue; } // made to order: no stock involved
         // Stock is taken from the selling branch only.
         if (data.offlineSoldAt) {
           const r = await takeBranchStockClamped(tx, bizId, branchId, productId, milliToString(entry.quantity));
@@ -582,10 +587,11 @@ export async function createBusinessSale(
  */
 export async function previewBusinessSale(
   businessId: bigint,
-  data: { items: RawSaleItem[]; discount?: unknown; tax?: unknown }
+  data: { items: RawSaleItem[]; discount?: unknown; tax?: unknown },
+  options: { trustedPrices?: boolean } = {}
 ) {
   return prisma.$transaction(async (tx) => {
-    const { lines, totals, vat } = await priceSale(tx, businessId, data.items, data.discount, data.tax);
+    const { lines, totals, vat } = await priceSale(tx, businessId, data.items, data.discount, data.tax, options.trustedPrices ? { trustedPrices: true } : {});
     return {
       vatRegistered: vat.registered,
       vatRate: vat.registered ? centsToString(vat.rateBps) : null,

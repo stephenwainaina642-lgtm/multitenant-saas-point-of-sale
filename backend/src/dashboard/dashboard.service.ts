@@ -114,7 +114,7 @@ export async function getDashboard(scope: DashboardScope) {
       : Promise.resolve([]),
     scope.seeStock
       ? prisma.product.findMany({
-          where: { businessId: bid, isActive: true },
+          where: { businessId: bid, isActive: true, tracksStock: true },
           select: { id: true, publicId: true, name: true, sku: true, unitOfMeasure: true, stockQuantity: true, minimumStock: true, costPrice: true },
           orderBy: { name: "asc" },
         })

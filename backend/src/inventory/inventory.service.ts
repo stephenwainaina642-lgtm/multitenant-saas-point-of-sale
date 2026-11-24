@@ -1,3 +1,4 @@
+import { AppError } from "../lib/errors.js";
 import prisma from "../lib/prisma.js";
 import { requirePublicId } from "../lib/public-id.js";
 import { addBranchStock, takeBranchStock } from "../branches/branch-stock.js";
@@ -89,6 +90,9 @@ export async function createInventoryMovement(
 
     if (!product) {
       throw new Error("Product not found");
+    }
+    if (!product.tracksStock) {
+      throw new AppError(400, `${product.name} is made to order and does not track stock.`);
     }
 
     // Stock is counted per branch: this is what the active branch holds.

@@ -2,17 +2,17 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { query, resetData, withRollback } from "../support/db.js";
 
 const EXPECTED_TABLES = [
-  "audit_logs", "branch_stock", "branches", "business_invites", "business_users", "businesses", "categories", "customers", "document_sequences", "expenses",
-  "integration_audit_logs", "integration_connections", "integration_events", "integration_secrets", "inventory_movements", "invoice_items", "invoices", "mpesa_c2b_payments", "mpesa_payment_requests", "offline_stock_shortfalls", "password_reset_tokens", "payments", "pesapal_payment_requests", "platform_admins", "platform_audit_logs", "products",
+  "audit_logs", "branch_stock", "branches", "business_invites", "business_users", "businesses", "categories", "customers", "dining_tables", "document_sequences", "expenses",
+  "integration_audit_logs", "integration_connections", "integration_events", "integration_secrets", "inventory_movements", "invoice_items", "invoices", "menu_addons", "mpesa_c2b_payments", "mpesa_payment_requests", "offline_stock_shortfalls", "password_reset_tokens", "payments", "pesapal_payment_requests", "platform_admins", "platform_audit_logs", "products",
   "purchase_items", "purchases", "quotation_items", "quotations", "refunds", "register_shifts", "roles",
-  "sale_items", "sales", "stock_transfer_items", "stock_transfers", "supplier_payments", "suppliers", "tax_rates", "users",
+  "sale_items", "sales", "stock_transfer_items", "stock_transfers", "supplier_payments", "suppliers", "table_order_items", "table_orders", "tax_rates", "users",
 ];
 
 // Tables that must carry business_id (directly business-owned).
 const TENANT_TABLES = [
   "audit_logs", "business_users", "categories", "customers", "document_sequences", "expenses",
   "inventory_movements", "invoices", "payments", "products", "purchases", "register_shifts",
-  "quotations", "sales", "suppliers", "integration_audit_logs", "integration_connections", "integration_events", "integration_secrets", "mpesa_c2b_payments", "mpesa_payment_requests", "offline_stock_shortfalls", "pesapal_payment_requests", "branches", "branch_stock", "stock_transfers",
+  "quotations", "sales", "suppliers", "integration_audit_logs", "integration_connections", "integration_events", "integration_secrets", "mpesa_c2b_payments", "mpesa_payment_requests", "offline_stock_shortfalls", "pesapal_payment_requests", "branches", "branch_stock", "stock_transfers", "dining_tables", "table_orders", "table_order_items",
 ];
 
 describe("migrations and schema", () => {
@@ -42,7 +42,7 @@ describe("migrations and schema", () => {
       `select table_name, column_name, numeric_precision, numeric_scale
          from information_schema.columns
         where table_schema='public' and data_type='numeric'
-          and column_name not in ('vat_rate', 'tax_rate', 'rate')   -- percentages: numeric(5,2), checked below`
+          and column_name not in ('vat_rate', 'tax_rate', 'rate', 'service_charge_rate', 'catering_levy_rate')   -- percentages: numeric(5,2), checked below`
     );
     expect(cols.length).toBeGreaterThan(30);
     for (const c of cols) {
@@ -200,7 +200,7 @@ describe("more integrity rules", () => {
     const rows = await query<{ conname: string; convalidated: boolean }>(
       `select conname, convalidated from pg_constraint
         where contype = 'c' and connamespace = 'public'::regnamespace
-          and conname not in ('refunds_amount_positive','supplier_payments_amount_positive','businesses_tax_pin_format','businesses_vat_rate_range','products_tax_class_valid','tax_rates_rate_range','tax_rates_code_not_builtin','businesses_inclusive_needs_vat','platform_audit_reason_not_blank','register_shifts_status_valid','register_shifts_float_nonneg','register_shifts_closed_complete','sales_channel_valid','branches_name_not_blank','branches_main_is_active','branch_stock_quantity_nonneg','stock_transfers_different_branches','stock_transfer_items_quantity_positive','integration_connections_provider_check','integration_connections_environment_check','integration_connections_test_status_check','mpesa_payment_requests_status_check','mpesa_payment_requests_amount_positive','mpesa_payment_requests_paid_complete','mpesa_payment_requests_dismissal_complete','mpesa_c2b_payments_amount_positive','mpesa_c2b_payments_trans_id_format','pesapal_payment_requests_status_check','pesapal_payment_requests_amount_positive','pesapal_payment_requests_paid_complete','pesapal_payment_requests_contact_present','pesapal_payment_requests_dismissal_complete','offline_stock_shortfalls_qty_positive','offline_stock_shortfalls_resolved_complete')`
+          and conname not in ('refunds_amount_positive','supplier_payments_amount_positive','businesses_tax_pin_format','businesses_vat_rate_range','products_tax_class_valid','tax_rates_rate_range','tax_rates_code_not_builtin','businesses_inclusive_needs_vat','platform_audit_reason_not_blank','register_shifts_status_valid','register_shifts_float_nonneg','register_shifts_closed_complete','sales_channel_valid','branches_name_not_blank','branches_main_is_active','branch_stock_quantity_nonneg','stock_transfers_different_branches','stock_transfer_items_quantity_positive','integration_connections_provider_check','integration_connections_environment_check','integration_connections_test_status_check','mpesa_payment_requests_status_check','mpesa_payment_requests_amount_positive','mpesa_payment_requests_paid_complete','mpesa_payment_requests_dismissal_complete','mpesa_c2b_payments_amount_positive','mpesa_c2b_payments_trans_id_format','pesapal_payment_requests_status_check','pesapal_payment_requests_amount_positive','pesapal_payment_requests_paid_complete','pesapal_payment_requests_contact_present','pesapal_payment_requests_dismissal_complete','offline_stock_shortfalls_qty_positive','offline_stock_shortfalls_resolved_complete','dining_tables_name_not_blank','dining_tables_seats_positive','table_orders_status_check','table_orders_covers_positive','table_orders_billed_has_sale','table_orders_closed_complete','table_order_items_qty_positive','table_order_items_price_nonneg','table_order_items_void_complete','businesses_service_charge_range','businesses_catering_levy_range','menu_addons_name_not_blank','menu_addons_price_nonneg','table_order_items_addons_array')`
     );
     expect(rows.length).toBe(13); // 12 earlier + businesses_approval_status_valid
     for (const r of rows) expect(r.convalidated, r.conname).toBe(false);

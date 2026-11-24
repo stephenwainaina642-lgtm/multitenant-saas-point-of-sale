@@ -20,6 +20,9 @@ model Business {
   vatRegistered    Boolean  @default(false) @map("vat_registered")
   vatRate          Decimal  @default(16.00) @map("vat_rate") @db.Decimal(5, 2)
   pricesIncludeVat Boolean  @default(false) @map("prices_include_vat")
+  /// Percent added to a table bill when it is billed (0 = off). Hotels only; see hotel.service.ts.
+  serviceChargeRate Decimal @default(0) @map("service_charge_rate") @db.Decimal(5, 2)
+  cateringLevyRate  Decimal @default(0) @map("catering_levy_rate") @db.Decimal(5, 2)
   currency         String   @default("KES") @db.VarChar(10)
   timezone         String   @default("Africa/Nairobi") @db.VarChar(100)
   isActive         Boolean  @default(true) @map("is_active")
@@ -28,6 +31,7 @@ model Business {
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
+  menuAddons         MenuAddon[]
   memberships        BusinessUser[]
   roles              Role[]
   taxRates           TaxRate[]
@@ -243,11 +247,16 @@ model Product {
   stockQuantity  Decimal  @default(0) @map("stock_quantity") @db.Decimal(12, 3)
   minimumStock   Decimal  @default(0) @map("minimum_stock") @db.Decimal(12, 3)
   isActive       Boolean  @default(true) @map("is_active")
+  /// false = made to order (meals): selling it neither needs nor changes stock.
+  tracksStock    Boolean  @default(true) @map("tracks_stock")
+  /// false = sold out for now: cannot be added to a table order.
+  isAvailable    Boolean  @default(true) @map("is_available")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   business       Business            @relation(fields: [businessId], references: [id])
   category       Category?           @relation(fields: [categoryId], references: [id])
+  orderItems     TableOrderItem[]
   movements      InventoryMovement[]
   purchaseItems  PurchaseItem[]
   saleItems      SaleItem[]
@@ -399,6 +408,7 @@ model Sale {
   /// When the till says this was rung up with no internet (null for online sales).
   offlineSoldAt    DateTime? @map("offline_sold_at") @db.Timestamptz(6)
   stockShortfalls  OfflineStockShortfall[]
+  tableOrder       TableOrder?
   subtotal         Decimal  @default(0) @db.Decimal(12, 2)
   discount         Decimal  @default(0) @db.Decimal(12, 2)
   tax              Decimal  @default(0) @db.Decimal(12, 2)
@@ -1027,4 +1037,87 @@ model OfflineStockShortfall {
 
   @@unique([saleId, productId])
   @@map("offline_stock_shortfalls")
+}
+
+/// A table or room point where guests are served.
+model DiningTable {
+  id         BigInt   @id @default(autoincrement())
+  publicId   String   @unique @default(dbgenerated("gen_random_uuid()")) @map("public_id") @db.Uuid
+  businessId BigInt   @map("business_id")
+  branchId   BigInt   @map("branch_id")
+  name       String   @db.VarChar(60)
+  seats      Int?
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  orders TableOrder[]
+
+  @@unique([branchId, name])
+  @@index([businessId])
+  @@map("dining_tables")
+}
+
+/// A guest's running order at a table. Billing turns it into an ordinary sale.
+model TableOrder {
+  id         BigInt    @id @default(autoincrement())
+  publicId   String    @unique @default(dbgenerated("gen_random_uuid()")) @map("public_id") @db.Uuid
+  businessId BigInt    @map("business_id")
+  branchId   BigInt    @map("branch_id")
+  tableId    BigInt    @map("table_id")
+  status     String    @default("open") @db.VarChar(20)
+  guestName  String?   @map("guest_name") @db.VarChar(100)
+  covers     Int?
+  notes      String?   @db.VarChar(300)
+  openedBy   BigInt    @map("opened_by")
+  saleId     BigInt?   @unique @map("sale_id")
+  openedAt   DateTime  @default(now()) @map("opened_at") @db.Timestamptz(6)
+  closedAt   DateTime? @map("closed_at") @db.Timestamptz(6)
+  updatedAt  DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  table DiningTable      @relation(fields: [tableId], references: [id])
+  sale  Sale?            @relation(fields: [saleId], references: [id])
+  items TableOrderItem[]
+
+  @@index([businessId, status])
+  @@map("table_orders")
+}
+
+model TableOrderItem {
+  id         BigInt    @id @default(autoincrement())
+  publicId   String    @unique @default(dbgenerated("gen_random_uuid()")) @map("public_id") @db.Uuid
+  businessId BigInt    @map("business_id")
+  orderId    BigInt    @map("order_id")
+  productId  BigInt    @map("product_id")
+  name       String    @db.VarChar(255)
+  unitPrice  Decimal   @map("unit_price") @db.Decimal(12, 2)
+  quantity   Decimal   @db.Decimal(12, 3)
+  note       String?   @db.VarChar(200)
+  sentAt     DateTime? @map("sent_at") @db.Timestamptz(6)
+  voidedAt   DateTime? @map("voided_at") @db.Timestamptz(6)
+  voidReason String?   @map("void_reason") @db.VarChar(200)
+  /// Add-ons chosen for this line, [{name, price}] copied when it was added.
+  addons     Json?
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  order   TableOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product    @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@map("table_order_items")
+}
+
+model MenuAddon {
+  id         BigInt   @id @default(autoincrement())
+  publicId   String   @unique @default(dbgenerated("gen_random_uuid()")) @map("public_id") @db.Uuid
+  businessId BigInt   @map("business_id")
+  name       String   @db.VarChar(80)
+  price      Decimal  @default(0) @db.Decimal(12, 2)
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, name])
+  @@map("menu_addons")
 }

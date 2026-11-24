@@ -1,5 +1,6 @@
 import { addBranchStock } from "../branches/branch-stock.js";
 import prisma from "../lib/prisma.js";
+import { AppError } from "../lib/errors.js";
 import { requirePublicId } from "../lib/public-id.js";
 
 export async function getBusinessProducts(businessId: string) {
@@ -29,6 +30,8 @@ export async function getBusinessProducts(businessId: string) {
     categoryId: product.category?.publicId ?? null,
     categoryName: product.category?.name ?? null,
     isActive: product.isActive,
+    tracksStock: product.tracksStock,
+    isAvailable: product.isAvailable,
   }));
 }
 
@@ -47,6 +50,8 @@ export async function createBusinessProduct(
     unitOfMeasure?: string;
     taxClass?: string;
     categoryId?: bigint | null;
+    tracksStock?: boolean;
+    isAvailable?: boolean;
   }
 ) {
   const openingStock = data.stockQuantity ?? 0;
@@ -67,10 +72,12 @@ export async function createBusinessProduct(
         taxClass: data.taxClass || "standard",
         categoryId: data.categoryId ?? null,
         isActive: true,
+        ...(data.tracksStock !== undefined && { tracksStock: data.tracksStock }),
+        ...(data.isAvailable !== undefined && { isAvailable: data.isAvailable }),
       },
     });
 
-    if (openingStock > 0) {
+    if (openingStock > 0 && product.tracksStock) {
       await addBranchStock(tx, BigInt(businessId), branchId, product.id, String(openingStock));
       await tx.inventoryMovement.create({
         data: {
@@ -100,6 +107,8 @@ export async function createBusinessProduct(
       taxClass: product.taxClass,
       categoryId: stocked.category?.publicId ?? null,
       isActive: product.isActive,
+      tracksStock: product.tracksStock,
+      isAvailable: product.isAvailable,
     };
   });
 }
@@ -118,6 +127,8 @@ export async function updateBusinessProduct(
     unitOfMeasure?: string;
     taxClass?: string;
     categoryId?: bigint | null;
+    isAvailable?: boolean;
+    tracksStock?: boolean;
   }
 ) {
   const product = await prisma.product.findFirst({
@@ -130,6 +141,13 @@ export async function updateBusinessProduct(
 
   if (!product) {
     throw new Error("Product not found");
+  }
+
+  // Switching stock tracking after the item has been sold would leave stock figures that do not match history.
+  if (data.tracksStock !== undefined && data.tracksStock !== product.tracksStock) {
+    const sold = await prisma.saleItem.count({ where: { productId: product.id } });
+    if (sold > 0) throw new AppError(409, "Stock tracking can't be changed once the item has been sold. Add a new item instead.");
+    if (!data.tracksStock && Number(product.stockQuantity) > 0) throw new AppError(409, "Take the remaining stock out first (stock adjustment), then switch off stock tracking.");
   }
 
   const updatedProduct = await prisma.product.update({
@@ -154,6 +172,8 @@ export async function updateBusinessProduct(
     taxClass: updatedProduct.taxClass,
     categoryId: updatedProduct.category?.publicId ?? null,
     isActive: updatedProduct.isActive,
+    tracksStock: updatedProduct.tracksStock,
+    isAvailable: updatedProduct.isAvailable,
   };
 }
 

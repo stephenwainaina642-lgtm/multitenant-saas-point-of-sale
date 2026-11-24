@@ -75,3 +75,14 @@ export async function takeBranchStockClamped(
   }
   return { taken: taken.toFixed(3), short: Math.max(0, want - taken).toFixed(3) };
 }
+
+/** Made-to-order items (meals) do not track stock: selling, editing or voiding them must not touch it. */
+export async function untrackedProductIds(
+  tx: { product: { findMany: (args: { where: { businessId: bigint; id: { in: bigint[] }; tracksStock: false }; select: { id: true } }) => Promise<{ id: bigint }[]> } },
+  businessId: bigint,
+  productIds: bigint[]
+): Promise<Set<bigint>> {
+  if (productIds.length === 0) return new Set();
+  const rows = await tx.product.findMany({ where: { businessId, id: { in: productIds }, tracksStock: false }, select: { id: true } });
+  return new Set(rows.map((r) => r.id));
+}

@@ -1,4 +1,5 @@
 import { isPublicId } from "../lib/public-id.js";
+import { AppError } from "../lib/errors.js";
 import type { Response } from "express";
 import type { BusinessRequest } from "../auth/business.middleware.js";
 import {
@@ -135,6 +136,9 @@ export async function createInventoryController(
       data: result,
     });
   } catch (error) {
+    if (error instanceof AppError) {
+      return res.status(error.status).json({ success: false, message: error.message });
+    }
     console.error("Create inventory error:", error);
 
     if (

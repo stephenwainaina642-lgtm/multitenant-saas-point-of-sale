@@ -1,4 +1,4 @@
-import { addBranchStock, takeBranchStockOrFail } from "../branches/branch-stock.js";
+import { addBranchStock, takeBranchStockOrFail, untrackedProductIds } from "../branches/branch-stock.js";
 import prisma from "../lib/prisma.js";
 import { requirePublicId, saleIdFromPublic } from "../lib/public-id.js";
 import { AppError } from "../lib/errors.js";
@@ -227,7 +227,9 @@ export async function editBusinessSale(
       a < b ? -1 : a > b ? 1 : 0
     );
 
+    const untracked = await untrackedProductIds(tx, bizId, productIds);
     for (const productId of productIds) {
+      if (untracked.has(productId)) continue; // made to order: no stock involved
       const was = oldQty.get(productId)?.quantity ?? 0n;
       const now = newQty.get(productId)?.quantity ?? 0n;
       const delta = now - was;
@@ -375,7 +377,9 @@ export async function voidBusinessSale(
       sale.items.map((i) => ({ productId: i.productId, quantity: decimalToMilli(i.quantity) }))
     );
 
+    const untracked = await untrackedProductIds(tx, bizId, quantities.map(([id]) => id));
     for (const [productId, entry] of quantities) {
+      if (untracked.has(productId)) continue; // made to order: nothing was taken, nothing to return
       await addBranchStock(tx, bizId, sale.branchId, productId, milliToString(entry.quantity));
 
       await tx.inventoryMovement.create({

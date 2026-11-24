@@ -41,6 +41,12 @@ type LineOptions = {
    * since changed.
    */
   existing?: Map<bigint, Set<bigint>>;
+  /**
+   * Internal use only (never set from a request): accept the given unit prices instead of the catalogue price. Table
+   * billing uses it because each line's price was frozen on the server when the line was added (dish + add-ons, and
+   * the service charge / levy worked out from them).
+   */
+  trustedPrices?: boolean;
 };
 
 /** Validate raw items against the catalogue and price them exactly. */
@@ -88,7 +94,7 @@ export async function buildSaleLines(
     const catalogueOk = unitPrice === decimalToCents(product.sellingPrice);
     const originalOk = options.existing?.get(productId)?.has(unitPrice) ?? false;
 
-    if (!catalogueOk && !originalOk) {
+    if (!catalogueOk && !originalOk && !options.trustedPrices) {
       throw new AppError(
         400,
         `Sale price does not match the saved selling price for: ${product.name}`
