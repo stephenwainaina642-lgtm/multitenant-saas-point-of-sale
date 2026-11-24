@@ -2,6 +2,7 @@ import PasswordInput from "./PasswordInput";
 import { useCallback, useEffect, useState } from "react";
 import { apiRequest, SESSION_MARKER } from "./api/client";
 import { money } from "./money";
+import PlatformQuotes from "./PlatformQuotes";
 
 type Biz = {
   approvalStatus: "approved" | "pending" | "rejected";
@@ -39,7 +40,7 @@ export default function PlatformAdmin() {
   const [admin, setAdmin] = useState("");
   const [data, setData] = useState<Overview | null>(null);
   const [audit, setAudit] = useState<Audit[]>([]);
-  const [tab, setTab] = useState<"businesses" | "invites" | "audit">("businesses");
+  const [tab, setTab] = useState<"businesses" | "invites" | "quotes" | "audit">("businesses");
   const [invites, setInvites] = useState<Invite[]>([]);
   const [inv, setInv] = useState({ email: "", businessName: "", note: "", autoApprove: true });
   const [created, setCreated] = useState<Created | null>(null);
@@ -139,7 +140,7 @@ export default function PlatformAdmin() {
         ))}
       </section>
       <nav style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-        {(["businesses", "invites", "audit"] as const).map((t) => <button key={t} style={{ ...small, ...(tab === t ? { background: "#176b4d", color: "#fff" } : {}) }} onClick={() => setTab(t)}>{t === "businesses" ? "Businesses" : t === "invites" ? "Invitations" : "Admin activity"}</button>)}
+        {(["businesses", "invites", "quotes", "audit"] as const).map((t) => <button key={t} style={{ ...small, ...(tab === t ? { background: "#176b4d", color: "#fff" } : {}) }} onClick={() => setTab(t)}>{t === "businesses" ? "Businesses" : t === "invites" ? "Invitations" : t === "quotes" ? "Quotations" : "Admin activity"}</button>)}
         {tab === "businesses" && <input style={{ ...input, maxWidth: 280, marginLeft: "auto" }} placeholder="Search name or owner" value={search} onChange={(e) => setSearch(e.target.value)} />}
       </nav>
 
@@ -170,6 +171,8 @@ export default function PlatformAdmin() {
             </tbody>
           </table>
         </div>
+      ) : tab === "quotes" ? (
+        <PlatformQuotes token={token} />
       ) : tab === "invites" ? (
         <div style={{ display: "grid", gap: 12 }}>
           <form onSubmit={createInvite} style={{ ...card, display: "grid", gap: 10 }}>
