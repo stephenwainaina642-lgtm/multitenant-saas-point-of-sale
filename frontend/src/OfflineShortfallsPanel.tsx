@@ -4,7 +4,7 @@ import { can } from "./permissions";
 import { notify } from "./toast";
 
 type Shortfall = {
-  id: string; productName: string; sku: string | null; unitOfMeasure: string | null; quantityShort: string | number;
+  id: string; product: string; sku: string | null; unit: string | null; quantityShort: string | number;
   receiptNumber: string | null; soldOfflineAt: string | null; recordedAt: string;
   resolvedAt: string | null; resolvedNote: string | null;
 };
@@ -69,8 +69,8 @@ export default function OfflineShortfallsPanel({ onChanged }: { onChanged?: () =
           <tbody>
             {list.map((r) => (
               <tr key={r.id}>
-                <td>{r.productName}{r.sku ? ` (${r.sku})` : ""}</td>
-                <td>{Number(r.quantityShort).toLocaleString("en-KE", { maximumFractionDigits: 3 })} {r.unitOfMeasure ?? ""}</td>
+                <td>{r.product}{r.sku ? ` (${r.sku})` : ""}</td>
+                <td>{Number(r.quantityShort).toLocaleString("en-KE", { maximumFractionDigits: 3 })} {r.unit ?? ""}</td>
                 <td>{r.receiptNumber ?? "—"}</td>
                 <td>{new Date(r.soldOfflineAt ?? r.recordedAt).toLocaleString("en-KE")}</td>
                 <td>
