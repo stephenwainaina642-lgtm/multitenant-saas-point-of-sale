@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
 import { requirePublicId } from "../lib/public-id.js";
@@ -44,7 +45,7 @@ export async function listTables(businessId: bigint, branchId: bigint) {
   const tables = await prisma.diningTable.findMany({
     where: { businessId, branchId, isActive: true },
     orderBy: { name: "asc" },
-    include: { orders: { where: { status: "open" }, include: { items: { where: { voidedAt: null } } } } },
+    include: { orders: { where: { status: "open" }, include: { items: { where: { voidedAt: null, saleId: null } } } } },
   });
   return tables.map((t) => {
     const open = t.orders[0];
@@ -80,7 +81,7 @@ export async function deleteTable(businessId: bigint, publicIdText: string) {
 async function loadOrder(businessId: bigint, publicIdText: string) {
   const o = await prisma.tableOrder.findFirst({
     where: { publicId: requirePublicId(publicIdText, "Invalid order"), businessId },
-    include: { table: true, items: { orderBy: { createdAt: "asc" } }, sale: { select: { publicId: true, receiptNumber: true } } },
+    include: { table: true, items: { orderBy: { createdAt: "asc" }, include: { sale: { select: { receiptNumber: true } } } }, sale: { select: { publicId: true, receiptNumber: true } } },
   });
   if (!o) throw new AppError(404, "Order not found");
   const business = await prisma.business.findUniqueOrThrow({ where: { id: businessId }, select: { serviceChargeRate: true, cateringLevyRate: true } });
@@ -89,7 +90,8 @@ async function loadOrder(businessId: bigint, publicIdText: string) {
 
 type LoadedOrder = Awaited<ReturnType<typeof loadOrder>>;
 function formatOrder(o: LoadedOrder) {
-  const live = o.items.filter((i) => !i.voidedAt);
+  // Totals cover what is still to be billed; lines already billed on a part-bill are shown as paid.
+  const live = o.items.filter((i) => !i.voidedAt && !i.saleId);
   const base = live.reduce((s, i) => s + lineCents(i), 0);
   const ch = chargesFor(base, o.business);
   return {
@@ -104,6 +106,7 @@ function formatOrder(o: LoadedOrder) {
     items: o.items.map((i) => ({
       id: i.publicId, name: i.name, unitPrice: dec(i.unitPrice), quantity: dec(i.quantity), addons: addonList(i.addons),
       note: i.note, sentAt: i.sentAt, voidedAt: i.voidedAt, voidReason: i.voidReason, lineTotal: fromCents(lineCents(i)),
+      billedReceipt: i.sale?.receiptNumber ?? null,
     })),
   };
 }
@@ -141,7 +144,7 @@ export async function addItem(businessId: bigint, orderIdText: string, body: { p
   const addons = await resolveAddons(businessId, body.addonIds);
   const addonKey = JSON.stringify(addons);
   // Same item, note and add-ons, not yet sent: add to the existing line instead of repeating it.
-  const same = order.items.find((i) => i.productId === product.id && !i.voidedAt && !i.sentAt && (i.note ?? null) === note && JSON.stringify(addonList(i.addons)) === addonKey);
+  const same = order.items.find((i) => i.productId === product.id && !i.voidedAt && !i.saleId && !i.sentAt && (i.note ?? null) === note && JSON.stringify(addonList(i.addons)) === addonKey);
   if (same) {
     await prisma.tableOrderItem.update({ where: { id: same.id }, data: { quantity: (Number(same.quantity) + qty).toFixed(3) } });
   } else {
@@ -156,6 +159,7 @@ export async function setItemQuantity(businessId: bigint, orderIdText: string, i
   const order = await openOrderOrThrow(businessId, orderIdText);
   const item = order.items.find((i) => i.publicId === requirePublicId(itemIdText, "Invalid item") && !i.voidedAt);
   if (!item) throw new AppError(404, "Item not found on this order");
+  if (item.saleId) throw new AppError(409, "This item has already been billed.");
   if (item.sentAt) throw new AppError(409, "This item was already sent to the kitchen. Remove it with a reason and add it again.");
   const qty = Number(body.quantity);
   if (!Number.isFinite(qty) || qty <= 0 || qty > 1000 || Math.round(qty * 1000) / 1000 !== qty) throw new AppError(400, "Quantity must be a positive number (up to 3 decimals)");
@@ -167,6 +171,7 @@ export async function removeItem(businessId: bigint, orderIdText: string, itemId
   const order = await openOrderOrThrow(businessId, orderIdText);
   const item = order.items.find((i) => i.publicId === requirePublicId(itemIdText, "Invalid item") && !i.voidedAt);
   if (!item) throw new AppError(404, "Item not found on this order");
+  if (item.saleId) throw new AppError(409, "This item has already been billed.");
   if (!item.sentAt) {
     await prisma.tableOrderItem.delete({ where: { id: item.id } }); // never sent to the kitchen: simply take it off
   } else {
@@ -189,6 +194,7 @@ export async function sendToKitchen(businessId: bigint, orderIdText: string) {
 
 export async function cancelOrder(businessId: bigint, orderIdText: string, body: { reason?: unknown }) {
   const order = await openOrderOrThrow(businessId, orderIdText);
+  if (order.items.some((i) => i.saleId)) throw new AppError(409, "Part of this order has already been billed. Bill the rest instead.");
   const reason = clean(body.reason, 200, "Reason");
   if (order.items.some((i) => i.sentAt && !i.voidedAt) && (!reason || reason.length < 3)) throw new AppError(400, "Give a reason: some items were already sent to the kitchen");
   const done = await prisma.tableOrder.updateMany({ where: { id: order.id, status: "open" }, data: { status: "cancelled", closedAt: new Date(), notes: reason ? `Cancelled: ${reason}`.slice(0, 300) : order.notes, updatedAt: new Date() } });
@@ -197,27 +203,63 @@ export async function cancelOrder(businessId: bigint, orderIdText: string, body:
 }
 
 type BillBody = {
+  /** Bill only these lines (split bill). Omit to bill everything not yet billed. */
+  itemIds?: unknown;
   amountPaid?: unknown; paymentMethod?: unknown; paymentReference?: unknown; customerId?: unknown; discount?: unknown; tax?: unknown;
   mpesaPaymentRequestId?: unknown; pesapalPaymentRequestId?: unknown;
 };
 
+/** One bill at a time per order: two tills billing the same lines can never both succeed. */
+function withOrderLock<T>(orderId: bigint, fn: () => Promise<T>): Promise<T> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`select pg_advisory_xact_lock(${orderId}::bigint)`;
+    return fn();
+  }, { timeout: 60_000, maxWait: 15_000 });
+}
+
+const saleSummary = (s: { publicId: string; receiptNumber: string; subtotal: { toString(): string }; discount: { toString(): string }; tax: { toString(): string }; total: { toString(): string }; amountPaid: { toString(): string }; balanceDue: { toString(): string }; pricesIncludeVat: boolean }) =>
+  ({ id: s.publicId, receiptNumber: s.receiptNumber, subtotal: dec(s.subtotal), discount: dec(s.discount), tax: dec(s.tax), total: dec(s.total), amountPaid: dec(s.amountPaid), balanceDue: dec(s.balanceDue), pricesIncludeVat: s.pricesIncludeVat });
+
 /**
- * Bills the order: creates one ordinary sale from the lines that are not removed, then closes the order.
- * The sale carries an idempotency key made from the order, so pressing "Bill" twice (or a retry after a dropped
- * connection) can never create a second sale.
+ * Bills the order, or a chosen part of it (split bill): creates one ordinary sale from the lines being billed, marks
+ * those lines as billed, and closes the order once nothing is left. Each sale carries an idempotency key made from the
+ * exact set of lines, so pressing "Bill" twice (or a retry after a dropped connection) never creates a second sale, and
+ * a line can only ever be billed once.
  */
 export async function billOrder(businessId: bigint, userId: bigint, orderIdText: string, body: BillBody) {
-  const order = await loadOrder(businessId, orderIdText);
-  if (order.status === "billed" && order.sale) return { order: formatOrder(order), sale: { id: order.sale.publicId, receiptNumber: order.sale.receiptNumber }, alreadyBilled: true };
+  const first = await loadOrder(businessId, orderIdText);
+  return withOrderLock(first.id, () => billLocked(businessId, userId, orderIdText, body));
+}
+
+async function billLocked(businessId: bigint, userId: bigint, orderIdText: string, body: BillBody) {
+  const order = await loadOrder(businessId, orderIdText); // read again now that we hold the lock
+  let chosen: typeof order.items | null = null;
+  if (body.itemIds !== undefined) {
+    if (!Array.isArray(body.itemIds) || body.itemIds.length === 0 || body.itemIds.length > 200) throw new AppError(400, "Choose the items to bill");
+    const ids = new Set(body.itemIds.map((x) => requirePublicId(String(x), "Invalid item")));
+    chosen = order.items.filter((i) => ids.has(i.publicId));
+    if (chosen.length !== ids.size) throw new AppError(404, "An item was not found on this order");
+    if (chosen.some((i) => i.voidedAt)) throw new AppError(409, "An item you chose was removed from the order");
+    // The same request again (a retry): everything chosen was billed together on one sale, so answer with that sale.
+    const billedOn = new Set(chosen.map((i) => i.saleId?.toString() ?? ""));
+    if (billedOn.size === 1 && !billedOn.has("")) {
+      const sale = await prisma.sale.findFirstOrThrow({ where: { id: chosen[0]!.saleId!, businessId } });
+      return { order: formatOrder(await loadOrder(businessId, orderIdText)), sale: saleSummary(sale), alreadyBilled: true };
+    }
+    if (chosen.some((i) => i.saleId)) throw new AppError(409, "Some of the items you chose have already been billed");
+  } else if (order.status === "billed" && order.sale) {
+    const sale = await prisma.sale.findFirstOrThrow({ where: { id: order.saleId!, businessId } });
+    return { order: formatOrder(order), sale: saleSummary(sale), alreadyBilled: true };
+  }
   if (order.status !== "open") throw new AppError(409, `This order is ${order.status}`);
-  const lines = order.items.filter((i) => !i.voidedAt);
+  const lines = chosen ?? order.items.filter((i) => !i.voidedAt && !i.saleId);
   if (lines.length === 0) throw new AppError(400, "There is nothing on this order to bill");
 
   const product = await prisma.product.findMany({ where: { id: { in: lines.map((l) => l.productId) } }, select: { id: true, publicId: true } });
   const pid = new Map(product.map((p) => [p.id, p.publicId]));
   const items = lines.map((l) => ({ productId: pid.get(l.productId)!, quantity: Number(l.quantity), unitPrice: unitCents(l) / 100 }));
   // Service charge and catering levy (if the business set them) become ordinary lines on the same sale, so VAT, totals,
-  // receipts and reports need no special handling. They are worked out on the food and drink total.
+  // receipts and reports need no special handling. They are worked out on the food and drink being billed.
   const ch = chargesFor(lines.reduce((s, l) => s + lineCents(l), 0), order.business);
   for (const [kind, cents] of [["service", ch.serviceCharge], ["levy", ch.cateringLevy]] as const) {
     if (cents > 0) items.push({ productId: await chargeProductId(businessId, kind), quantity: 1, unitPrice: cents / 100 });
@@ -227,6 +269,10 @@ export async function billOrder(businessId: bigint, userId: bigint, orderIdText:
   const preview = await previewBusinessSale(businessId, { items, ...(body.discount !== undefined && { discount: body.discount }), ...(body.tax !== undefined && { tax: body.tax }) }, { trustedPrices: true });
   const paid = body.amountPaid === undefined ? Number(preview.total) : Number(body.amountPaid);
   const method = body.paymentMethod !== undefined ? String(body.paymentMethod) : paid > 0 ? "cash" : undefined;
+
+  const everyLine = order.items.filter((i) => !i.voidedAt);
+  const wholeOrder = lines.length === everyLine.length;
+  const key = wholeOrder ? `table-order-${order.publicId}` : `table-order-${order.publicId}-${createHash("sha1").update(lines.map((l) => l.publicId).sort().join(",")).digest("hex").slice(0, 20)}`;
 
   const sale = await createBusinessSale(
     businessId.toString(), userId.toString(),
@@ -240,16 +286,22 @@ export async function billOrder(businessId: bigint, userId: bigint, orderIdText:
       ...(body.mpesaPaymentRequestId ? { mpesaPaymentRequestId: String(body.mpesaPaymentRequestId) } : {}),
       ...(body.pesapalPaymentRequestId ? { pesapalPaymentRequestId: String(body.pesapalPaymentRequestId) } : {}),
       channel: "walk_in",
-      notes: `${order.table.name}${order.guestName ? ` · ${order.guestName}` : ""}`.slice(0, 200),
+      notes: `${order.table.name}${order.guestName ? ` · ${order.guestName}` : ""}${wholeOrder ? "" : " (part bill)"}`.slice(0, 200),
       items,
     },
-    { branchId: order.branchId, idempotencyKey: `table-order-${order.publicId}`, trustedPrices: true }
+    { branchId: order.branchId, idempotencyKey: key, trustedPrices: true }
   );
 
-  // Close the order and link the sale. Only an order that is still open can be closed; a repeat finds it already billed.
+  // Mark these lines billed; close the order when nothing is left to bill.
   const sold = await prisma.sale.findFirstOrThrow({ where: { publicId: sale.id, businessId }, select: { id: true } });
-  await prisma.tableOrder.updateMany({ where: { id: order.id, status: "open" }, data: { status: "billed", saleId: sold.id, closedAt: new Date(), updatedAt: new Date() } });
-  return { order: await getOrder(businessId, orderIdText), sale, alreadyBilled: false };
+  await prisma.tableOrderItem.updateMany({ where: { id: { in: lines.map((l) => l.id) }, saleId: null }, data: { saleId: sold.id } });
+  const left = await prisma.tableOrderItem.count({ where: { orderId: order.id, voidedAt: null, saleId: null } });
+  if (left === 0) {
+    await prisma.tableOrder.updateMany({ where: { id: order.id, status: "open" }, data: { status: "billed", saleId: sold.id, closedAt: new Date(), updatedAt: new Date() } });
+  } else {
+    await prisma.tableOrder.update({ where: { id: order.id }, data: { updatedAt: new Date() } });
+  }
+  return { order: await getOrder(businessId, orderIdText), sale, alreadyBilled: false, partBill: left > 0 };
 }
 
 /** The menu: active items grouped by category, with availability. */

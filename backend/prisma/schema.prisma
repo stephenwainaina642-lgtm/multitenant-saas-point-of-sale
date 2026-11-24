@@ -409,6 +409,7 @@ model Sale {
   offlineSoldAt    DateTime? @map("offline_sold_at") @db.Timestamptz(6)
   stockShortfalls  OfflineStockShortfall[]
   tableOrder       TableOrder?
+  tableOrderItems  TableOrderItem[] @relation("TableOrderItemSale")
   subtotal         Decimal  @default(0) @db.Decimal(12, 2)
   discount         Decimal  @default(0) @db.Decimal(12, 2)
   tax              Decimal  @default(0) @db.Decimal(12, 2)
@@ -1098,10 +1099,13 @@ model TableOrderItem {
   voidReason String?   @map("void_reason") @db.VarChar(200)
   /// Add-ons chosen for this line, [{name, price}] copied when it was added.
   addons     Json?
+  /// The sale this line was billed on (null = not billed yet).
+  saleId     BigInt?   @map("sale_id")
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   order   TableOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product    @relation(fields: [productId], references: [id])
+  sale    Sale?      @relation("TableOrderItemSale", fields: [saleId], references: [id])
 
   @@index([orderId])
   @@map("table_order_items")
