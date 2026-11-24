@@ -3,6 +3,7 @@ import type { Response, NextFunction } from "express";
 import { clearSessionCookie, issueSession, PLATFORM_COOKIE, PLATFORM_COOKIE_PATH } from "../lib/session-cookie.js";
 import { requirePlatformAdmin, platformLogin, type PlatformRequest } from "./platform.auth.js";
 import { createInvite, listInvites, revokeInvite } from "./invites.js";
+import * as quotes from "./quotes.js";
 import { auditTrail, overview, resetOwnerAccess, setBusinessActive, setBusinessApproval } from "./platform.service.js";
 
 const router = Router();
@@ -38,5 +39,24 @@ router.post("/invites/:id/revoke", wrap(async (req, res) => { await revokeInvite
 router.post("/businesses/:id/reset-owner", wrap(async (req, res) => {
   res.json({ success: true, message: "Owner access reset", data: await resetOwnerAccess(req.admin!.id, idParam(req), req.body?.reason) });
 }));
+
+// ---- quotations (installations, trainings...) ----
+const ok = (res: Response, data: unknown, status = 200, message = "OK") => res.status(status).json({ success: true, message, data });
+router.get("/quote-settings", wrap(async (_req, res) => ok(res, await quotes.getSettings())));
+router.put("/quote-settings", wrap(async (req, res) => ok(res, await quotes.updateSettings(req.admin!.id, req.body ?? {}))));
+router.get("/quote-services", wrap(async (_req, res) => ok(res, await quotes.listServices())));
+router.post("/quote-services", wrap(async (req, res) => ok(res, await quotes.createService(req.admin!.id, req.body ?? {}), 201)));
+router.put("/quote-services/:id", wrap(async (req, res) => ok(res, await quotes.updateService(req.admin!.id, idParam(req), req.body ?? {}))));
+router.delete("/quote-services/:id", wrap(async (req, res) => { await quotes.deleteService(req.admin!.id, idParam(req)); ok(res, null); }));
+router.get("/quotes", wrap(async (req, res) => ok(res, await quotes.listQuotes({ status: str(req.query.status), q: str(req.query.q) }))));
+router.post("/quotes", wrap(async (req, res) => ok(res, await quotes.createQuote(req.admin!.id, req.body ?? {}), 201)));
+router.get("/quotes/:id", wrap(async (req, res) => ok(res, await quotes.getQuote(idParam(req)))));
+router.put("/quotes/:id", wrap(async (req, res) => ok(res, await quotes.updateQuote(req.admin!.id, idParam(req), req.body ?? {}))));
+router.delete("/quotes/:id", wrap(async (req, res) => { await quotes.deleteQuote(req.admin!.id, idParam(req)); ok(res, null); }));
+router.post("/quotes/:id/send", wrap(async (req, res) => ok(res, await quotes.sendQuote(req.admin!.id, idParam(req)))));
+router.post("/quotes/:id/accept", wrap(async (req, res) => ok(res, await quotes.acceptQuote(req.admin!.id, idParam(req)))));
+router.post("/quotes/:id/decline", wrap(async (req, res) => ok(res, await quotes.declineQuote(req.admin!.id, idParam(req)))));
+router.post("/quotes/:id/reopen", wrap(async (req, res) => ok(res, await quotes.reopenQuote(req.admin!.id, idParam(req)))));
+router.post("/quotes/:id/duplicate", wrap(async (req, res) => ok(res, await quotes.duplicateQuote(req.admin!.id, idParam(req)), 201)));
 
 export default router;
