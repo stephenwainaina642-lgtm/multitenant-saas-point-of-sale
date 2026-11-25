@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Printer, Plus, Send, Trash2, UtensilsCrossed } from "lucide-react";
 import { apiRequest } from "./api/client";
 import { can } from "./permissions";
+import RecipesPanel from "./RecipesPanel";
 import { notify } from "./toast";
 import { money } from "./money";
 import { mpesaCodeError, normalizeMpesaCode } from "./mpesa";
@@ -365,6 +366,7 @@ export default function HotelWorkspace() {
           </div>
         </div>
       )}
+      {can("products.view") && <RecipesPanel />}
       {receipt && <ReceiptModal receipt={receipt} onClose={() => setReceipt(null)} />}
     </div>
   );
