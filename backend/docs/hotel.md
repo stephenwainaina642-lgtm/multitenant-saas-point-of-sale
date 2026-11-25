@@ -41,11 +41,22 @@ Known limits of this slice:
 - If a room-charge sale is voided, it drops off the folio (balance handling follows the normal void rules).
 - Rooms are not a room inventory (no room types, rates or night charges yet): room rent is charged as an ordinary product on the Point of Sale screen to the guest's customer account if you want it on the same account.
 
+## Recipes and ingredient costing
+Hotel screen, "Recipes and costing" (view: *products.view*, change: *products.manage*). A recipe lists what **one portion** of a dish uses. Ingredients are ordinary **stock products** (rice, oil, chicken) and the quantity is in that product's own unit (kg, litre, piece). One level only: an ingredient cannot itself be a dish with a recipe, and made-to-order items cannot be ingredients.
+- **Cost per portion** follows each ingredient's *current buying price* (the product's cost price), so margin moves when prices change. The list shows price, cost, margin and margin %.
+- **Selling a dish** (Point of Sale, or a table bill) takes its ingredients out of the selling branch's stock and records stock movements. The sale line's cost price is the recipe cost at that moment, so profit reports use the real plate cost.
+- **Short ingredient stock never blocks a sale**: a kitchen should not stop serving food it already cooked because the count is off. The shelf stops at zero (never negative) and the shortfall appears in Inventory under the same review list that offline sales use, for a manager to look into. Products sold directly still refuse to oversell, as before.
+- **Void and edit** give back or take exactly the difference, using a record of what that sale actually took (`sale_ingredient_usage`), so changing a recipe later never distorts old sales. Voiding returns only what was really taken.
+- Recipes are removed by saving the dish with no ingredients. A dish without a recipe behaves exactly as before.
+
+Migration `20261223090000_recipes` is additive (new tables `recipe_items` and `sale_ingredient_usage`).
+
 ## Limits
-- Needs a connection (no offline mode for tables or rooms yet).
-- Not yet: recipe/ingredient costing (phase C, part 2).
+- Needs a connection (no offline mode for tables or rooms yet). A recipe dish sold from the offline till also takes ingredients, flagged the same way when short.
+- Ingredient stock is counted per branch, so each branch needs its ingredients received or transferred in.
+- Waste, prep yield and stock-taking variance are not modelled; quantity is what one portion uses.
 
 ## Deploying
-Migrations `20261218090000_hotel_tables_orders`, `20261219090000_hotel_charges_addons`, `20261220090000_table_order_split_billing` and `20261222090000_hotel_stays` are additive (new tables, new columns with defaults that keep today's behaviour). Back up first, then `migrate deploy`, then redeploy API and frontend.
+Migrations `20261218090000_hotel_tables_orders`, `20261219090000_hotel_charges_addons`, `20261220090000_table_order_split_billing`, `20261222090000_hotel_stays` and `20261223090000_recipes` are additive (new tables, new columns with defaults that keep today's behaviour). Back up first, then `migrate deploy`, then redeploy API and frontend.
 
 New permissions `hotel.charge_room` and `hotel.stays` are given to the Manager starter role of new businesses automatically. Existing businesses' roles are not changed: the Owner has them already; for other roles, tick them under Roles.

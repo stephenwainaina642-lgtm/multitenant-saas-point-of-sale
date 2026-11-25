@@ -1,3 +1,4 @@
+import { applyRecipeCosts, ingredientDemand, loadRecipes } from "../recipes/recipes.js";
 import { takeBranchStockClamped, takeBranchStockOrFail, untrackedProductIds } from "../branches/branch-stock.js";
 import prisma from "../lib/prisma.js";
 import { requirePublicId } from "../lib/public-id.js";
@@ -442,8 +443,26 @@ export async function createBusinessSale(
       // Quantity actually taken per product and any shortfall (offline sales only: the customer was already served).
       const taken = new Map<bigint, string>();
       const shortfalls: { productId: bigint; short: string }[] = [];
-      const untracked = await untrackedProductIds(tx, bizId, orderedProducts.map(([id]) => id));
-      for (const [productId, entry] of orderedProducts) {
+      // Dishes with a recipe are costed from their ingredients and also take those ingredients out of stock.
+      const recipes = await loadRecipes(tx, bizId, orderedProducts.map(([id]) => id));
+      applyRecipeCosts(lines, recipes);
+      const ingredients = ingredientDemand(lines, recipes);
+      const ingredientTaken = new Map<bigint, string>();
+      const allIds = [...new Set([...orderedProducts.map(([id]) => id), ...ingredients.keys()])].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+      const direct = new Map(orderedProducts);
+      const untracked = await untrackedProductIds(tx, bizId, allIds);
+      for (const productId of allIds) {
+        const ing = ingredients.get(productId);
+        if (ing && !untracked.has(productId)) {
+          // A kitchen does not stop serving food that is already cooked because the stock count is off:
+          // take what the shelf holds, never below zero, and flag the rest for a manager (same review list as offline sales).
+          const r = await takeBranchStockClamped(tx, bizId, branchId, productId, milliToString(ing.quantity));
+          if (!r) throw new AppError(400, `Ingredient is not available (archived or missing): ${ing.name}`);
+          ingredientTaken.set(productId, r.taken);
+          if (Number(r.short) > 0) shortfalls.push({ productId, short: r.short });
+        }
+        const entry = direct.get(productId);
+        if (!entry) continue;
         if (untracked.has(productId)) { taken.set(productId, "0"); continue; } // made to order: no stock involved
         // Stock is taken from the selling branch only.
         if (data.offlineSoldAt) {
@@ -554,8 +573,18 @@ export async function createBusinessSale(
           },
         });
       }
-      for (const f of shortfalls) {
-        await tx.offlineStockShortfall.create({ data: { businessId: bizId, branchId, productId: f.productId, saleId: sale.id, quantityShort: f.short } });
+      for (const [productId, qty] of ingredientTaken) {
+        if (Number(qty) <= 0) continue;
+        await tx.inventoryMovement.create({
+          data: { businessId: bizId, branchId, productId, type: "OUT", quantity: qty, reference: `SALE-${sale.id.toString()}`, notes: "Ingredients used for dishes sold" },
+        });
+        await tx.saleIngredientUsage.create({ data: { saleId: sale.id, productId, quantity: qty } });
+      }
+      // One shortfall row per product per sale (a product can be short both as an item and as an ingredient).
+      const shortByProduct = new Map<bigint, number>();
+      for (const f of shortfalls) shortByProduct.set(f.productId, (shortByProduct.get(f.productId) ?? 0) + Number(f.short));
+      for (const [productId, short] of shortByProduct) {
+        await tx.offlineStockShortfall.create({ data: { businessId: bizId, branchId, productId, saleId: sale.id, quantityShort: short.toFixed(3) } });
       }
 
       return { ...formatCreatedSale(sale, customer, false), stockShortfall: shortfalls.length > 0 };

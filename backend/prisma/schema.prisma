@@ -264,6 +264,9 @@ model Product {
   invoiceItems   InvoiceItem[]
   branchStock    BranchStock[]
   transferItems  StockTransferItem[]
+  recipeAsDish   RecipeItem[]        @relation("RecipeDish")
+  recipeAsIngredient RecipeItem[]    @relation("RecipeIngredient")
+  ingredientUsage SaleIngredientUsage[]
 
   @@unique([businessId, sku])
   @@unique([businessId, barcode])
@@ -411,6 +414,7 @@ model Sale {
   stockShortfalls  OfflineStockShortfall[]
   tableOrder       TableOrder?
   hotelStay        HotelStaySale?
+  ingredientUsage  SaleIngredientUsage[]
   tableOrderItems  TableOrderItem[] @relation("TableOrderItemSale")
   subtotal         Decimal  @default(0) @db.Decimal(12, 2)
   discount         Decimal  @default(0) @db.Decimal(12, 2)
@@ -1263,4 +1267,35 @@ model HotelStaySale {
 
   @@id([stayId, saleId])
   @@map("hotel_stay_sales")
+}
+
+/// What one portion of a dish uses: an ordinary stock product (the ingredient) and a quantity in its own unit.
+model RecipeItem {
+  id           BigInt   @id @default(autoincrement())
+  businessId   BigInt   @map("business_id")
+  productId    BigInt   @map("product_id")
+  ingredientId BigInt   @map("ingredient_id")
+  quantity     Decimal  @db.Decimal(12, 3)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  product    Product @relation("RecipeDish", fields: [productId], references: [id])
+  ingredient Product @relation("RecipeIngredient", fields: [ingredientId], references: [id])
+
+  @@unique([productId, ingredientId])
+  @@index([businessId])
+  @@index([ingredientId])
+  @@map("recipe_items")
+}
+
+/// Ingredient quantities actually taken from stock for a sale, so a void or edit returns exactly that.
+model SaleIngredientUsage {
+  saleId    BigInt  @map("sale_id")
+  productId BigInt  @map("product_id")
+  quantity  Decimal @db.Decimal(12, 3)
+
+  sale    Sale    @relation(fields: [saleId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@id([saleId, productId])
+  @@map("sale_ingredient_usage")
 }

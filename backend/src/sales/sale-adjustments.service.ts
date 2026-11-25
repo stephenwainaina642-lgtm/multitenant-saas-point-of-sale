@@ -1,4 +1,5 @@
-import { addBranchStock, takeBranchStockOrFail, untrackedProductIds } from "../branches/branch-stock.js";
+import { addBranchStock, takeBranchStockClamped, takeBranchStockOrFail, untrackedProductIds } from "../branches/branch-stock.js";
+import { applyRecipeCosts, ingredientDemand, loadRecipes } from "../recipes/recipes.js";
 import prisma from "../lib/prisma.js";
 import { requirePublicId, saleIdFromPublic } from "../lib/public-id.js";
 import { AppError } from "../lib/errors.js";
@@ -255,6 +256,44 @@ export async function editBusinessSale(
       });
     }
 
+    // Ingredients of dishes with a recipe: move only by the difference from what this sale already took.
+    const recipes = await loadRecipes(tx, bizId, [...newQty.keys()]);
+    applyRecipeCosts(lines, recipes);
+    const wantIng = ingredientDemand(lines, recipes);
+    const usedRows = await tx.saleIngredientUsage.findMany({ where: { saleId } });
+    const used = new Map(usedRows.map((u) => [u.productId, decimalToMilli(u.quantity)]));
+    const ingIds = [...new Set([...used.keys(), ...wantIng.keys()])].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    const ingUntracked = await untrackedProductIds(tx, bizId, ingIds);
+    const usedAfter = new Map<bigint, bigint>();
+    for (const productId of ingIds) {
+      const was = used.get(productId) ?? 0n;
+      if (ingUntracked.has(productId)) { if (was > 0n) usedAfter.set(productId, was); continue; }
+      const now = wantIng.get(productId)?.quantity ?? 0n;
+      const delta = now - was;
+      let after = was;
+      if (delta > 0n) {
+        const r = await takeBranchStockClamped(tx, bizId, sale.branchId, productId, milliToString(delta));
+        if (!r) throw new AppError(400, `Ingredient is not available (archived or missing): ${wantIng.get(productId)?.name ?? ""}`);
+        const got = decimalToMilli(r.taken);
+        after = was + got;
+        if (Number(r.short) > 0) {
+          await tx.offlineStockShortfall.upsert({
+            where: { saleId_productId: { saleId, productId } },
+            create: { businessId: bizId, branchId: sale.branchId, productId, saleId, quantityShort: r.short },
+            update: { quantityShort: { increment: r.short }, resolvedAt: null },
+          });
+        }
+        if (got > 0n) await tx.inventoryMovement.create({ data: { businessId: bizId, branchId: sale.branchId, productId, type: "OUT", quantity: milliToString(got), reference: `SALE-EDIT-${saleId.toString()}`, notes: "Ingredients adjusted by sale edit" } });
+      } else if (delta < 0n) {
+        await addBranchStock(tx, bizId, sale.branchId, productId, milliToString(-delta));
+        after = was + delta;
+        await tx.inventoryMovement.create({ data: { businessId: bizId, branchId: sale.branchId, productId, type: "IN", quantity: milliToString(-delta), reference: `SALE-EDIT-${saleId.toString()}`, notes: "Ingredients returned by sale edit" } });
+      }
+      if (after > 0n) usedAfter.set(productId, after);
+    }
+    await tx.saleIngredientUsage.deleteMany({ where: { saleId } });
+    for (const [productId, q] of usedAfter) await tx.saleIngredientUsage.create({ data: { saleId, productId, quantity: milliToString(q) } });
+
     const paymentStatus =
       balanceDue === 0n ? "paid" : paid > 0n ? "partial" : "unpaid";
 
@@ -392,6 +431,16 @@ export async function voidBusinessSale(
           reference: `SALE-VOID-${saleId.toString()}`,
           notes: "Stock returned: sale voided",
         },
+      });
+    }
+
+    // Ingredients this sale took for dishes with a recipe go back exactly as taken (even if the recipe changed since).
+    const usage = await tx.saleIngredientUsage.findMany({ where: { saleId }, orderBy: { productId: "asc" } });
+    for (const u of usage) {
+      const q = milliToString(decimalToMilli(u.quantity));
+      await addBranchStock(tx, bizId, sale.branchId, u.productId, q);
+      await tx.inventoryMovement.create({
+        data: { businessId: bizId, branchId: sale.branchId, productId: u.productId, type: "IN", quantity: q, reference: `SALE-VOID-${saleId.toString()}`, notes: "Ingredients returned: sale voided" },
       });
     }
 

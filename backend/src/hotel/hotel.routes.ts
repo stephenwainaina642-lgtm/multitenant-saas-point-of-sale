@@ -4,6 +4,7 @@ import { requireBusinessAccess, type BusinessRequest } from "../auth/business.mi
 import { requirePermission } from "../auth/permissions.js";
 import * as hotel from "./hotel.service.js";
 import * as stays from "./stays.service.js";
+import * as recipes from "../recipes/recipes.js";
 
 /**
  * Tables and open orders for hotels and restaurants. Taking orders and billing use the till permission (sales.create);
@@ -50,5 +51,10 @@ router.post("/stays", requirePermission("hotel.stays"), wrap((r) => stays.checkI
 router.get("/stays/:id", requirePermission("hotel.stays"), wrap((r) => stays.getStay(r.businessId!, id(r))));
 router.put("/stays/:id", requirePermission("hotel.stays"), wrap((r) => stays.updateStay(r.businessId!, id(r), r.body ?? {})));
 router.post("/stays/:id/checkout", requirePermission("hotel.stays"), wrap((r) => stays.checkOut(r.businessId!, BigInt(r.user!.userId), id(r), r.body ?? {})));
+
+// Recipes: what a portion of a dish uses; cost per portion and margin follow the ingredients' buying prices.
+router.get("/recipes", requirePermission("products.view"), wrap((r) => recipes.listRecipes(r.businessId!)));
+router.get("/recipes/:id", requirePermission("products.view"), wrap((r) => recipes.getRecipe(r.businessId!, id(r))));
+router.put("/recipes/:id", requirePermission("products.manage"), wrap((r) => recipes.setRecipe(r.businessId!, BigInt(r.user!.userId), id(r), r.body ?? {})));
 
 export default router;
