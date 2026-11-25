@@ -17,13 +17,14 @@ import QuotationsWorkspace from "./QuotationsWorkspace";
 import ReportsWorkspace from "./ReportsWorkspace";
 import MpesaStatementWorkspace from "./MpesaStatementWorkspace";
 import HotelWorkspace from "./HotelWorkspace";
+import RoomsWorkspace from "./RoomsWorkspace";
 import BusinessSettingsWorkspace from "./BusinessSettingsWorkspace";
 import IntegrationsWorkspace from "./IntegrationsWorkspace";
 import ChangePasswordPanel from "./ChangePasswordPanel";
 import EmployeesWorkspace from "./EmployeesWorkspace";
 import { apiRequest } from "./api/client";
 import { notify } from "./toast";
-import { AlertTriangle, Bell, Radio, UtensilsCrossed, BarChart3, Banknote, Boxes, Clock, FileSpreadsheet, FileText, LayoutDashboard, Package, Receipt, Settings, ShoppingBag, ShoppingCart, Store, Truck, UserCog, Users, Wallet, ClipboardList } from "lucide-react";
+import { AlertTriangle, Bell, Radio, UtensilsCrossed, BedDouble, BarChart3, Banknote, Boxes, Clock, FileSpreadsheet, FileText, LayoutDashboard, Package, Receipt, Settings, ShoppingBag, ShoppingCart, Store, Truck, UserCog, Users, Wallet, ClipboardList } from "lucide-react";
 import { can, storePermissions } from "./permissions";
 import SyncBadge from "./SyncBadge";
 import OfflineBanner from "./OfflineBanner";
@@ -47,6 +48,7 @@ const navigationPermissions: Record<string, string[]> = {
   Reports: ["reports.view"],
   "M-PESA Statement": ["payments.view"],
   "Tables & Orders": ["sales.create"],
+  Rooms: ["hotel.stays"],
   Shifts: ["shifts.use", "shifts.view_all"],
   Branches: ["branches.manage", "branches.all", "stock.transfer"],
 };
@@ -56,6 +58,7 @@ const navigation = [
   { name: "Point of Sale", icon: <ShoppingCart size={18} strokeWidth={1.9} /> },
   { name: "Products", icon: <Package size={18} strokeWidth={1.9} /> },
   { name: "Tables & Orders", icon: <UtensilsCrossed size={18} strokeWidth={1.9} /> },
+  { name: "Rooms", icon: <BedDouble size={18} strokeWidth={1.9} /> },
   { name: "Inventory", icon: <Boxes size={18} strokeWidth={1.9} /> },
   { name: "Customers", icon: <Users size={18} strokeWidth={1.9} /> },
   { name: "Employees", icon: <UserCog size={18} strokeWidth={1.9} /> },
@@ -352,6 +355,8 @@ function App() {
             <ShiftsWorkspace />
           ) : activePage === "Tables & Orders" ? (
             <HotelWorkspace />
+          ) : activePage === "Rooms" ? (
+            <RoomsWorkspace />
           ) : activePage === "Branches" ? (
             <BranchesWorkspace />
           ) : activePage === "M-PESA Statement" ? (

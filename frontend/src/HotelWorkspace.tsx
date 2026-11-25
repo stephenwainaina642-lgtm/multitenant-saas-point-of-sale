@@ -13,6 +13,7 @@ type MenuItem = { id: string; name: string; description: string | null; price: s
 type Addon = { id: string; name: string; price: string };
 type OrderItem = { id: string; name: string; addons: { name: string; price: string }[]; unitPrice: string; quantity: string; note: string | null; sentAt: string | null; voidedAt: string | null; voidReason: string | null; lineTotal: string; billedReceipt: string | null };
 type Order = { id: string; status: string; tableName: string; guestName: string | null; covers: number | null; openedAt: string; runningTotal: string; serviceChargeRate: string; cateringLevyRate: string; serviceCharge: string; cateringLevy: string; estimatedTotal: string; items: OrderItem[] };
+type InHouse = { id: string; roomName: string; guestName: string; guestPhone: string | null; creditLimit: string; owed: string };
 type Sale = { id: string; receiptNumber: string; subtotal: string; discount: string; tax: string; total: string; amountPaid: string; balanceDue: string; pricesIncludeVat: boolean };
 
 const tok = () => sessionStorage.getItem("pos_token") ?? "";
@@ -42,6 +43,8 @@ export default function HotelWorkspace() {
   const [method, setMethod] = useState("cash");
   const [chosen, setChosen] = useState<string[]>([]); // lines included in this bill (split bill)
   const [code, setCode] = useState("");
+  const [guests, setGuests] = useState<InHouse[]>([]); // in-house guests this bill can be charged to
+  const [stayId, setStayId] = useState("");
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
   const [addons, setAddons] = useState<Addon[]>([]);
   const [picked, setPicked] = useState<string[]>([]); // add-ons for the next dish tapped
@@ -122,18 +125,25 @@ export default function HotelWorkspace() {
   };
   const cents = (v: string | number) => Math.round(Number(v) * 100);
   const pctOf = (base: number, rate: string) => Math.round((base * Math.round(Number(rate) * 100)) / 10000);
+  const toRoom = method === "room";
+  useEffect(() => {
+    if (!billing || !can("hotel.charge_room")) return;
+    call<InHouse[]>("/stays/charge-targets").then(setGuests).catch(fail);
+  }, [billing]);
   function bill() {
     if (!order) return;
+    if (toRoom && !stayId) { notify.error("Choose the room to charge."); return; }
     const picked = live.filter((i) => chosen.includes(i.id));
     if (picked.length === 0) { notify.error("Choose at least one item to bill."); return; }
     const all = picked.length === live.length;
     if (method === "mpesa") { const p = mpesaCodeError(code); if (p) { notify.error(p); return; } }
-    void run(() => call<{ order: Order; sale: Sale; partBill?: boolean }>(`/orders/${order.id}/bill`, "POST", { ...(!all && { itemIds: picked.map((i) => i.id) }), paymentMethod: method, ...(method === "mpesa" && { paymentReference: normalizeMpesaCode(code) }) }), (r) => {
+    void run(() => call<{ order: Order; sale: Sale; partBill?: boolean }>(`/orders/${order.id}/bill`, "POST", { ...(!all && { itemIds: picked.map((i) => i.id) }), ...(toRoom ? { stayId } : { paymentMethod: method, ...(method === "mpesa" && { paymentReference: normalizeMpesaCode(code) }) }) }), (r) => {
       const s = r.sale;
+      const stay = toRoom ? guests.find((g) => g.id === stayId) : undefined;
       const base = picked.reduce((sum, i) => sum + cents(i.lineTotal), 0);
       const service = pctOf(base, r.order.serviceChargeRate) / 100, levy = pctOf(base, r.order.cateringLevyRate) / 100;
       setReceipt({
-        receiptNumber: s.receiptNumber, date: new Date(), customerName: null, servedBy: sessionStorage.getItem("pos_user_name") || null,
+        receiptNumber: s.receiptNumber, date: new Date(), customerName: stay ? `${stay.guestName} (Room ${stay.roomName})` : null, servedBy: sessionStorage.getItem("pos_user_name") || null,
         items: [
           ...picked.map((i) => ({
             name: i.addons.length ? `${i.name} (+ ${i.addons.map((a) => a.name).join(", ")})` : i.name,
@@ -143,10 +153,10 @@ export default function HotelWorkspace() {
           ...(levy > 0 ? [{ name: `Catering levy (${Number(r.order.cateringLevyRate)}%)`, quantity: 1, unitPrice: levy, total: levy }] : []),
         ],
         subtotal: Number(s.subtotal), discount: Number(s.discount), tax: Number(s.tax), pricesIncludeVat: s.pricesIncludeVat, total: Number(s.total),
-        amountPaid: Number(s.amountPaid), balanceDue: Number(s.balanceDue), paymentMethod: method, paymentReference: method === "mpesa" ? normalizeMpesaCode(code) : null,
-        notes: `${r.order.tableName}${r.order.guestName ? ` · ${r.order.guestName}` : ""}${r.order.status === "billed" ? "" : " (part bill)"}`,
+        amountPaid: Number(s.amountPaid), balanceDue: Number(s.balanceDue), paymentMethod: toRoom ? "charged to room" : method, paymentReference: method === "mpesa" ? normalizeMpesaCode(code) : null,
+        notes: `${stay ? `Room ${stay.roomName} · ` : ""}${r.order.tableName}${r.order.guestName ? ` · ${r.order.guestName}` : ""}${r.order.status === "billed" ? "" : " (part bill)"}`,
       });
-      setCode(""); setBilling(false); setChosen([]);
+      setCode(""); setStayId(""); setMethod("cash"); setBilling(false); setChosen([]);
       if (r.order.status === "billed") { setOrder(null); setTableId(null); } else { setOrder(r.order); notify.success("Part bill paid. The rest of the table is still open."); }
     });
   }
@@ -290,13 +300,21 @@ export default function HotelWorkspace() {
                 </div>
                 <label className="inventory-field">Paid by
                   <select value={method} onChange={(e) => setMethod(e.target.value)}>
-                    <option value="cash">Cash</option><option value="mpesa">M-PESA (type the code)</option><option value="card">Card</option>
+                    <option value="cash">Cash</option><option value="mpesa">M-PESA (type the code)</option><option value="card">Card</option>{can("hotel.charge_room") && <option value="room">Charge to room</option>}
                   </select>
                 </label>
+                {toRoom && (
+                  <label className="inventory-field">Room
+                    <select value={stayId} onChange={(e) => setStayId(e.target.value)}>
+                      <option value="">{guests.length ? "Choose a room…" : "No guests checked in"}</option>
+                      {guests.map((g) => <option key={g.id} value={g.id}>Room {g.roomName} · {g.guestName}{Number(g.creditLimit) > 0 ? ` · limit ${money(Number(g.creditLimit))}` : ""}</option>)}
+                    </select>
+                  </label>
+                )}
                 {method === "mpesa" && <label className="inventory-field">M-PESA code<input value={code} maxLength={12} placeholder="QGH7XK2LMN" onChange={(e) => setCode(e.target.value)} /></label>}
-                <p className="inventory-muted">Bills are paid in full here. For part payment or credit, use the Point of Sale screen.</p>
+                <p className="inventory-muted">{toRoom ? "Nothing is paid now. The bill is added to the guest's room account and settled at check-out." : "Bills are paid in full here. For part payment or credit, use the Point of Sale screen."}</p>
                 <div className="hotel-row">
-                  <button type="button" className="pos-primary-button" disabled={busy} onClick={bill}>Confirm payment &amp; print receipt{chosen.length < live.length ? " (part bill)" : ""}</button>
+                  <button type="button" className="pos-primary-button" disabled={busy} onClick={bill}>{toRoom ? "Charge to room & print slip" : "Confirm payment & print receipt"}{chosen.length < live.length ? " (part bill)" : ""}</button>
                   <button type="button" className="pos-secondary-button" disabled={busy} onClick={() => setBilling(false)}>Back</button>
                 </div>
               </div>

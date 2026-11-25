@@ -26,3 +26,8 @@
 .hotel-pick { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 4px; }
 .hotel-pick li { display: flex; justify-content: space-between; gap: 10px; }
 .hotel-pick label { display: flex; gap: 8px; align-items: center; }
+
+/* Room check-out payment lines */
+.hotel-bill .hotel-row > select, .hotel-bill .hotel-row > input, .hotel-row > select:not(.x), .hotel-row > input:not(.x) { padding: 10px 12px; border: 1px solid #dfe6e0; border-radius: 8px; background: #fff; color: #26352b; font: inherit; min-width: 0; }
+.hotel-bill .hotel-row > input { flex: 1 1 140px; }
+.hotel-row > select:focus, .hotel-row > input:focus { border-color: #7eb994; outline: 2px solid #e1f2e6; }
