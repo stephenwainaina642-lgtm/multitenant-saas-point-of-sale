@@ -26,9 +26,26 @@ Percentages per business (0–50, default 0 = off), set under "Menu extras and c
 - In reports the charges appear as items named "Service charge" / "Catering levy".
 - Changing a rate affects only later bills.
 
+## Rooms and charge-to-room
+Menu: **Rooms** (needs *hotel.stays*). A stay is a guest in a room: the guest is an ordinary customer (new, or an existing one), so room charges use the existing customer credit ledger. There is no second ledger.
+- **Check-in**: room, guest, optional **room credit limit** (blank/0 = none) and optional **deposit** (amount, method, M-PESA code). One in-house guest per room (case-insensitive); the room frees up at check-out.
+- **Charge to room**: in Tables & Orders, "Paid by: Charge to room" (needs *hotel.charge_room*, separate from the till permission). Nothing is paid; the bill becomes an unpaid sale on the guest's account and is listed on the stay's folio. Works with split bills (one guest's lines to the room, another paid at the till). Retrying never charges twice.
+- **Limits**: the stay's credit limit is checked under a per-stay lock, so two tills cannot together exceed it; the customer's own credit limit (if set) still applies as well.
+- **Folio**: every charge with receipt number, date, paid and owing; totals; deposit; printable.
+- **Check-out** is blocked until the account is paid in full. Any deposit is applied first (as payments of method "deposit"); the rest is paid with cash / M-PESA / card (split across several methods if needed, parts must add up exactly). If the deposit is larger than the account, the excess is recorded as refunded (you choose how you gave it back). Everything happens in one transaction, a repeated check-out changes nothing, and the guest's balance falls by exactly what was owed. No write-offs: the system never closes a stay with an unpaid balance.
+- Only that stay's charges are settled at check-out; any other debt the same customer has is left as it was.
+
+Known limits of this slice:
+- A deposit taken at check-in is recorded on the stay but is **not** counted in that day's till/shift cash report; it appears as a "deposit" payment on the check-out day. Handle deposit cash according to your own procedure.
+- A refunded deposit is a record of what you did; the system does not move money.
+- If a room-charge sale is voided, it drops off the folio (balance handling follows the normal void rules).
+- Rooms are not a room inventory (no room types, rates or night charges yet): room rent is charged as an ordinary product on the Point of Sale screen to the guest's customer account if you want it on the same account.
+
 ## Limits
-- Needs a connection (no offline mode for tables yet).
-- Not yet: charge to room and recipe/ingredient costing (phase C).
+- Needs a connection (no offline mode for tables or rooms yet).
+- Not yet: recipe/ingredient costing (phase C, part 2).
 
 ## Deploying
-Migrations `20261218090000_hotel_tables_orders`, `20261219090000_hotel_charges_addons` and `20261220090000_table_order_split_billing` are additive (new tables, new columns with defaults that keep today's behaviour). Back up first, then `migrate deploy`, then redeploy API and frontend.
+Migrations `20261218090000_hotel_tables_orders`, `20261219090000_hotel_charges_addons`, `20261220090000_table_order_split_billing` and `20261222090000_hotel_stays` are additive (new tables, new columns with defaults that keep today's behaviour). Back up first, then `migrate deploy`, then redeploy API and frontend.
+
+New permissions `hotel.charge_room` and `hotel.stays` are given to the Manager starter role of new businesses automatically. Existing businesses' roles are not changed: the Owner has them already; for other roles, tick them under Roles.

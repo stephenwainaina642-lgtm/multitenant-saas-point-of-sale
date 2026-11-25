@@ -314,6 +314,7 @@ model Customer {
   sales      Sale[]
   quotations Quotation[]
   invoices   Invoice[]
+  stays      HotelStay[]
 
   @@index([businessId])
   @@index([businessId, phone])
@@ -409,6 +410,7 @@ model Sale {
   offlineSoldAt    DateTime? @map("offline_sold_at") @db.Timestamptz(6)
   stockShortfalls  OfflineStockShortfall[]
   tableOrder       TableOrder?
+  hotelStay        HotelStaySale?
   tableOrderItems  TableOrderItem[] @relation("TableOrderItemSale")
   subtotal         Decimal  @default(0) @db.Decimal(12, 2)
   discount         Decimal  @default(0) @db.Decimal(12, 2)
@@ -1218,4 +1220,47 @@ model PlatformQuoteService {
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@map("platform_quote_services")
+}
+
+/// A guest stay. The guest is an ordinary customer, so room charges sit on the existing customer credit ledger.
+model HotelStay {
+  id              BigInt    @id @default(autoincrement())
+  publicId        String    @unique @default(dbgenerated("gen_random_uuid()")) @map("public_id") @db.Uuid
+  businessId      BigInt    @map("business_id")
+  customerId      BigInt    @map("customer_id")
+  roomName        String    @map("room_name") @db.VarChar(40)
+  status          String    @default("in_house") @db.VarChar(12)
+  creditLimit     Decimal   @default(0) @map("credit_limit") @db.Decimal(12, 2)
+  notes           String?   @db.VarChar(300)
+  depositAmount   Decimal   @default(0) @map("deposit_amount") @db.Decimal(12, 2)
+  depositMethod   String?   @map("deposit_method") @db.VarChar(30)
+  depositReference String?  @map("deposit_reference") @db.VarChar(100)
+  depositApplied  Decimal   @default(0) @map("deposit_applied") @db.Decimal(12, 2)
+  depositRefunded Decimal   @default(0) @map("deposit_refunded") @db.Decimal(12, 2)
+  refundMethod    String?   @map("refund_method") @db.VarChar(30)
+  refundReference String?   @map("refund_reference") @db.VarChar(100)
+  checkedInAt     DateTime  @default(now()) @map("checked_in_at") @db.Timestamptz(6)
+  checkedOutAt    DateTime? @map("checked_out_at") @db.Timestamptz(6)
+  createdBy       BigInt    @map("created_by")
+  checkedOutBy    BigInt?   @map("checked_out_by")
+  updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  customer Customer         @relation(fields: [customerId], references: [id])
+  sales    HotelStaySale[]
+
+  @@index([businessId, status])
+  @@index([customerId])
+  @@map("hotel_stays")
+}
+
+model HotelStaySale {
+  stayId    BigInt   @map("stay_id")
+  saleId    BigInt   @unique @map("sale_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  stay HotelStay @relation(fields: [stayId], references: [id])
+  sale Sale      @relation(fields: [saleId], references: [id])
+
+  @@id([stayId, saleId])
+  @@map("hotel_stay_sales")
 }

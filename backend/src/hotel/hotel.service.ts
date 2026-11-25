@@ -3,6 +3,7 @@ import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
 import { requirePublicId } from "../lib/public-id.js";
 import { createBusinessSale, previewBusinessSale } from "../sales/sale.service.js";
+import { assertWithinStayLimit, linkSale, stayForCharge, stayInternalId, withStayLock } from "./stays.service.js";
 
 /**
  * Tables and open orders. An order is a running list of what a table has asked for. Nothing is sold, taken from stock or
@@ -207,6 +208,8 @@ type BillBody = {
   itemIds?: unknown;
   amountPaid?: unknown; paymentMethod?: unknown; paymentReference?: unknown; customerId?: unknown; discount?: unknown; tax?: unknown;
   mpesaPaymentRequestId?: unknown; pesapalPaymentRequestId?: unknown;
+  /** Charge the bill to this in-house guest's room account instead of taking payment now. */
+  stayId?: unknown;
 };
 
 /** One bill at a time per order: two tills billing the same lines can never both succeed. */
@@ -228,10 +231,15 @@ const saleSummary = (s: { publicId: string; receiptNumber: string; subtotal: { t
  */
 export async function billOrder(businessId: bigint, userId: bigint, orderIdText: string, body: BillBody) {
   const first = await loadOrder(businessId, orderIdText);
-  return withOrderLock(first.id, () => billLocked(businessId, userId, orderIdText, body));
+  const stayText = body.stayId === undefined || body.stayId === null || body.stayId === "" ? null : String(body.stayId);
+  if (stayText && body.amountPaid !== undefined && Number(body.amountPaid) > 0) throw new AppError(400, "A bill charged to a room is not paid at the till. Remove the payment amount.");
+  if (!stayText) return withOrderLock(first.id, () => billLocked(businessId, userId, orderIdText, body, null));
+  // Order lock first, then the room's lock (always in this order, so two tills can never wait on each other).
+  const stayId = await stayInternalId(businessId, stayText);
+  return withOrderLock(first.id, () => withStayLock(stayId, () => billLocked(businessId, userId, orderIdText, body, stayText)));
 }
 
-async function billLocked(businessId: bigint, userId: bigint, orderIdText: string, body: BillBody) {
+async function billLocked(businessId: bigint, userId: bigint, orderIdText: string, body: BillBody, stayText: string | null) {
   const order = await loadOrder(businessId, orderIdText); // read again now that we hold the lock
   let chosen: typeof order.items | null = null;
   if (body.itemIds !== undefined) {
@@ -255,6 +263,9 @@ async function billLocked(businessId: bigint, userId: bigint, orderIdText: strin
   const lines = chosen ?? order.items.filter((i) => !i.voidedAt && !i.saleId);
   if (lines.length === 0) throw new AppError(400, "There is nothing on this order to bill");
 
+  // Only now (after the already-billed replies above) is the room checked: a retry after check-out still answers.
+  const charge = stayText ? await stayForCharge(businessId, stayText) : null;
+
   const product = await prisma.product.findMany({ where: { id: { in: lines.map((l) => l.productId) } }, select: { id: true, publicId: true } });
   const pid = new Map(product.map((p) => [p.id, p.publicId]));
   const items = lines.map((l) => ({ productId: pid.get(l.productId)!, quantity: Number(l.quantity), unitPrice: unitCents(l) / 100 }));
@@ -267,7 +278,8 @@ async function billLocked(businessId: bigint, userId: bigint, orderIdText: strin
   // The table's own prices (copied when each line was added) are what the guest was quoted. By default the bill is paid
   // in full at the exact total the server works out (VAT, discount included).
   const preview = await previewBusinessSale(businessId, { items, ...(body.discount !== undefined && { discount: body.discount }), ...(body.tax !== undefined && { tax: body.tax }) }, { trustedPrices: true });
-  const paid = body.amountPaid === undefined ? Number(preview.total) : Number(body.amountPaid);
+  if (charge) assertWithinStayLimit(charge.stay, charge.owed, charge.limit, BigInt(Math.round(Number(preview.total) * 100)));
+  const paid = charge ? 0 : body.amountPaid === undefined ? Number(preview.total) : Number(body.amountPaid);
   const method = body.paymentMethod !== undefined ? String(body.paymentMethod) : paid > 0 ? "cash" : undefined;
 
   const everyLine = order.items.filter((i) => !i.voidedAt);
@@ -280,13 +292,13 @@ async function billLocked(businessId: bigint, userId: bigint, orderIdText: strin
       amountPaid: paid,
       ...(method !== undefined && { paymentMethod: method }),
       ...(body.paymentReference !== undefined && { paymentReference: String(body.paymentReference) }),
-      ...(body.customerId ? { customerId: String(body.customerId) } : {}),
+      ...(charge ? { customerId: charge.stay.customer.publicId } : body.customerId ? { customerId: String(body.customerId) } : {}),
       ...(body.discount !== undefined && { discount: Number(body.discount) }),
       ...(body.tax !== undefined && { tax: Number(body.tax) }),
-      ...(body.mpesaPaymentRequestId ? { mpesaPaymentRequestId: String(body.mpesaPaymentRequestId) } : {}),
-      ...(body.pesapalPaymentRequestId ? { pesapalPaymentRequestId: String(body.pesapalPaymentRequestId) } : {}),
+      ...(!charge && body.mpesaPaymentRequestId ? { mpesaPaymentRequestId: String(body.mpesaPaymentRequestId) } : {}),
+      ...(!charge && body.pesapalPaymentRequestId ? { pesapalPaymentRequestId: String(body.pesapalPaymentRequestId) } : {}),
       channel: "walk_in",
-      notes: `${order.table.name}${order.guestName ? ` · ${order.guestName}` : ""}${wholeOrder ? "" : " (part bill)"}`.slice(0, 200),
+      notes: `${charge ? `Room ${charge.stay.roomName} · ` : ""}${order.table.name}${order.guestName ? ` · ${order.guestName}` : ""}${wholeOrder ? "" : " (part bill)"}`.slice(0, 200),
       items,
     },
     { branchId: order.branchId, idempotencyKey: key, trustedPrices: true }
@@ -294,6 +306,7 @@ async function billLocked(businessId: bigint, userId: bigint, orderIdText: strin
 
   // Mark these lines billed; close the order when nothing is left to bill.
   const sold = await prisma.sale.findFirstOrThrow({ where: { publicId: sale.id, businessId }, select: { id: true } });
+  if (charge) await linkSale(charge.stay.id, sold.id);
   await prisma.tableOrderItem.updateMany({ where: { id: { in: lines.map((l) => l.id) }, saleId: null }, data: { saleId: sold.id } });
   const left = await prisma.tableOrderItem.count({ where: { orderId: order.id, voidedAt: null, saleId: null } });
   if (left === 0) {

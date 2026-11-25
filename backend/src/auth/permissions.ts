@@ -39,6 +39,8 @@ export const PERMISSION_CATALOG = {
   "branches.manage": "Create and edit branches and assign staff to them",
   "branches.all": "Work in and see every branch (others stay in their assigned branch)",
   "stock.transfer": "Move stock between branches",
+  "hotel.charge_room": "Charge a table bill to a guest's room account",
+  "hotel.stays": "Check guests in and out and manage room accounts",
 } as const;
 
 export type Permission = keyof typeof PERMISSION_CATALOG;
