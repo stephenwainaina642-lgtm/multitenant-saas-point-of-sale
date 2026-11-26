@@ -74,6 +74,16 @@ export const BUILT_IN_ROLES: Record<string, Permission[]> = {
   ],
 };
 
+/** Extra starter roles for the hotel package, copied in addition to the standard ones. */
+export const HOTEL_ROLES: Record<string, Permission[]> = {
+  waiter: ["products.view", "customers.view", "sales.create", "sales.view_own", "payments.create", "shifts.use"],
+  receptionist: [
+    "products.view", "customers.view", "customers.manage", "sales.create", "sales.view_own", "payments.create", "shifts.use",
+    "hotel.stays", "hotel.charge_room",
+  ],
+  "head chef": ["products.view", "products.manage", "inventory.view", "sales.create", "sales.view_own"],
+};
+
 export function resolvePermissions(
   roleName: string,
   stored: string[],
@@ -90,8 +100,8 @@ export function resolvePermissions(
 }
 
 /** Rows to create for a new business: the starter roles, with their permissions written out. */
-export function starterRoleRows(businessId: bigint) {
-  return Object.entries(BUILT_IN_ROLES)
+export function starterRoleRows(businessId: bigint, packageName: string = "retail") {
+  return Object.entries(packageName === "hotel" ? { ...BUILT_IN_ROLES, ...HOTEL_ROLES } : BUILT_IN_ROLES)
     .filter(([name]) => name !== "owner")
     .map(([name, permissions]) => ({
       businessId,

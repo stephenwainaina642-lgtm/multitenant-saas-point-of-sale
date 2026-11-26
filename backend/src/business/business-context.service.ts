@@ -55,6 +55,8 @@ export async function verifyBusinessAccess(
     businessId: membership.business.publicId,
     businessName: membership.business.name,
     businessType: membership.business.businessType,
+    package: membership.business.packageName,
+    modules: membership.business.modules,
     role: membership.role.name,
     permissions: Array.from(
       resolvePermissions(

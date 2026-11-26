@@ -4,6 +4,7 @@ import { requireBusinessAccess, type BusinessRequest } from "../auth/business.mi
 import { requirePermission } from "../auth/permissions.js";
 import * as hotel from "./hotel.service.js";
 import * as stays from "./stays.service.js";
+import { MODULE_INFO, moduleError } from "../lib/packages.js";
 import * as recipes from "../recipes/recipes.js";
 
 /**
@@ -40,6 +41,8 @@ router.post("/orders/:id/cancel", requirePermission("sales.create"), wrap((r) =>
 const chargeToRoomGuard = (req: BusinessRequest, res: Response, next: NextFunction) => {
   const b = (req.body ?? {}) as { stayId?: unknown };
   if (b.stayId === undefined || b.stayId === null || b.stayId === "") return next();
+  // A business without the Rooms module cannot charge to a room, even if it still holds an old stay id.
+  if (!req.businessModules?.includes("rooms")) return moduleError(res, MODULE_INFO.rooms.label);
   return requirePermission("hotel.charge_room")(req, res, next);
 };
 router.post("/orders/:id/bill", requirePermission("sales.create"), chargeToRoomGuard, wrap((r) => hotel.billOrder(r.businessId!, BigInt(r.user!.userId), id(r), r.body ?? {})));

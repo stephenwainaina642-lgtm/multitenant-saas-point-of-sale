@@ -119,4 +119,19 @@ describe("invite-only sign-up and business approval (open sign-up OFF)", () => {
     expect(add.status, JSON.stringify(add.body)).toBe(201);
     expect(add.body.data.approvalStatus).toBe("pending");
   });
+
+  it("an invitation can choose the package: the client's business starts as a hotel with hotel roles", async () => {
+    const bad = await call("POST", "/platform/invites", { email: "badpkg@example.com", package: "casino" }, admin);
+    expect(bad.status).toBe(400);
+    const inv = await invite("hotelier@example.com", { package: "hotel", autoApprove: true });
+    const r = await signup("hotelier@example.com", inv.token, inv.pin, { businessType: "other" });
+    expect(r.status, JSON.stringify(r.body)).toBe(201);
+    const bizId = r.body.data.businesses[0].id as string;
+    const auth = { Authorization: `Bearer ${r.body.data.token}`, "X-Business-ID": bizId };
+    const ctx = (await call("POST", "/business-context/select", { businessId: bizId }, auth)).body.data;
+    expect(ctx.package).toBe("hotel");
+    expect(ctx.modules).toEqual(expect.arrayContaining(["tables", "rooms"]));
+    const listed = (await call("GET", "/platform/invites", undefined, admin)).body.data as any[];
+    expect(listed.find((i) => i.id === inv.id).package).toBe("hotel");
+  });
 });

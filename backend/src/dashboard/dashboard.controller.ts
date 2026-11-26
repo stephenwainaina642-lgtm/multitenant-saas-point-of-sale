@@ -25,7 +25,7 @@ export async function getDashboardController(req: BusinessRequest, res: Response
       success: true,
       message: "Dashboard retrieved successfully",
       // Fresh on every load, so the screens follow a role change without signing in again.
-      data: { ...data, permissions: Array.from(req.permissions ?? []).sort() },
+      data: { ...data, permissions: Array.from(req.permissions ?? []).sort(), modules: req.businessModules ?? [] },
     });
   } catch (error) {
     next(error);

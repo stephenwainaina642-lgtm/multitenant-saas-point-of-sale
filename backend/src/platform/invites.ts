@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
+import { isPackage, PACKAGES } from "../lib/packages.js";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const INVITE_DAYS = 7;
@@ -27,7 +28,9 @@ function statusOf(i: { usedAt: Date | null; revokedAt: Date | null; expiresAt: D
 }
 
 /** The link token and PIN are returned ONCE, here; only hashes are kept. */
-export async function createInvite(adminId: bigint, data: { email?: unknown; businessName?: unknown; note?: unknown; autoApprove?: unknown }) {
+export async function createInvite(adminId: bigint, data: { email?: unknown; businessName?: unknown; note?: unknown; autoApprove?: unknown; package?: unknown }) {
+  if (data.package !== undefined && data.package !== null && data.package !== "" && !isPackage(data.package)) throw new AppError(400, `Package must be one of: ${PACKAGES.join(", ")}`);
+  const packageName = isPackage(data.package) ? data.package : null;
   const email = typeof data.email === "string" ? data.email.trim().toLowerCase() : "";
   if (!EMAIL_PATTERN.test(email) || email.length > 255) throw new AppError(400, "Enter the client's email address");
   const businessName = typeof data.businessName === "string" && data.businessName.trim() ? data.businessName.trim().slice(0, 255) : null;
@@ -42,9 +45,9 @@ export async function createInvite(adminId: bigint, data: { email?: unknown; bus
     // A new invitation replaces any unused one for the same address, so only one link is ever live per client.
     await tx.businessInvite.updateMany({ where: { email, usedAt: null, revokedAt: null }, data: { revokedAt: new Date() } });
     const row = await tx.businessInvite.create({
-      data: { tokenHash: sha(token), pinHash: pinHashOf(token, pin), email, businessName, note, autoApprove: data.autoApprove !== false, createdBy: adminId, expiresAt },
+      data: { tokenHash: sha(token), pinHash: pinHashOf(token, pin), email, businessName, note, packageName, autoApprove: data.autoApprove !== false, createdBy: adminId, expiresAt },
     });
-    await tx.platformAuditLog.create({ data: { adminId, action: "invite.create", reason: note ?? "Invitation created", details: { email, businessName, inviteId: row.id.toString() } } });
+    await tx.platformAuditLog.create({ data: { adminId, action: "invite.create", reason: note ?? "Invitation created", details: { email, businessName, package: packageName, inviteId: row.id.toString() } } });
     return row;
   });
   return { id: invite.id.toString(), email, businessName, expiresAt, token, pin };
@@ -53,7 +56,7 @@ export async function createInvite(adminId: bigint, data: { email?: unknown; bus
 export async function listInvites() {
   const rows = await prisma.businessInvite.findMany({ orderBy: { createdAt: "desc" }, take: 200 });
   return rows.map((r) => ({
-    id: r.id.toString(), email: r.email, businessName: r.businessName, note: r.note, autoApprove: r.autoApprove,
+    id: r.id.toString(), email: r.email, businessName: r.businessName, note: r.note, package: r.packageName, autoApprove: r.autoApprove,
     status: statusOf(r), createdAt: r.createdAt, expiresAt: r.expiresAt, usedAt: r.usedAt, usedBusinessId: r.usedBusinessId?.toString() ?? null,
   }));
 }

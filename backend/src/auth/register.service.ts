@@ -8,6 +8,7 @@ import { checkInvite, consumeInvite } from "../platform/invites.js";
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 import { BUSINESS_TYPES } from "../lib/business-presets.js";
+import { defaultsForType, isPackage } from "../lib/packages.js";
 
 type RegisterInput = {
   name: string;
@@ -77,6 +78,8 @@ export async function registerUser(input: RegisterInput) {
 
   let result;
   try {
+    // The invitation can choose the package; otherwise it follows the business type.
+    const pkgDefaults = (() => { const d = defaultsForType(String(businessType), invite && isPackage(invite.packageName) ? invite.packageName : null); return { packageName: d.package, modules: d.modules }; })();
     result = await prisma.$transaction(async (tx) => {
     const user = await tx.user.create({
       data: {
@@ -90,6 +93,7 @@ export async function registerUser(input: RegisterInput) {
       data: {
         name: businessName.trim(),
         businessType,
+        ...pkgDefaults,
         ownerUserId: user.id,
         // An invitation can say "approve on sign-up"; otherwise the business waits for the platform team.
         approvalStatus: invite && !invite.autoApprove ? "pending" : "approved",
@@ -105,7 +109,7 @@ export async function registerUser(input: RegisterInput) {
       },
     });
 
-    await tx.role.createMany({ data: starterRoleRows(business.id) });
+    await tx.role.createMany({ data: starterRoleRows(business.id, pkgDefaults.packageName) });
 
     await tx.businessUser.create({
       data: {

@@ -3,6 +3,7 @@ import prisma from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
 import { loadConfig } from "../lib/config.js";
 import { BUSINESS_TYPES } from "../lib/business-presets.js";
+import { defaultsForType } from "../lib/packages.js";
 
 export const MAX_OWNED_BUSINESSES = 10;
 
@@ -20,9 +21,10 @@ export async function createBusinessForUser(userId: string, nameIn: unknown, typ
     if (owned >= MAX_OWNED_BUSINESSES) throw new AppError(409, `You can own at most ${MAX_OWNED_BUSINESSES} businesses. Contact support if you need more.`);
     // With sign-up by invitation, every extra business also waits for approval by the platform team.
     const approvalStatus = loadConfig().openRegistration ? "approved" : "pending";
-    const business = await tx.business.create({ data: { name, businessType, ownerUserId: uid, approvalStatus } });
+    const d = defaultsForType(businessType);
+    const business = await tx.business.create({ data: { name, businessType, packageName: d.package, modules: d.modules, ownerUserId: uid, approvalStatus } });
     const role = await tx.role.create({ data: { name: "owner", description: "Business owner with full access", businessId: business.id } });
-    await tx.role.createMany({ data: starterRoleRows(business.id) });
+    await tx.role.createMany({ data: starterRoleRows(business.id, d.package) });
     await tx.businessUser.create({ data: { businessId: business.id, userId: uid, roleId: role.id } });
     return { id: business.publicId, name: business.name, businessType: business.businessType, role: role.name, approvalStatus: business.approvalStatus };
   });

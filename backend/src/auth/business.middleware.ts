@@ -4,6 +4,7 @@ import type { AuthenticatedRequest } from "./auth.middleware.js";
 import { denialMessage } from "../business/business-context.service.js";
 import { resolvePermissions } from "./permissions.js";
 import { isPublicId } from "../lib/public-id.js";
+import { MODULE_INFO, moduleError, moduleForRequest, type ModuleName } from "../lib/packages.js";
 
 export type BusinessRequest = AuthenticatedRequest & {
   businessId?: bigint;
@@ -12,6 +13,8 @@ export type BusinessRequest = AuthenticatedRequest & {
   businessRole?: string;
   isBusinessOwner?: boolean;
   permissions?: Set<string>;
+  /** Optional modules switched on for this business (lib/packages.ts). */
+  businessModules?: string[];
 };
 
 export async function requireBusinessAccess(
@@ -68,6 +71,7 @@ export async function requireBusinessAccess(
         business: {
           select: {
             ownerUserId: true,
+            modules: true,
           },
         },
       },
@@ -88,6 +92,11 @@ export async function requireBusinessAccess(
       membership.role.permissions,
       req.isBusinessOwner
     );
+
+    req.businessModules = membership.business.modules;
+    // Switched-off modules are refused here, for every route of that feature, not just hidden in the menu.
+    const needed = moduleForRequest(req.baseUrl, req.path);
+    if (needed && !membership.business.modules.includes(needed)) return moduleError(res, MODULE_INFO[needed as ModuleName].label);
 
     // Which branch? Staff assigned to a branch stay in it; people with "branches.all" may pick one
     // with X-Branch-ID; everyone else without an assignment works in the Main branch.

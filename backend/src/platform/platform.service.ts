@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { isModule, isPackage, MODULES, PACKAGE_INFO, PACKAGES } from "../lib/packages.js";
 import crypto from "node:crypto";
 import prisma from "../lib/prisma.js";
 import { requirePublicId } from "../lib/public-id.js";
@@ -49,7 +50,7 @@ type Row = Record<string, string | number | boolean | Date | null>;
 /** Counts, dates and sale totals only: no customer names, no individual sales, no prices. */
 export async function overview() {
   const rows = await prisma.$queryRaw<Row[]>`
-    select b.public_id::text as id, b.name, b.business_type, b.is_active, b.approval_status, b.created_at, b.vat_registered,
+    select b.public_id::text as id, b.name, b.business_type, b.package, b.modules, b.is_active, b.approval_status, b.created_at, b.vat_registered,
            o.name as owner_name, o.email as owner_email,
            (select count(*) from business_users bu where bu.business_id = b.id and bu.is_active)::int as users,
            (select count(*) from products p where p.business_id = b.id)::int as products,
@@ -67,7 +68,7 @@ export async function overview() {
     order by b.created_at desc
     limit 500`;
   const businesses = rows.map((r) => ({
-    id: r.id, name: r.name, businessType: r.business_type, isActive: r.is_active, approvalStatus: r.approval_status, createdAt: r.created_at,
+    id: r.id, name: r.name, businessType: r.business_type, package: r.package, modules: r.modules as unknown as string[], isActive: r.is_active, approvalStatus: r.approval_status, createdAt: r.created_at,
     vatRegistered: r.vat_registered, ownerName: r.owner_name, ownerEmail: r.owner_email,
     users: r.users, products: r.products, salesCount: r.sales_count, salesTotal: r.sales_total,
     sales30dCount: r.sales_30d_count, sales30dTotal: r.sales_30d_total, lastSaleAt: r.last_sale,
@@ -115,6 +116,33 @@ export async function setBusinessApproval(adminId: bigint, idText: string, appro
     prisma.platformAuditLog.create({ data: { adminId, action: approve ? "business.approve" : "business.reject", businessId: b.id, reason, details: { name: b.name, was: b.approvalStatus } } }),
   ]);
   return { id: b.publicId, approvalStatus: next };
+}
+
+/** Switch a business to a package. Its module list is reset to that package's defaults (adjust it afterwards if needed). */
+export async function setBusinessPackage(adminId: bigint, idText: string, packageIn: unknown, reasonIn: unknown) {
+  const reason = cleanReason(reasonIn);
+  if (!isPackage(packageIn)) throw new AppError(400, `Package must be one of: ${PACKAGES.join(", ")}`);
+  const b = await business(idText);
+  const modules = [...PACKAGE_INFO[packageIn].modules];
+  await prisma.$transaction([
+    prisma.business.update({ where: { id: b.id }, data: { packageName: packageIn, modules } }),
+    prisma.platformAuditLog.create({ data: { adminId, action: "business.package", businessId: b.id, reason, details: { name: b.name, was: { package: b.packageName, modules: b.modules }, now: { package: packageIn, modules } } } }),
+  ]);
+  return { id: b.publicId, package: packageIn, modules };
+}
+
+/** Set exactly which optional modules a business has. Data of a switched-off module is kept, just not reachable. */
+export async function setBusinessModules(adminId: bigint, idText: string, modulesIn: unknown, reasonIn: unknown) {
+  const reason = cleanReason(reasonIn);
+  if (!Array.isArray(modulesIn) || !modulesIn.every(isModule)) throw new AppError(400, `Modules must be a list drawn from: ${MODULES.join(", ")}`);
+  const modules = MODULES.filter((m) => modulesIn.includes(m)); // canonical order, no duplicates
+  const b = await business(idText);
+  if (modules.length === b.modules.length && modules.every((m) => b.modules.includes(m))) throw new AppError(409, "These modules are already switched on for this business");
+  await prisma.$transaction([
+    prisma.business.update({ where: { id: b.id }, data: { modules } }),
+    prisma.platformAuditLog.create({ data: { adminId, action: "business.modules", businessId: b.id, reason, details: { name: b.name, was: b.modules, now: modules } } }),
+  ]);
+  return { id: b.publicId, package: b.packageName, modules };
 }
 
 export async function resetOwnerAccess(adminId: bigint, idText: string, reasonIn: unknown) {

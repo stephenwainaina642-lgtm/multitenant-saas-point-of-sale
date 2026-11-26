@@ -26,6 +26,10 @@ model Business {
   currency         String   @default("KES") @db.VarChar(10)
   timezone         String   @default("Africa/Nairobi") @db.VarChar(100)
   isActive         Boolean  @default(true) @map("is_active")
+  /// retail | hotel: the starting package. What a business can use is its module list below.
+  packageName      String   @default("retail") @map("package") @db.VarChar(20)
+  /// Optional modules switched on for this business (see lib/packages.ts). Core features are always on.
+  modules          String[] @default(["purchasing", "documents"])
   /// approved | pending | rejected. Only approved businesses can be used; existing ones are approved.
   approvalStatus   String   @default("approved") @map("approval_status") @db.VarChar(10)
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -800,6 +804,7 @@ model BusinessInvite {
   businessName   String?   @map("business_name") @db.VarChar(255)
   note           String?   @db.VarChar(500)
   autoApprove    Boolean   @default(true) @map("auto_approve")
+  packageName    String?   @map("package") @db.VarChar(20)
   failedAttempts Int       @default(0) @map("failed_attempts")
   createdBy      BigInt    @map("created_by")
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
