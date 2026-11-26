@@ -2,9 +2,10 @@ import { useState } from "react";
 import { apiRequest } from "./api/client";
 import { BUSINESS_TYPE_OPTIONS } from "./businessTypes";
 import { storePermissions } from "./permissions";
+import { storeModules } from "./modules";
 
 type Biz = { id: string; name: string; role: string };
-type Selected = { businessId: string; businessName: string; role: string; permissions: string[] };
+type Selected = { businessId: string; businessName: string; role: string; permissions: string[]; modules?: string[] };
 
 /** Sidebar business card: shows the current business, lets the user switch, and lets them add another one. */
 export default function BusinessSwitcher() {
@@ -43,6 +44,7 @@ export default function BusinessSwitcher() {
       sessionStorage.setItem("pos_business_name", d.businessName);
       sessionStorage.setItem("pos_business_role", d.role);
       storePermissions(d.permissions);
+      storeModules(d.modules);
       window.location.reload(); // every screen reloads its data for the new business
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Could not switch business.");

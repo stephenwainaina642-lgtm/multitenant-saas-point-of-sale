@@ -5,6 +5,7 @@ import { BUSINESS_TYPE_OPTIONS } from "./businessTypes";
 import { apiRequest, SESSION_MARKER } from "./api/client";
 import "./AuthGate.css";
 import { storePermissions } from "./permissions";
+import { storeModules } from "./modules";
 import { ForgotPasswordScreen, ResetPasswordScreen } from "./ForgotPassword";
 
 /** Reads (and removes) a reset token from the address bar, so it is not left in the history or shared by accident. */
@@ -33,6 +34,7 @@ type SelectedBusiness = {
   businessType: string;
   role: string;
   permissions?: string[];
+  modules?: string[];
 };
 
 type Props = {
@@ -101,6 +103,7 @@ export default function AuthGate({ onAuthenticated }: Props) {
     sessionStorage.setItem("pos_business_name", response.data!.businessName);
     sessionStorage.setItem("pos_business_role", response.data!.role);
     storePermissions(response.data!.permissions);
+    storeModules(response.data!.modules);
     sessionStorage.setItem("pos_user_name", sessionStorage.getItem("pos_pending_user") || "");
     sessionStorage.removeItem("pos_pending_user");
     onAuthenticated();

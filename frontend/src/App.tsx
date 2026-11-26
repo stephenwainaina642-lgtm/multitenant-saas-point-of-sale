@@ -26,6 +26,7 @@ import { apiRequest } from "./api/client";
 import { notify } from "./toast";
 import { AlertTriangle, Bell, Radio, UtensilsCrossed, BedDouble, BarChart3, Banknote, Boxes, Clock, FileSpreadsheet, FileText, LayoutDashboard, Package, Receipt, Settings, ShoppingBag, ShoppingCart, Store, Truck, UserCog, Users, Wallet, ClipboardList } from "lucide-react";
 import { can, storePermissions } from "./permissions";
+import { hasModule, storeModules } from "./modules";
 import SyncBadge from "./SyncBadge";
 import OfflineBanner from "./OfflineBanner";
 import { clearOfflineCache } from "./offlineCache";
@@ -53,6 +54,16 @@ const navigationPermissions: Record<string, string[]> = {
   Branches: ["branches.manage", "branches.all", "stock.transfer"],
 };
 
+/** Pages that belong to an optional module (package feature); hidden when the business does not have it. */
+const navigationModules: Record<string, string> = {
+  "Tables & Orders": "tables",
+  Rooms: "rooms",
+  Suppliers: "purchasing",
+  Purchases: "purchasing",
+  Quotations: "documents",
+  Invoices: "documents",
+};
+
 const navigation = [
   { name: "Dashboard", icon: <LayoutDashboard size={18} strokeWidth={1.9} /> },
   { name: "Point of Sale", icon: <ShoppingCart size={18} strokeWidth={1.9} /> },
@@ -77,6 +88,7 @@ const navigation = [
 
 type DashboardData = {
   permissions?: string[];
+  modules?: string[];
   timeZone: string;
   sales: { today: { count: number; revenue: number }; thisMonth: { count: number; revenue: number }; allTime: { count: number; revenue: number } } | null;
   receivables: { outstanding: number; unpaidSales: number } | null;
@@ -156,6 +168,7 @@ function App() {
 
         if (!cancelled) {
           storePermissions(response.data?.permissions);
+          storeModules(response.data?.modules);
           setDashboard(response.data ?? null);
           setDashboardError("");
         }
@@ -249,7 +262,7 @@ function App() {
 
         <div className="nav-label">MAIN MENU</div>
         <nav className="navigation">
-          {navigation.filter((item) => !navigationPermissions[item.name] || can(...navigationPermissions[item.name]!)).map((item) => (
+          {navigation.filter((item) => (!navigationModules[item.name] || hasModule(navigationModules[item.name]!)) && (!navigationPermissions[item.name] || can(...navigationPermissions[item.name]!))).map((item) => (
             <button
               key={item.name}
               className={`nav-item ${activePage === item.name ? "active" : ""}`}

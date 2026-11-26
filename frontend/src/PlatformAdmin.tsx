@@ -7,12 +7,16 @@ import PlatformQuotes from "./PlatformQuotes";
 type Biz = {
   approvalStatus: "approved" | "pending" | "rejected";
   id: string; name: string; businessType: string; isActive: boolean; createdAt: string; ownerName: string | null; ownerEmail: string | null;
+  package: "retail" | "hotel"; modules: string[];
   users: number; products: number; salesCount: number; salesTotal: string; sales30dCount: number; sales30dTotal: string; lastSaleAt: string | null;
 };
-type Invite = { id: string; email: string; businessName: string | null; note: string | null; autoApprove: boolean; status: "active" | "used" | "expired" | "cancelled" | "locked"; createdAt: string; expiresAt: string; usedAt: string | null };
+type Invite = { id: string; package: "retail" | "hotel" | null; email: string; businessName: string | null; note: string | null; autoApprove: boolean; status: "active" | "used" | "expired" | "cancelled" | "locked"; createdAt: string; expiresAt: string; usedAt: string | null };
 type Overview = { totals: { businesses: number; pending: number; suspended: number; activeLast30Days: number; users: number }; businesses: Biz[] };
 type Audit = { id: string; action: string; businessId: string | null; reason: string; adminName: string; createdAt: string };
 type Dialog = { kind: "suspend" | "reactivate" | "reset" | "approve" | "reject"; biz: Biz } | null;
+const PKG_LABEL = { retail: "Retail", hotel: "Hotel & restaurant" } as const;
+const PKG_DEFAULT: Record<string, string[]> = { retail: ["purchasing", "documents"], hotel: ["tables", "rooms", "purchasing", "documents"] };
+const MODULE_LABEL: Record<string, string> = { tables: "Tables & orders", rooms: "Rooms & stays", purchasing: "Suppliers & purchases", documents: "Quotations & invoices" };
 type Created = { email: string; link: string; pin: string; expiresAt: string };
 
 const KEY = "platform_token";
@@ -42,7 +46,8 @@ export default function PlatformAdmin() {
   const [audit, setAudit] = useState<Audit[]>([]);
   const [tab, setTab] = useState<"businesses" | "invites" | "quotes" | "audit">("businesses");
   const [invites, setInvites] = useState<Invite[]>([]);
-  const [inv, setInv] = useState({ email: "", businessName: "", note: "", autoApprove: true });
+  const [inv, setInv] = useState({ email: "", businessName: "", note: "", autoApprove: true, package: "retail" });
+  const [plan, setPlan] = useState<{ biz: Biz; package: "retail" | "hotel"; modules: string[] } | null>(null);
   const [created, setCreated] = useState<Created | null>(null);
   const [revoking, setRevoking] = useState<Invite | null>(null);
   const [search, setSearch] = useState("");
@@ -81,8 +86,20 @@ export default function PlatformAdmin() {
     try {
       const r = await apiRequest<{ email: string; token: string; pin: string; expiresAt: string }>("/platform/invites", { method: "POST", token, body: inv });
       if (r.data) setCreated({ email: r.data.email, link: `${window.location.origin}/#join=${r.data.token}`, pin: r.data.pin, expiresAt: r.data.expiresAt });
-      setInv({ email: "", businessName: "", note: "", autoApprove: true }); await load(token);
+      setInv({ email: "", businessName: "", note: "", autoApprove: true, package: "retail" }); await load(token);
     } catch (e) { setError(msg(e)); } finally { setBusy(false); }
+  }
+  async function savePlan(ev: React.FormEvent) {
+    ev.preventDefault(); if (!plan) return; setBusy(true); setError("");
+    try {
+      const b = plan.biz;
+      const order = Object.keys(MODULE_LABEL);
+      if (plan.package !== b.package) await apiRequest(`/platform/businesses/${b.id}/package`, { method: "POST", token, body: { package: plan.package, reason } });
+      const current = plan.package !== b.package ? PKG_DEFAULT[plan.package]! : b.modules;
+      const wanted = order.filter((m) => plan.modules.includes(m));
+      if (wanted.join() !== order.filter((m) => current.includes(m)).join()) await apiRequest(`/platform/businesses/${b.id}/modules`, { method: "POST", token, body: { modules: wanted, reason } });
+      setPlan(null); setReason(""); await load(token);
+    } catch (e) { setError(msg(e)); await load(token); } finally { setBusy(false); }
   }
   async function revoke(ev: React.FormEvent) {
     ev.preventDefault(); if (!revoking) return; setBusy(true); setError("");
@@ -147,7 +164,7 @@ export default function PlatformAdmin() {
       {tab === "businesses" ? (
         <div style={{ ...card, padding: 0, overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead><tr style={{ textAlign: "left", background: "#f4f8f5" }}>{["Business", "Owner", "Registered", "Users", "Products", "Sales", "Sales total", "Last 30 days", "Last sale", "Status", ""].map((h) => <th key={h} style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+            <thead><tr style={{ textAlign: "left", background: "#f4f8f5" }}>{["Business", "Owner", "Registered", "Users", "Products", "Sales", "Sales total", "Last 30 days", "Last sale", "Package", "Status", ""].map((h) => <th key={h} style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
             <tbody>
               {rows.map((b) => (
                 <tr key={b.id} style={{ borderTop: "1px solid #e8eee9" }}>
@@ -158,16 +175,18 @@ export default function PlatformAdmin() {
                   <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{kes(b.salesTotal)}</td>
                   <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{kes(b.sales30dTotal)}<br /><small style={{ color: "#6b7a70" }}>{b.sales30dCount} sales</small></td>
                   <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{day(b.lastSaleAt)}</td>
+                  <td style={{ padding: "10px 12px" }}><strong>{PKG_LABEL[b.package]}</strong><br /><small style={{ color: "#6b7a70" }}>{b.modules.length ? b.modules.map((m) => MODULE_LABEL[m] ?? m).join(", ") : "No extra modules"}</small></td>
                   <td style={{ padding: "10px 12px" }}>{(() => { const st = !b.isActive ? ["Suspended", "#fde8e4", "#b3412f"] : b.approvalStatus === "pending" ? ["Awaiting approval", "#fff3d6", "#8a5a00"] : b.approvalStatus === "rejected" ? ["Rejected", "#fde8e4", "#b3412f"] : ["Active", "#e3f4e9", "#176b4d"]; return <span style={{ padding: "2px 8px", borderRadius: 99, fontSize: 11, background: st[1], color: st[2], whiteSpace: "nowrap" }}>{st[0]}</span>; })()}</td>
                   <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>
                     {b.approvalStatus !== "approved" && <><button style={{ ...small, background: "#e3f4e9" }} onClick={() => { setDialog({ kind: "approve", biz: b }); setReason(""); setError(""); }}>Approve</button>{" "}</>}
                     {b.approvalStatus !== "rejected" && <><button style={small} onClick={() => { setDialog({ kind: "reject", biz: b }); setReason(""); setError(""); }}>Reject</button>{" "}</>}
                     <button style={small} onClick={() => { setDialog({ kind: b.isActive ? "suspend" : "reactivate", biz: b }); setReason(""); setError(""); }}>{b.isActive ? "Suspend" : "Reactivate"}</button>{" "}
+                    <button style={small} onClick={() => { setPlan({ biz: b, package: b.package, modules: b.modules }); setReason(""); setError(""); }}>Package</button>{" "}
                     <button style={small} onClick={() => { setDialog({ kind: "reset", biz: b }); setReason(""); setError(""); }}>Reset owner</button>
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && <tr><td colSpan={11} style={{ padding: 20, textAlign: "center", color: "#6b7a70" }}>No businesses found.</td></tr>}
+              {rows.length === 0 && <tr><td colSpan={12} style={{ padding: 20, textAlign: "center", color: "#6b7a70" }}>No businesses found.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -181,25 +200,27 @@ export default function PlatformAdmin() {
             <input style={input} type="email" placeholder="Client's email address" value={inv.email} onChange={(e) => setInv({ ...inv, email: e.target.value })} required />
             <input style={input} placeholder="Business name (optional, they can change it)" value={inv.businessName} onChange={(e) => setInv({ ...inv, businessName: e.target.value })} maxLength={255} />
             <input style={input} placeholder="Note for yourself (optional)" value={inv.note} onChange={(e) => setInv({ ...inv, note: e.target.value })} maxLength={500} />
+            <label style={{ fontSize: 13 }}>Package <select style={{ ...input, width: "auto" }} value={inv.package} onChange={(e) => setInv({ ...inv, package: e.target.value })}><option value="retail">Retail shop</option><option value="hotel">Hotel & restaurant</option></select></label>
             <label style={{ fontSize: 13 }}><input type="checkbox" checked={inv.autoApprove} onChange={(e) => setInv({ ...inv, autoApprove: e.target.checked })} /> Approve the business automatically when they sign up (untick to review it first)</label>
             {error && <p style={{ margin: 0, color: "#b3412f", fontSize: 13 }}>{error}</p>}
             <div><button style={primary} disabled={busy}>{busy ? "Please wait..." : "Create invitation"}</button></div>
           </form>
           <div style={{ ...card, padding: 0, overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <thead><tr style={{ textAlign: "left", background: "#f4f8f5" }}>{["Client email", "Business", "Created", "Expires", "Status", ""].map((h) => <th key={h} style={{ padding: "10px 12px" }}>{h}</th>)}</tr></thead>
+              <thead><tr style={{ textAlign: "left", background: "#f4f8f5" }}>{["Client email", "Business", "Package", "Created", "Expires", "Status", ""].map((h) => <th key={h} style={{ padding: "10px 12px" }}>{h}</th>)}</tr></thead>
               <tbody>
                 {invites.map((i) => (
                   <tr key={i.id} style={{ borderTop: "1px solid #e8eee9" }}>
                     <td style={{ padding: "10px 12px" }}>{i.email}{i.note && <><br /><small style={{ color: "#6b7a70" }}>{i.note}</small></>}</td>
                     <td style={{ padding: "10px 12px" }}>{i.businessName || "—"}</td>
+                    <td style={{ padding: "10px 12px" }}>{i.package ? PKG_LABEL[i.package] : "By business type"}</td>
                     <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{day(i.createdAt)}</td>
                     <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{day(i.expiresAt)}</td>
                     <td style={{ padding: "10px 12px" }}>{{ active: "Waiting for the client", used: `Used ${day(i.usedAt)}`, expired: "Expired", cancelled: "Cancelled", locked: "Locked (wrong PINs)" }[i.status]}</td>
                     <td style={{ padding: "10px 12px" }}>{i.status === "active" || i.status === "locked" ? <button style={small} onClick={() => { setRevoking(i); setReason(""); setError(""); }}>Cancel</button> : null}</td>
                   </tr>
                 ))}
-                {invites.length === 0 && <tr><td colSpan={6} style={{ padding: 20, textAlign: "center", color: "#6b7a70" }}>No invitations yet.</td></tr>}
+                {invites.length === 0 && <tr><td colSpan={7} style={{ padding: 20, textAlign: "center", color: "#6b7a70" }}>No invitations yet.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -229,6 +250,21 @@ export default function PlatformAdmin() {
             <textarea style={{ ...input, minHeight: 70 }} placeholder="Reason (required, recorded in the admin activity log)" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} required minLength={3} autoFocus />
             {error && <p style={{ margin: 0, color: "#b3412f", fontSize: 13 }}>{error}</p>}
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><button type="button" style={small} onClick={() => setDialog(null)}>Cancel</button><button style={primary} disabled={busy}>{busy ? "Please wait..." : "Confirm"}</button></div>
+          </form>
+        </div>
+      )}
+      {plan && (
+        <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "grid", placeItems: "center", padding: 16, zIndex: 50 }}>
+          <form onSubmit={savePlan} style={{ ...card, width: "100%", maxWidth: 460, display: "grid", gap: 10 }}>
+            <h2 style={{ margin: 0, fontSize: 18 }}>Package for {plan.biz.name}</h2>
+            <label style={{ fontSize: 13 }}>Package <select style={{ ...input, width: "auto" }} value={plan.package} onChange={(e) => { const p = e.target.value as "retail" | "hotel"; setPlan({ ...plan, package: p, modules: p === plan.biz.package ? plan.biz.modules : PKG_DEFAULT[p]! }); }}><option value="retail">Retail shop</option><option value="hotel">Hotel & restaurant</option></select></label>
+            <fieldset style={{ border: "1px solid #dfe7e1", borderRadius: 8 }}><legend style={{ fontSize: 12, color: "#6b7a70" }}>Modules switched on</legend>
+              {Object.entries(MODULE_LABEL).map(([m, label]) => <label key={m} style={{ display: "block", fontSize: 13, padding: "3px 0" }}><input type="checkbox" checked={plan.modules.includes(m)} onChange={(e) => setPlan({ ...plan, modules: e.target.checked ? [...plan.modules, m] : plan.modules.filter((x) => x !== m) })} /> {label}</label>)}
+            </fieldset>
+            <p style={{ margin: 0, fontSize: 12, color: "#52625a" }}>Changing the package resets the modules to that package's defaults, which you can then adjust. Switching a module off hides it and blocks its pages; no data is deleted and it returns when switched back on. Staff roles are not changed.</p>
+            <textarea style={{ ...input, minHeight: 70 }} placeholder="Reason (required, recorded in the admin activity log)" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} required minLength={3} />
+            {error && <p style={{ margin: 0, color: "#b3412f", fontSize: 13 }}>{error}</p>}
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><button type="button" style={small} onClick={() => setPlan(null)}>Cancel</button><button style={primary} disabled={busy}>{busy ? "Please wait..." : "Save"}</button></div>
           </form>
         </div>
       )}
