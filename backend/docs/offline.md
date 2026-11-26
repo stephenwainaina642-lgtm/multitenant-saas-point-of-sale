@@ -10,7 +10,7 @@ The till keeps selling when the internet drops. This is what it does and, just a
 
 ## What does not work offline
 - **Signing in.** Sign in once while online; the session then survives an offline reload of the same tab. No password or token is stored for offline use.
-- **VAT-registered businesses cannot sell offline yet.** VAT totals are worked out by the server and must match exactly, so the till refuses an offline sale for them with a clear message. (Phase 2: port the VAT maths with parity tests.)
+- **VAT-registered businesses can sell offline.** The till works VAT out on the device with `frontend/src/vatMath.ts`, a line-for-line integer port of the server's `sale-calc.ts` (standard, zero-rated, exempt and custom rates; exclusive and inclusive pricing; sale discount spread over lines). `backend/tests/api/vat-parity.test.ts` checks it against the server's functions on 4,800 random sales and against the live `/sales/preview` endpoint, so a change to either side that breaks agreement fails the suite. The server still recalculates VAT when the sale syncs. The device keeps each product's tax class and the business's extra rates with the VAT settings, refreshed whenever the till loads online. If a price, tax class or rate was changed on the server after the device last refreshed, the recorded total can differ from what the offline receipt showed; a sale whose amount paid is more than the server's total is refused and stays in the outbox as failed with the reason, as with an offline price change.
 - STK push, Pesapal checkout and anything else that needs a provider are hidden/blocked offline.
 
 ## Stock that ran out meanwhile

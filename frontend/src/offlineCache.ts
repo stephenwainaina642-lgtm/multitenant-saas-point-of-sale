@@ -10,7 +10,7 @@ export type OfflineCache<P, C> = {
   savedAt: number;
   products?: P[];
   customers?: C[];
-  vat?: { registered: boolean; rate: string; inclusive: boolean };
+  vat?: { registered: boolean; rate: string; inclusive: boolean; custom?: Record<string, string> };
 };
 
 const keyFor = (businessId: string, branchId: string | null) => `${PREFIX}${businessId}:${branchId ?? "main"}`;

@@ -9,6 +9,7 @@ import ReceiptModal, { type ReceiptData } from "./ReceiptModal";
 import { Plus, Printer, ReceiptText, Search } from "lucide-react";
 import { checkName, checkPhone, cleanName, cleanPhone, PHONE_PROPS } from "./validation";
 import { money, plainAmount } from "./money";
+import { centsToNumber, computeVat, type VatSettings } from "./vatMath";
 import PesapalCheckoutPanel, { type PesapalRequest } from "./integrations/PesapalCheckoutPanel";
 import MpesaStkPanel, { type StkMode, type StkRequest } from "./integrations/MpesaStkPanel";
 import "./integrations/integrations.css";
@@ -24,6 +25,7 @@ type Product = {
   categoryId?: string | null;
   categoryName?: string | null;
   isActive: boolean;
+  taxClass?: string;
 };
 
 type CartItem = {
@@ -66,7 +68,7 @@ export default function PointOfSaleWorkspace() {
   const [loading, setLoading] = useState(true);
   const saving = false; // saving happens in the background now (salesOutbox); the till never waits
   // VAT is worked out by the server, so the cashier sees exactly what will be recorded.
-  const [vat, setVat] = useState<{ registered: boolean; rate: string; inclusive: boolean } | null>(null);
+  const [vat, setVat] = useState<VatSettings | null>(null);
   const [vatPreview, setVatPreview] = useState<{ tax: number; total: number } | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const lastKeyRef = useRef<string | null>(null);
@@ -221,8 +223,18 @@ export default function PointOfSaleWorkspace() {
 
   const discountValue = Number(discount);
   const vatOn = vat?.registered === true;
-  const taxValue = vatOn ? (vatPreview?.tax ?? 0) : Number(tax);
-  const total = vatOn ? (vatPreview?.total ?? subtotal - discountValue) : subtotal - discountValue + taxValue;
+  // Offline, VAT is worked out here with the same integer maths as the server (see vatMath.ts); online the server's
+  // preview is used. The server recalculates when the sale arrives either way.
+  const offlineVat = useMemo(() => {
+    if (!vatOn || online || !vat || cart.length === 0) return null;
+    try {
+      const r = computeVat(cart.map((c) => ({ quantity: c.quantity, unitPrice: Number(c.product.sellingPrice), taxClass: c.product.taxClass ?? "standard" })), Number.isFinite(discountValue) ? discountValue : 0, vat);
+      return { tax: centsToNumber(r.tax), total: centsToNumber(r.total) };
+    } catch { return null; }
+  }, [vatOn, online, vat, cart, discountValue]);
+  const shownVat = online ? vatPreview : offlineVat;
+  const taxValue = vatOn ? (shownVat?.tax ?? 0) : Number(tax);
+  const total = vatOn ? (shownVat?.total ?? subtotal - discountValue) : subtotal - discountValue + taxValue;
 
   useEffect(() => {
     const token = sessionStorage.getItem("pos_token");
@@ -231,9 +243,18 @@ export default function PointOfSaleWorkspace() {
     apiRequest<{ vatRegistered: boolean; vatRate: string; pricesIncludeVat?: boolean }>("/businesses/current", { token, businessId })
       .then((r) => {
         if (!r.data) return;
-        const v = { registered: r.data.vatRegistered, rate: r.data.vatRate, inclusive: r.data.vatRegistered && r.data.pricesIncludeVat === true };
+        const v: VatSettings = { registered: r.data.vatRegistered, rate: r.data.vatRate, inclusive: r.data.vatRegistered && r.data.pricesIncludeVat === true };
         setVat(v);
         saveOfflineCache(businessId, { vat: v });
+        if (!v.registered) return;
+        // Extra rates (reduced rates etc.) are needed to work VAT out offline; keep them with the VAT settings.
+        apiRequest<{ code: string; rate: string; builtIn: boolean }[]>("/tax-rates", { token, businessId })
+          .then((t) => {
+            const withRates: VatSettings = { ...v, custom: Object.fromEntries((t.data ?? []).filter((x) => !x.builtIn).map((x) => [x.code, x.rate])) };
+            setVat(withRates);
+            saveOfflineCache(businessId, { vat: withRates });
+          })
+          .catch(() => { /* keep the settings without extra rates; the server preview still works online */ });
       })
       .catch((err) => {
         const saved = !(err instanceof ApiError) ? readOfflineCache<Product, PosCustomer>(businessId) : null;
@@ -365,8 +386,8 @@ export default function PointOfSaleWorkspace() {
     }
 
     if (!navigator.onLine) {
-      if (vatOn) {
-        setError("This business charges VAT, and VAT totals are worked out by the server. Selling offline is not available for VAT-registered businesses yet. Please reconnect to sell.");
+      if (vatOn && !offlineVat) {
+        setError("VAT could not be worked out on this device. Check the cart and discount, or reconnect.");
         return;
       }
       if (paymentMethod === "pesapal") {
