@@ -817,6 +817,29 @@ model BusinessInvite {
   @@map("business_invites")
 }
 
+/// A single-use, expiring sign-in link for a new employee, with a PIN given separately. Only hashes are stored.
+model EmployeeInvite {
+  id             BigInt    @id @default(autoincrement())
+  businessId     BigInt    @map("business_id")
+  roleId         BigInt    @map("role_id")
+  tokenHash      String    @unique @map("token_hash") @db.VarChar(64)
+  pinHash        String    @map("pin_hash") @db.VarChar(64)
+  email          String    @db.VarChar(255)
+  name           String    @db.VarChar(255)
+  phone          String?   @db.VarChar(40)
+  failedAttempts Int       @default(0) @map("failed_attempts")
+  createdBy      BigInt    @map("created_by")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt         DateTime? @map("used_at") @db.Timestamptz(6)
+  usedUserId     BigInt?   @map("used_user_id")
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  @@index([businessId, createdAt(sort: Desc)])
+  @@index([email])
+  @@map("employee_invites")
+}
+
 /// One provider (mpesa | pesapal | etims) set up by one business, with its own merchant account.
 /// Non-secret settings live in `config`; credentials live only in integration_secrets, encrypted.
 model IntegrationConnection {

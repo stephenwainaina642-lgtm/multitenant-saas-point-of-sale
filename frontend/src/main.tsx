@@ -4,6 +4,7 @@ import "./index.css";
 import App from "./App.tsx";
 import AuthGate from "./AuthGate";
 import PlatformAdmin from "./PlatformAdmin";
+import StaffInvite, { staffTokenFromHash } from "./StaffInvite";
 import AppToaster from "./AppToaster";
 import "./receipt-premium.css";
 import "./mobile.css"; // last, so the phone layout wins over the desktop styles
@@ -21,9 +22,10 @@ function DemoBanner() {
 
 // The platform owner's screen lives at /#platform; it is not linked from anywhere in the normal app.
 function Root() {
+  const [staffToken] = useState(staffTokenFromHash);
   return (
     <>
-      {window.location.hash.startsWith("#platform") ? <PlatformAdmin /> : <BusinessApp />}
+      {window.location.hash.startsWith("#platform") ? <PlatformAdmin /> : staffToken ? <StaffInvite token={staffToken} /> : <BusinessApp />}
       <AppToaster />
     </>
   );

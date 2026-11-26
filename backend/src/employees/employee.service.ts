@@ -50,7 +50,7 @@ export async function listEmployees(businessId: string) {
   return rows.map((m) => format(m, owner));
 }
 
-async function resolveRole(businessId: bigint, roleId: unknown, roleName: unknown, actor?: Actor) {
+export async function resolveRole(businessId: bigint, roleId: unknown, roleName: unknown, actor?: Actor) {
   let role = null;
   if (roleId !== undefined && roleId !== null && roleId !== "") {
     role = await prisma.role.findFirst({ where: { publicId: requirePublicId(roleId, "A valid role ID is required"), businessId } });

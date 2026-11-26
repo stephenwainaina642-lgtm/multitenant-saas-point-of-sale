@@ -17,6 +17,10 @@ type SalespersonPerformance = {
 
 const BUILT_IN = ["Manager", "Inventory Manager", "Salesperson", "Cashier", "Accountant"];
 const emptyForm = { name: "", email: "", phone: "", role: "Cashier", password: "" };
+type Invite = { id: string; name: string; email: string; phone: string | null; role: string; status: "active" | "used" | "expired" | "cancelled" | "locked"; createdAt: string; expiresAt: string; usedAt: string | null };
+type Issued = { name: string; email: string; link: string; pin: string; expiresAt: string };
+const INVITE_STATUS = { active: "Waiting for them", used: "Joined", expired: "Expired", cancelled: "Cancelled", locked: "Locked (wrong PINs)" } as const;
+const copy = (text: string) => { void navigator.clipboard?.writeText(text); };
 const fieldStyle: React.CSSProperties = {
   width: "100%", boxSizing: "border-box", padding: "11px 12px", border: "1px solid #dfe7e2",
   borderRadius: 8, font: "inherit", background: "#fff", color: "#24372e", marginTop: 6,
@@ -34,6 +38,9 @@ export default function EmployeesWorkspace({ salespersonPerformance = [] }: { sa
   useNotify(error, notice);
   const [secret, setSecret] = useState<{ who: string; password: string } | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [mode, setMode] = useState<"link" | "password">("link");
+  const [invites, setInvites] = useState<Invite[]>([]);
+  const [issued, setIssued] = useState<Issued | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
@@ -56,6 +63,7 @@ export default function EmployeesWorkspace({ salespersonPerformance = [] }: { sa
         const r = await apiRequest<Role[]>("/roles", { token, businessId });
         setRoles(r.data ?? []);
       } catch { setRoles([]); } // roles.manage is a separate permission
+      try { setInvites((await apiRequest<Invite[]>("/employees/invites", { token, businessId })).data ?? []); } catch { setInvites([]); }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load employees.");
     } finally { setLoading(false); }
@@ -93,6 +101,12 @@ export default function EmployeesWorkspace({ salespersonPerformance = [] }: { sa
       const body: Record<string, string> = { name: form.name, email: form.email, phone: form.phone, roleName: form.role };
       const existing = roles.find((r) => r.name === form.role);
       if (existing) { delete body.roleName; body.roleId = existing.id; }
+      if (mode === "link") {
+        const inv = await apiRequest<{ token: string; pin: string; expiresAt: string }>("/employees/invites", { method: "POST", token, businessId, body });
+        if (inv.data) setIssued({ name: form.name, email: form.email, link: `${window.location.origin}/#staff=${inv.data.token}`, pin: inv.data.pin, expiresAt: inv.data.expiresAt });
+        setForm(emptyForm); setShowForm(false); await load();
+        return;
+      }
       if (form.password) body.password = form.password;
       const res = await apiRequest<Employee>("/employees", { method: "POST", token, businessId, body });
       const pw = (res as unknown as { temporaryPassword: string | null }).temporaryPassword;
@@ -116,6 +130,11 @@ export default function EmployeesWorkspace({ salespersonPerformance = [] }: { sa
       const res = await apiRequest<unknown>(`/employees/${e.id}/reset-password`, { method: "POST", token, businessId, body: {} });
       setSecret({ who: e.email, password: (res as unknown as { temporaryPassword: string }).temporaryPassword });
     } catch (err) { setError(err instanceof Error ? err.message : "Could not reset the password."); }
+  }
+
+  async function cancelInvite(i: Invite) {
+    if (!window.confirm(`Cancel the sign-in link for ${i.name}? It stops working straight away.`)) return;
+    await run("The sign-in link was cancelled.", async () => { await apiRequest(`/employees/invites/${i.id}/cancel`, { method: "POST", token, businessId, body: {} }); });
   }
 
   const active = employees.filter((e) => e.isActive).length;
@@ -143,10 +162,26 @@ export default function EmployeesWorkspace({ salespersonPerformance = [] }: { sa
 
         {secret && (
           <p className="customer-notice" role="status">
-            Temporary password for <strong>{secret.who}</strong>: <code>{secret.password}</code> — shown once. Share it privately; there is no email invitation yet.
+            Temporary password for <strong>{secret.who}</strong>: <code>{secret.password}</code> — shown once. Share it privately.
           </p>
         )}
 
+        {issued && (
+          <div className="customer-notice" role="status" style={{ display: "grid", gap: 8 }}>
+            <strong>Sign-in link for {issued.name} ({issued.email})</strong>
+            <span>Shown once. Send the link by message or email and give the PIN separately, for example by phone. It expires on {new Date(issued.expiresAt).toLocaleDateString("en-KE", { day: "2-digit", month: "short", year: "numeric" })} and works once.</span>
+            <div style={{ display: "flex", gap: 6 }}><input style={{ ...fieldStyle, marginTop: 0 }} readOnly value={issued.link} onFocus={(e) => e.target.select()} aria-label="Sign-in link" /><button type="button" className="button-secondary" onClick={() => copy(issued.link)}>Copy link</button></div>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}><code style={{ fontSize: 22, letterSpacing: 4, fontWeight: 700 }}>{issued.pin}</code><button type="button" className="button-secondary" onClick={() => copy(issued.pin)}>Copy PIN</button><button type="button" className="button-secondary" onClick={() => setIssued(null)}>I have copied them</button></div>
+          </div>
+        )}
+
+        {showForm && (
+          <div role="tablist" aria-label="How the employee gets access" style={{ display: "flex", gap: 8, margin: "16px 0 0" }}>
+            <button type="button" role="tab" aria-selected={mode === "link"} className={mode === "link" ? "button-primary" : "button-secondary"} onClick={() => setMode("link")}>Send a sign-in link</button>
+            <button type="button" role="tab" aria-selected={mode === "password"} className={mode === "password" ? "button-primary" : "button-secondary"} onClick={() => setMode("password")}>Set a password myself</button>
+          </div>
+        )}
+        {showForm && mode === "link" && <p className="customer-secondary-text" style={{ margin: "8px 0 0" }}>The employee opens the link, types a 6-digit PIN you give them separately, and chooses their own password. You never see it.</p>}
         {showForm && (
           <form onSubmit={add} style={{ display: "grid", gap: 12, margin: "16px 0", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
             <label style={labelStyle}>Full name<input style={fieldStyle} value={form.name} onChange={(e) => setForm({ ...form, name: cleanName(e.target.value) })} required /></label>
@@ -157,11 +192,13 @@ export default function EmployeesWorkspace({ salespersonPerformance = [] }: { sa
                 {roleOptions.map((r) => <option key={r}>{r}</option>)}
               </select>
             </label>
-            <label style={labelStyle}>Password (optional)
-              <input style={fieldStyle} type="text" minLength={8} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Leave blank to generate one" />
-            </label>
+            {mode === "password" && (
+              <label style={labelStyle}>Password (optional)
+                <input style={fieldStyle} type="text" minLength={8} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Leave blank to generate one" />
+              </label>
+            )}
             <div style={{ alignSelf: "end" }}>
-              <button type="submit" className="button-primary" disabled={saving}>{saving ? "Adding…" : "Add employee"}</button>
+              <button type="submit" className="button-primary" disabled={saving}>{saving ? "Please wait…" : mode === "link" ? "Create sign-in link" : "Add employee"}</button>
             </div>
           </form>
         )}
@@ -207,6 +244,28 @@ export default function EmployeesWorkspace({ salespersonPerformance = [] }: { sa
           </table>
         </div>
       </article>
+      {invites.length > 0 && (
+        <article className="panel" style={{ padding: 24 }}>
+          <div className="panel-heading"><div><h2>Sign-in links</h2><p>Invitations you have sent to new employees</p></div></div>
+          <div className="table-scroll">
+            <table>
+              <thead><tr><th>PERSON</th><th>ROLE</th><th>SENT</th><th>EXPIRES</th><th>STATUS</th><th /></tr></thead>
+              <tbody>
+                {invites.map((i) => (
+                  <tr key={i.id}>
+                    <td><strong>{i.name}</strong><div className="customer-secondary-text">{i.email}</div></td>
+                    <td>{i.role}</td>
+                    <td>{new Date(i.createdAt).toLocaleDateString("en-KE", { day: "2-digit", month: "short" })}</td>
+                    <td>{new Date(i.expiresAt).toLocaleDateString("en-KE", { day: "2-digit", month: "short" })}</td>
+                    <td>{INVITE_STATUS[i.status]}</td>
+                    <td>{(i.status === "active" || i.status === "locked") && <button type="button" className="button-secondary" onClick={() => void cancelInvite(i)}>Cancel</button>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      )}
       <RolePermissionsPanel onChanged={() => void load()} />
     </section>
   );
