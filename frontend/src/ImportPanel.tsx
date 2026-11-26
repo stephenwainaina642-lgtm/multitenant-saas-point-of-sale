@@ -168,7 +168,7 @@ export default function ImportPanel({ kind, onImported }: Props) {
               <strong>{result.errors.length} problem(s) in {fileName}. Fix them in your sheet and choose the file again.</strong>
               <div style={{ maxHeight: 240, overflow: "auto", marginTop: 8 }}>
                 <table style={{ width: "100%" }}>
-                  <thead><tr><th>ROW</th><th>FIELD</th><th>PROBLEM</th></tr></thead>
+                  <thead><tr><th>Row</th><th>Field</th><th>Problem</th></tr></thead>
                   <tbody>
                     {result.errors.map((e, i) => (
                       <tr key={i}><td>{e.row + 1}</td><td>{e.field}</td><td>{e.message}</td></tr>

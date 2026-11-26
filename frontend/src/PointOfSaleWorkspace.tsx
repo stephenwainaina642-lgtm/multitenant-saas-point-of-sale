@@ -569,7 +569,6 @@ export default function PointOfSaleWorkspace() {
     <section className="pos-workspace">
       <div className="pos-workspace-heading">
         <div>
-          <h2>Point of Sale</h2>
           <p className="inventory-muted">
             Create a sale using products and prices from your selected business.
           </p>

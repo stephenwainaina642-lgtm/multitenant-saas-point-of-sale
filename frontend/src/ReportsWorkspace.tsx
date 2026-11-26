@@ -680,12 +680,12 @@ export default function ReportsWorkspace() {
           <table>
             <thead>
               <tr>
-                <th>PRODUCT</th>
+                <th>Product</th>
                 <th>SKU</th>
-                <th>QUANTITY SOLD</th>
-                <th>SALES</th>
-                <th>COST</th>
-                <th>GROSS PROFIT</th>
+                <th>Quantity sold</th>
+                <th>Sales</th>
+                <th>Cost</th>
+                <th>Gross profit</th>
               </tr>
             </thead>
             <tbody>
@@ -725,7 +725,7 @@ export default function ReportsWorkspace() {
         </p>
         <div className="table-scroll">
           <table>
-            <thead><tr><th>CUSTOMER</th><th>UNPAID SALES</th><th>OWED</th><th>OLDEST SALE</th></tr></thead>
+            <thead><tr><th>Customer</th><th>Unpaid sales</th><th>Owed</th><th>Oldest sale</th></tr></thead>
             <tbody>
               {analytics?.debts?.customers.map((d) => (
                 <tr key={d.customerId ?? "none"}>
@@ -747,7 +747,7 @@ export default function ReportsWorkspace() {
         <SectionHeading title="Sales by sale type" description="Walk-in, online and other sales, net of VAT" />
         <div className="table-scroll">
           <table>
-            <thead><tr><th>SALE TYPE</th><th>SALES</th><th>NET SALES</th></tr></thead>
+            <thead><tr><th>Sale type</th><th>Sales</th><th>Net sales</th></tr></thead>
             <tbody>
               {analytics?.salesByChannel?.map((item) => (
                 <tr key={item.channel}>
@@ -774,10 +774,10 @@ export default function ReportsWorkspace() {
           <table>
             <thead>
               <tr>
-                <th>CATEGORY</th>
-                <th>NET SALES</th>
-                <th>COST</th>
-                <th>GROSS PROFIT</th>
+                <th>Category</th>
+                <th>Net sales</th>
+                <th>Cost</th>
+                <th>Gross profit</th>
               </tr>
             </thead>
             <tbody>
@@ -837,7 +837,7 @@ export default function ReportsWorkspace() {
         <div className="table-scroll">
           <table>
             <thead>
-              <tr><th>SUPPLIER</th><th>PURCHASE VALUE</th><th>AMOUNT PAID</th><th>OUTSTANDING</th></tr>
+              <tr><th>Supplier</th><th>Purchase value</th><th>Amount paid</th><th>Outstanding</th></tr>
             </thead>
             <tbody>
               {analytics?.purchaseBreakdown.map((item) => (
@@ -866,7 +866,7 @@ export default function ReportsWorkspace() {
         <div className="table-scroll">
           <table>
             <thead>
-              <tr><th>CATEGORY</th><th>TRANSACTIONS</th><th>AMOUNT</th></tr>
+              <tr><th>Category</th><th>Transactions</th><th>Amount</th></tr>
             </thead>
             <tbody>
               {analytics?.expenseBreakdown.map((item) => (
@@ -896,7 +896,7 @@ export default function ReportsWorkspace() {
         <div className="table-scroll">
           <table>
             <thead>
-              <tr><th>RECEIPT</th><th>CUSTOMER</th><th>DATE</th><th>COLLECTED</th><th>OUTSTANDING</th><th>TOTAL</th></tr>
+              <tr><th>Receipt</th><th>Customer</th><th>Date</th><th>Collected</th><th>Outstanding</th><th>Total</th></tr>
             </thead>
             <tbody>
               {reportSales.map((item) => (
@@ -929,7 +929,7 @@ export default function ReportsWorkspace() {
         <div className="table-scroll">
           <table>
             <thead>
-              <tr><th>SUPPLIER</th><th>INVOICE</th><th>DATE</th><th>PAID</th><th>OUTSTANDING</th><th>TOTAL</th></tr>
+              <tr><th>Supplier</th><th>Invoice</th><th>Date</th><th>Paid</th><th>Outstanding</th><th>Total</th></tr>
             </thead>
             <tbody>
               {reportPurchases.map((item) => (
@@ -962,7 +962,7 @@ export default function ReportsWorkspace() {
         <div className="table-scroll">
           <table>
             <thead>
-              <tr><th>CATEGORY</th><th>DESCRIPTION</th><th>DATE</th><th>PAYMENT METHOD</th><th>REFERENCE</th><th>AMOUNT</th></tr>
+              <tr><th>Category</th><th>Description</th><th>Date</th><th>Payment method</th><th>Reference</th><th>Amount</th></tr>
             </thead>
             <tbody>
               {reportExpenses.map((item) => (

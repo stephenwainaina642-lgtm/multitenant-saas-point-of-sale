@@ -208,7 +208,7 @@ export default function EmployeesWorkspace({ salespersonPerformance = [] }: { sa
 
         <div className="table-scroll" style={{ marginTop: 18 }}>
           <table>
-            <thead><tr><th>EMPLOYEE</th><th>ROLE</th><th>SALES</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
+            <thead><tr><th>Employee</th><th>Role</th><th>Sales</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {loading && <tr><td colSpan={5}>Loading…</td></tr>}
               {!loading && filtered.length === 0 && <tr><td colSpan={5}>No employees found.</td></tr>}
@@ -249,7 +249,7 @@ export default function EmployeesWorkspace({ salespersonPerformance = [] }: { sa
           <div className="panel-heading"><div><h2>Sign-in links</h2><p>Invitations you have sent to new employees</p></div></div>
           <div className="table-scroll">
             <table>
-              <thead><tr><th>PERSON</th><th>ROLE</th><th>SENT</th><th>EXPIRES</th><th>STATUS</th><th /></tr></thead>
+              <thead><tr><th>Person</th><th>Role</th><th>Sent</th><th>Expires</th><th>Status</th><th /></tr></thead>
               <tbody>
                 {invites.map((i) => (
                   <tr key={i.id}>

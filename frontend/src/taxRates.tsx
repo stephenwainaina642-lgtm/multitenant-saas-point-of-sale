@@ -76,7 +76,7 @@ export function TaxRatesPanel() {
       </p>
       <div className="table-scroll">
         <table>
-          <thead><tr><th>NAME</th><th>RATE</th><th>PRODUCTS</th>{mayEdit && <th />}</tr></thead>
+          <thead><tr><th>Name</th><th>Rate</th><th>Products</th>{mayEdit && <th />}</tr></thead>
           <tbody>
             {rates.map((r) => (
               <tr key={r.code}>

@@ -295,13 +295,13 @@ export default function ExpensesWorkspace() {
           <table>
             <thead>
               <tr>
-                <th>REFERENCE</th>
-                <th>CATEGORY</th>
-                <th>DESCRIPTION</th>
-                <th>DATE</th>
-                <th>PAYMENT METHOD</th>
-                <th>AMOUNT</th>
-                <th>ACTIONS</th>
+                <th>Reference</th>
+                <th>Category</th>
+                <th>Description</th>
+                <th>Date</th>
+                <th>Payment method</th>
+                <th>Amount</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>

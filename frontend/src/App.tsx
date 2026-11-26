@@ -256,11 +256,11 @@ function App() {
           </div>
         </div>
 
-        <div className="workspace-label">WORKSPACE</div>
+        <div className="workspace-label">Workspace</div>
         <BusinessSwitcher />
         <BranchSwitcher />
 
-        <div className="nav-label">MAIN MENU</div>
+        <div className="nav-label">Main menu</div>
         <nav className="navigation">
           {navigation.filter((item) => (!navigationModules[item.name] || hasModule(navigationModules[item.name]!)) && (!navigationPermissions[item.name] || can(...navigationPermissions[item.name]!))).map((item) => (
             <button
@@ -308,15 +308,11 @@ function App() {
         <div className="page-content">
           <section className={`welcome-row ${activePage === "Dashboard" ? "" : "welcome-row-compact"}`}>
             <div>
-              <div className="eyebrow">{new Date().toLocaleDateString("en-KE", { weekday: "long", year: "numeric", month: "long", day: "numeric" }).toUpperCase()}</div>
+              <div className="eyebrow">{new Date().toLocaleDateString("en-KE", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>
               <h1>{activePage === "Dashboard" ? `Welcome, ${currentUserName}` : activePage}</h1>
-              <p className="subtitle">
-                {activePage === "Dashboard"
-                  ? "Here's what's happening with your business today."
-                  : `Manage your ${activePage.toLowerCase()} from one place.`}
-              </p>
+              {activePage === "Dashboard" && <p className="subtitle">Here's what's happening with your business today.</p>}
             </div>
-                        {activePage !== "Settings" && (
+                        {activePage === "Dashboard" && (
               <div className="welcome-actions">
                 {can("reports.view") && (
                   <button className="button-secondary" onClick={() => selectPage("Reports")}><span>Reports</span></button>
@@ -478,11 +474,11 @@ function App() {
               <table className="salesperson-table">
                 <thead>
                   <tr>
-                    <th>SALESPERSON</th>
-                    <th>SALES</th>
-                    <th>REVENUE</th>
-                    <th>COLLECTED</th>
-                    <th>OUTSTANDING</th>
+                    <th>Salesperson</th>
+                    <th>Sales</th>
+                    <th>Revenue</th>
+                    <th>Collected</th>
+                    <th>Outstanding</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -517,7 +513,7 @@ function App() {
             </div>
             <div className="table-scroll">
               <table>
-                <thead><tr><th>INVOICE</th><th>CUSTOMER</th><th>DATE</th><th>PAYMENT</th><th>AMOUNT</th><th>STATUS</th></tr></thead>
+                <thead><tr><th>Invoice</th><th>Customer</th><th>Date</th><th>Payment</th><th>Amount</th><th>Status</th></tr></thead>
                 <tbody>
                   {filteredTransactions.map((item) => (
                     <tr key={item.id}>

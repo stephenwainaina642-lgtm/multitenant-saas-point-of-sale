@@ -410,15 +410,15 @@ export default function PurchasesWorkspace() {
           <table>
             <thead>
               <tr>
-                <th>REFERENCE</th>
-                <th>SUPPLIER</th>
-                <th>DATE</th>
-                <th>INVOICE</th>
-                <th>TOTAL</th>
-                <th>PAID</th>
-                <th>BALANCE</th>
-                <th>STATUS</th>
-                <th>ACTIONS</th>
+                <th>Reference</th>
+                <th>Supplier</th>
+                <th>Date</th>
+                <th>Invoice</th>
+                <th>Total</th>
+                <th>Paid</th>
+                <th>Balance</th>
+                <th>Status</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>

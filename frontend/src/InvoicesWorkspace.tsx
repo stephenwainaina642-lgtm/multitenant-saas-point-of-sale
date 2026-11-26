@@ -100,7 +100,7 @@ export default function InvoicesWorkspace() {
 
         <div className="table-scroll" style={{ marginTop: 18 }}>
           <table>
-            <thead><tr><th>INVOICE</th><th>CUSTOMER</th><th>DATE</th><th>DUE</th><th>TOTAL</th><th>BALANCE</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
+            <thead><tr><th>Invoice</th><th>Customer</th><th>Date</th><th>Due</th><th>Total</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {loading && <tr><td colSpan={8}>Loading…</td></tr>}
               {!loading && filtered.length === 0 && <tr><td colSpan={8}>{invoices.length === 0 ? "No invoices yet." : "No invoices match your search."}</td></tr>}

@@ -288,7 +288,7 @@ export default function InventoryWorkspace() {
         <div className="inventory-table-wrap">
           <table className="inventory-table">
             <thead>
-              <tr><th>PRODUCT</th><th>SKU</th><th>IN STOCK</th><th>MINIMUM</th><th>STATUS</th></tr>
+              <tr><th>Product</th><th>SKU</th><th>In stock</th><th>Minimum</th><th>Status</th></tr>
             </thead>
             <tbody>
               {filteredProducts.map((product) => {
@@ -319,7 +319,7 @@ export default function InventoryWorkspace() {
         <div className="inventory-table-wrap">
           <table className="inventory-table">
             <thead>
-              <tr><th>DATE</th><th>PRODUCT</th><th>TYPE</th><th>CHANGE</th><th>REFERENCE</th><th>NOTES</th></tr>
+              <tr><th>Date</th><th>Product</th><th>Type</th><th>Change</th><th>Reference</th><th>Notes</th></tr>
             </thead>
             <tbody>
               {movements.map((movement) => {

@@ -293,14 +293,14 @@ export default function CustomersWorkspace() {
           <table>
             <thead>
               <tr>
-                <th>CUSTOMER</th>
-                <th>PHONE</th>
-                <th>EMAIL</th>
-                <th>ADDRESS</th>
-                <th>BALANCE OWED</th>
-                <th>CREDIT LIMIT</th>
-                <th>REGISTERED</th>
-                <th>ACTIONS</th>
+                <th>Customer</th>
+                <th>Phone</th>
+                <th>Email</th>
+                <th>Address</th>
+                <th>Balance owed</th>
+                <th>Credit limit</th>
+                <th>Registered</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>

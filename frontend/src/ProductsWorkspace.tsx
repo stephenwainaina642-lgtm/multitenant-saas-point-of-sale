@@ -419,13 +419,13 @@ export default function ProductsWorkspace() {
           <table>
             <thead>
               <tr>
-                <th>PRODUCT</th>
-                <th>CATEGORY</th>
+                <th>Product</th>
+                <th>Category</th>
                 <th>SKU</th>
-                <th>COST PRICE</th>
-                <th>SELLING PRICE</th>
-                <th>STOCK</th>
-                <th>ACTION</th>
+                <th>Cost price</th>
+                <th>Selling price</th>
+                <th>Stock</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>

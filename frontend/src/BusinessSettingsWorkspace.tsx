@@ -186,7 +186,7 @@ export default function BusinessSettingsWorkspace() {
     <div className="settings-workspace">
       <div className="settings-intro">
         <div>
-          <span className="settings-eyebrow">BUSINESS CONFIGURATION</span>
+          <span className="settings-eyebrow">Business configuration</span>
           <h2>Business settings</h2>
           <p>
             Manage the business identity and regional preferences used
@@ -194,7 +194,7 @@ export default function BusinessSettingsWorkspace() {
           </p>
         </div>
         <div className="settings-access">
-          <span className="settings-access-label">ACCESS LEVEL</span>
+          <span className="settings-access-label">Access level</span>
           <strong>{isOwner ? "Business owner" : "Read only"}</strong>
         </div>
       </div>

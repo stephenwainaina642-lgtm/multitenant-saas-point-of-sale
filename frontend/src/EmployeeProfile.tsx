@@ -53,7 +53,7 @@ export default function EmployeeProfile({ memberId, onBack }: { memberId: string
           <h3>Recent sales</h3>
           <div className="table-scroll">
             <table>
-              <thead><tr><th>RECEIPT</th><th>DATE</th><th>CUSTOMER</th><th>TOTAL</th><th>PAYMENT</th></tr></thead>
+              <thead><tr><th>Receipt</th><th>Date</th><th>Customer</th><th>Total</th><th>Payment</th></tr></thead>
               <tbody>
                 {data.recentSales.length === 0 && <tr><td colSpan={5}>No sales recorded by this person yet.</td></tr>}
                 {data.recentSales.map((s) => (

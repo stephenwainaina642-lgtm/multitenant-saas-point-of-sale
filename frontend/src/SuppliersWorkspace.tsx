@@ -285,13 +285,13 @@ export default function SuppliersWorkspace() {
           <table>
             <thead>
               <tr>
-                <th>SUPPLIER</th>
-                <th>PHONE</th>
-                <th>EMAIL</th>
-                <th>ADDRESS</th>
-                <th>WE OWE</th>
-                <th>REGISTERED</th>
-                <th>ACTIONS</th>
+                <th>Supplier</th>
+                <th>Phone</th>
+                <th>Email</th>
+                <th>Address</th>
+                <th>We owe</th>
+                <th>Registered</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>

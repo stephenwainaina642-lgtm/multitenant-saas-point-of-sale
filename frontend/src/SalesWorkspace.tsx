@@ -235,7 +235,6 @@ export default function SalesWorkspace() {
     <section className="sales-workspace">
       <div className="sales-workspace-toolbar">
         <div>
-          <h2>Sales</h2>
           <p>Review transactions, payment records, and customer receipts.</p>
         </div>
         <button

@@ -169,7 +169,7 @@ export default function QuotationsWorkspace() {
 
         <div className="table-scroll" style={{ marginTop: 18 }}>
           <table>
-            <thead><tr><th>QUOTATION</th><th>CUSTOMER</th><th>DATE</th><th>VALID UNTIL</th><th>TOTAL</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
+            <thead><tr><th>Quotation</th><th>Customer</th><th>Date</th><th>Valid until</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {loading && <tr><td colSpan={7}>Loading…</td></tr>}
               {!loading && quotes.length === 0 && <tr><td colSpan={7}>No quotations yet.</td></tr>}

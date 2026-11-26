@@ -102,7 +102,7 @@ export default function VatReportPanel({ startDate, endDate }: { startDate: stri
           )}
           <div className="table-scroll">
             <table>
-              <thead><tr><th>SALES</th><th>NET (EXCL. VAT)</th><th>VAT</th></tr></thead>
+              <thead><tr><th>Sales</th><th>NET (EXCL. VAT)</th><th>VAT</th></tr></thead>
               <tbody>
                 <tr><td>Standard-rated ({Number(report.business.vatRate)}%)</td><td>{money(s.standardRated.netSales)}</td><td>{money(s.standardRated.vat)}</td></tr>
                 <tr><td>Zero-rated</td><td>{money(s.zeroRated.netSales)}</td><td>{money(0)}</td></tr>
@@ -115,7 +115,7 @@ export default function VatReportPanel({ startDate, endDate }: { startDate: stri
           </div>
           <div className="table-scroll" style={{ marginTop: 12 }}>
             <table>
-              <thead><tr><th>PURCHASES ({report.purchases.count})</th><th>NET (EXCL. VAT)</th><th>INPUT VAT</th></tr></thead>
+              <thead><tr><th>PURCHASES ({report.purchases.count})</th><th>NET (EXCL. VAT)</th><th>Input VAT</th></tr></thead>
               <tbody><tr><td>Received purchases</td><td>{money(report.purchases.netPurchases)}</td><td>{money(report.purchases.inputVat)}</td></tr></tbody>
             </table>
           </div>
@@ -125,7 +125,7 @@ export default function VatReportPanel({ startDate, endDate }: { startDate: stri
           {report.byMonth.length > 1 && (
             <div className="table-scroll" style={{ marginTop: 8 }}>
               <table>
-                <thead><tr><th>MONTH</th><th>NET SALES</th><th>OUTPUT VAT</th><th>INPUT VAT</th><th>OUTPUT − INPUT</th></tr></thead>
+                <thead><tr><th>Month</th><th>Net sales</th><th>Output VAT</th><th>Input VAT</th><th>OUTPUT − INPUT</th></tr></thead>
                 <tbody>
                   {report.byMonth.map((m) => (
                     <tr key={m.month}><td>{m.month}</td><td>{money(m.sales.netSales)}</td><td>{money(m.sales.outputVat)}</td><td>{money(m.purchases.inputVat)}</td><td>{money(m.vatPayable)}</td></tr>

@@ -65,7 +65,7 @@ export default function OfflineShortfallsPanel({ onChanged }: { onChanged?: () =
       </p>
       <div className="inventory-table-wrap">
         <table className="inventory-table">
-          <thead><tr><th>PRODUCT</th><th>SHORT BY</th><th>RECEIPT</th><th>SOLD (OFFLINE)</th><th></th></tr></thead>
+          <thead><tr><th>Product</th><th>Short by</th><th>Receipt</th><th>SOLD (OFFLINE)</th><th></th></tr></thead>
           <tbody>
             {list.map((r) => (
               <tr key={r.id}>

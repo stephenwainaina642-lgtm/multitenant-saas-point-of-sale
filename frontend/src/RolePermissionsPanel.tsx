@@ -94,7 +94,7 @@ export default function RolePermissionsPanel({ onChanged }: Props) {
 
       <div className="table-scroll" style={{ marginTop: 12 }}>
         <table>
-          <thead><tr><th>ROLE</th><th>PERMISSIONS</th><th>ACTIONS</th></tr></thead>
+          <thead><tr><th>Role</th><th>Permissions</th><th>Actions</th></tr></thead>
           <tbody>
             {roles.length === 0 && <tr><td colSpan={3}>No custom roles yet. Built-in roles (manager, cashier, salesperson, inventory manager, accountant) are created when you assign them.</td></tr>}
             {roles.map((r) => (

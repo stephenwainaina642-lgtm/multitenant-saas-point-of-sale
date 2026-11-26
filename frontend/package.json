@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fontsource-variable/manrope": "^5.3.0",
     "lucide-react": "^1.77.0",
     "qrcode": "^1.5.4",
     "react": "^19.2.8",
