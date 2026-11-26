@@ -51,6 +51,7 @@ export default function PlatformAdmin() {
   const [created, setCreated] = useState<Created | null>(null);
   const [revoking, setRevoking] = useState<Invite | null>(null);
   const [search, setSearch] = useState("");
+  const [pkgFilter, setPkgFilter] = useState<"all" | "retail" | "hotel">("all");
   const [error, setError] = useState("");
   const [dialog, setDialog] = useState<Dialog>(null);
   const [reason, setReason] = useState("");
@@ -142,7 +143,9 @@ export default function PlatformAdmin() {
     );
   }
 
-  const rows = (data?.businesses ?? []).filter((b) => `${b.name} ${b.ownerName} ${b.ownerEmail}`.toLowerCase().includes(search.toLowerCase()));
+  const rows = (data?.businesses ?? []).filter((b) => (pkgFilter === "all" || b.package === pkgFilter) && `${b.name} ${b.ownerName} ${b.ownerEmail}`.toLowerCase().includes(search.toLowerCase()));
+  const all = data?.businesses ?? [];
+  const perPackage = { retail: all.filter((b) => b.package === "retail").length, hotel: all.filter((b) => b.package === "hotel").length };
   return (
     <main style={wrap}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -152,13 +155,14 @@ export default function PlatformAdmin() {
       {error && <p style={{ color: "#b3412f" }}>{error}</p>}
       {result && <pre style={{ ...card, background: "#fff7e0", whiteSpace: "pre-wrap", margin: "12px 0" }}>{result} <button style={small} onClick={() => setResult("")}>Dismiss</button></pre>}
       <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 12, margin: "16px 0" }}>
-        {[["Businesses", data?.totals.businesses], ["Waiting for approval", data?.totals.pending], ["Active in last 30 days", data?.totals.activeLast30Days], ["Suspended", data?.totals.suspended], ["Users", data?.totals.users]].map(([l, v]) => (
+        {[["Businesses", data?.totals.businesses], ["Waiting for approval", data?.totals.pending], ["Active in last 30 days", data?.totals.activeLast30Days], ["Suspended", data?.totals.suspended], ["Users", data?.totals.users], ["Retail package", perPackage.retail], ["Hotel package", perPackage.hotel]].map(([l, v]) => (
           <div key={String(l)} style={card}><div style={{ fontSize: 12, color: "#6b7a70" }}>{l}</div><div style={{ fontSize: 26, fontWeight: 700 }}>{v ?? "–"}</div></div>
         ))}
       </section>
       <nav style={{ display: "flex", gap: 8, marginBottom: 12 }}>
         {(["businesses", "invites", "quotes", "audit"] as const).map((t) => <button key={t} style={{ ...small, ...(tab === t ? { background: "#176b4d", color: "#fff" } : {}) }} onClick={() => setTab(t)}>{t === "businesses" ? "Businesses" : t === "invites" ? "Invitations" : t === "quotes" ? "Quotations" : "Admin activity"}</button>)}
-        {tab === "businesses" && <input style={{ ...input, maxWidth: 280, marginLeft: "auto" }} placeholder="Search name or owner" value={search} onChange={(e) => setSearch(e.target.value)} />}
+        {tab === "businesses" && <select aria-label="Filter by package" style={{ ...input, width: "auto", marginLeft: "auto" }} value={pkgFilter} onChange={(e) => setPkgFilter(e.target.value as "all" | "retail" | "hotel")}><option value="all">All packages</option><option value="retail">Retail only</option><option value="hotel">Hotel only</option></select>}
+        {tab === "businesses" && <input style={{ ...input, maxWidth: 280 }} placeholder="Search name or owner" value={search} onChange={(e) => setSearch(e.target.value)} />}
       </nav>
 
       {tab === "businesses" ? (
