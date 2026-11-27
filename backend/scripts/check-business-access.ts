@@ -21,7 +21,11 @@ try {
   if (!wanted) { console.error('Give the business name, e.g.  npx tsx scripts/check-business-access.ts "chicken hotel"'); process.exit(1); }
 
   const businesses = await prisma.business.findMany({ where: { name: { contains: wanted, mode: "insensitive" } }, take: 5 });
-  if (!businesses.length) console.log(`No business found with a name containing "${wanted}".`);
+  if (!businesses.length) {
+    console.log(`No business found with a name containing "${wanted}". Businesses in this database:`);
+    const all = await prisma.business.findMany({ select: { name: true }, orderBy: { id: "asc" }, take: 60 });
+    for (const x of all) console.log(` - ${x.name}`);
+  }
 
   for (const b of businesses) {
     console.log(`\nBusiness: ${b.name} (${b.packageName}, active: ${b.isActive}, approval: ${b.approvalStatus})`);
