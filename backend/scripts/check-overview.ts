@@ -3,7 +3,8 @@
 //   npx tsx scripts/check-overview.ts
 import "dotenv/config";
 import prisma from "../src/lib/prisma.js";
-import { overview } from "../src/platform/platform.service.js";
+import { auditTrail, overview } from "../src/platform/platform.service.js";
+import { listInvites } from "../src/platform/invites.js";
 
 try {
   const cols = await prisma.$queryRaw<{ column_name: string }[]>`select column_name from information_schema.columns where table_name = 'businesses' and column_name in ('package', 'modules')`;
@@ -13,6 +14,10 @@ try {
   const o = await overview();
   console.log(`Overview OK: ${o.totals.businesses} businesses, ${o.totals.users} users.`);
   for (const b of o.businesses.slice(0, 10)) console.log(` - ${b.name}: ${b.package}, modules [${(b.modules ?? []).join(", ")}]`);
+  for (const [name, run] of [["Admin activity", () => auditTrail(100)], ["Invitations", () => listInvites()]] as const) {
+    try { const r = await run(); console.log(`${name} OK: ${Array.isArray(r) ? r.length : "?"} rows.`); }
+    catch (e) { console.error(`${name} FAILED:`, e instanceof Error ? e.message : e); process.exitCode = 1; }
+  }
 } catch (e) {
   console.error("Overview FAILED:", e instanceof Error ? e.message : e);
   process.exitCode = 1;
