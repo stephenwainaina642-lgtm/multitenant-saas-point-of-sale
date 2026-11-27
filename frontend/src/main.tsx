@@ -1,4 +1,4 @@
-import { StrictMode, useState } from "react";
+import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App.tsx";
@@ -24,6 +24,16 @@ function DemoBanner() {
 // The platform owner's screen lives at /#platform; it is not linked from anywhere in the normal app.
 function Root() {
   const [staffToken] = useState(staffTokenFromHash);
+  // Typing /#platform (or opening a staff link) in a tab that is already open only changes the hash; reload so the right screen shows.
+  useEffect(() => {
+    const shown = window.location.hash.startsWith("#platform");
+    const onHash = () => {
+      const now = window.location.hash;
+      if (now.startsWith("#platform") !== shown || /^#staff=/.test(now)) window.location.reload();
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
   return (
     <>
       {window.location.hash.startsWith("#platform") ? <PlatformAdmin /> : staffToken ? <StaffInvite token={staffToken} /> : <BusinessApp />}
