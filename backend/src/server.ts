@@ -59,7 +59,7 @@ app.use(
       return callback(null, false);
     },
     credentials: true,
-    allowedHeaders: ["Content-Type", "Authorization", "X-Business-ID", "X-Branch-ID", "Idempotency-Key", "X-Requested-With", "X-Auth-Mode"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Business-ID", "X-Branch-ID", "Idempotency-Key", "X-Requested-With", "X-Auth-Mode", "X-Session-User"],
   })
 );
 app.use(csrfGuard(config.corsOrigins));

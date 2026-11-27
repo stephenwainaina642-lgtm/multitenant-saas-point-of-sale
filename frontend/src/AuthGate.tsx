@@ -63,7 +63,15 @@ export default function AuthGate({ onAuthenticated }: Props) {
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [token, setToken] = useState("");
   const [selectedBusinessId, setSelectedBusinessId] = useState("");
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(() => {
+    try {
+      const notice = sessionStorage.getItem("pos_signin_notice") ?? "";
+      sessionStorage.removeItem("pos_signin_notice");
+      return notice;
+    } catch {
+      return "";
+    }
+  });
   const [busy, setBusy] = useState(false);
   const [resetToken, setResetToken] = useState(takeResetToken);
   const [forgotOpen, setForgotOpen] = useState(false);
@@ -126,6 +134,7 @@ export default function AuthGate({ onAuthenticated }: Props) {
 
         const result = response.data!;
         sessionStorage.setItem("pos_pending_user", result.user.name);
+        sessionStorage.setItem("pos_user_id", result.user.id);
         if (result.businesses.length === 1) {
           await finishBusinessSelection(SESSION_MARKER, result.businesses[0]);
         } else {
@@ -141,6 +150,7 @@ export default function AuthGate({ onAuthenticated }: Props) {
 
         const result = response.data!;
         sessionStorage.setItem("pos_pending_user", result.user.name);
+        sessionStorage.setItem("pos_user_id", result.user.id);
 
         if (result.businesses.length === 0) {
           setMessage("Your account has no active businesses. Please contact your administrator.");

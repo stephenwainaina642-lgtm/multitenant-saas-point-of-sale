@@ -60,13 +60,24 @@ export async function authenticate(
 
     const user = await prisma.user.findUnique({
       where: { id: BigInt(userId) },
-      select: { isActive: true, sessionsValidAfter: true },
+      select: { isActive: true, sessionsValidAfter: true, publicId: true },
     });
 
     if (!user || !user.isActive) {
       return res.status(401).json({
         success: false,
         message: "User account is inactive or does not exist",
+      });
+    }
+
+    // The browser's sign-in is one cookie shared by every tab. Each tab says who it thinks is signed in; if the
+    // cookie now belongs to someone else (another person signed in on this browser), refuse instead of letting the
+    // tab quietly act as that other person. Clients that send no header (scripts, older tabs) are unaffected.
+    const claimed = req.headers["x-session-user"];
+    if (typeof claimed === "string" && claimed && claimed.toLowerCase() !== user.publicId.toLowerCase()) {
+      return res.status(401).json({
+        success: false,
+        message: "Someone else signed in on this browser, so you were signed out here. Please sign in again.",
       });
     }
 

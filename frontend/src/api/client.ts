@@ -48,6 +48,15 @@ export async function apiRequest<T>(
   // Tells the server this call comes from the app itself (the cookie-based CSRF guard requires it).
   headers["X-Requested-With"] = "nexapos";
 
+  // Who this tab believes is signed in. The sign-in cookie is shared by every tab of the browser, so if someone else
+  // signs in elsewhere the server sees the mismatch and refuses, instead of this tab acting as the wrong person.
+  try {
+    const who = sessionStorage.getItem("pos_user_id");
+    if (who) headers["X-Session-User"] = who;
+  } catch {
+    /* storage unavailable */
+  }
+
   if (options.businessId) {
     headers["X-Business-ID"] = options.businessId;
   }
@@ -80,6 +89,8 @@ export async function apiRequest<T>(
   if (response.status === 401 && options.token) {
     try {
       sessionStorage.clear();
+      // Say why, on the sign-in screen that follows (only when another person took over this browser's sign-in).
+      if (/someone else signed in/i.test(result.message ?? "")) sessionStorage.setItem("pos_signin_notice", result.message);
     } catch {
       /* storage unavailable */
     }
