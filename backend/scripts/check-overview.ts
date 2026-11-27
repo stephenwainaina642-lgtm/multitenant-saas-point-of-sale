@@ -7,6 +7,13 @@ import { auditTrail, overview } from "../src/platform/platform.service.js";
 import { listInvites } from "../src/platform/invites.js";
 
 try {
+  // Which database is this? Host and user only (no password), plus how much data it holds.
+  try {
+    const u = new URL(process.env.DATABASE_URL ?? "");
+    console.log(`Database: user ${decodeURIComponent(u.username)} @ ${u.hostname}:${u.port || "5432"}${u.pathname}`);
+  } catch { console.log("Database: DATABASE_URL could not be read"); }
+  const [counts] = await prisma.$queryRaw<{ businesses: number; users: number; sales: number }[]>`select (select count(*) from businesses)::int as businesses, (select count(*) from users)::int as users, (select count(*) from sales)::int as sales`;
+  console.log(`Holds: ${counts?.businesses} businesses, ${counts?.users} users, ${counts?.sales} sales`);
   const cols = await prisma.$queryRaw<{ column_name: string }[]>`select column_name from information_schema.columns where table_name = 'businesses' and column_name in ('package', 'modules')`;
   console.log("Columns on businesses:", cols.map((c) => c.column_name).sort().join(", ") || "NONE of package/modules (the migration is not in THIS database)");
   const tables = await prisma.$queryRaw<{ table_name: string }[]>`select table_name from information_schema.tables where table_name in ('employee_invites', 'platform_quotes')`;
