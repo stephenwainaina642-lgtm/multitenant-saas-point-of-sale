@@ -1,6 +1,8 @@
+import { forgetOfflineUser } from "../offlineSigninStore";
+
 // Production builds call "/api" on the site's own address (Vercel forwards it to the backend, see vercel.json),
 // so the session cookie is first-party. VITE_API_URL only applies to local development.
-const API_BASE_URL = import.meta.env.PROD
+export const API_BASE_URL = import.meta.env.PROD
   ? "/api"
   : import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
@@ -88,13 +90,22 @@ export async function apiRequest<T>(
   // A rejected token (expired, or signed out by a password change) means this device must sign in again.
   if (response.status === 401 && options.token) {
     try {
+      const wasPinSession = sessionStorage.getItem("pos_offline_session") === "1";
+      // A closed or deleted account must not keep a PIN that opens the till on this PC.
+      if (/inactive or does not exist/i.test(result.message ?? "")) forgetOfflineUser(sessionStorage.getItem("pos_user_id"));
       sessionStorage.clear();
-      // Say why, on the sign-in screen that follows (only when another person took over this browser's sign-in).
+      // Say why, on the sign-in screen that follows.
       if (/someone else signed in/i.test(result.message ?? "")) sessionStorage.setItem("pos_signin_notice", result.message);
+      else if (wasPinSession) sessionStorage.setItem("pos_signin_notice", "You are back online. Sign in with your password so the sales made offline can be sent.");
     } catch {
       /* storage unavailable */
     }
     window.location.reload();
+  }
+
+  // The server accepted this session, so a PIN session is now a normal one.
+  if (response.ok && options.token) {
+    try { sessionStorage.removeItem("pos_offline_session"); } catch { /* storage unavailable */ }
   }
 
   if (!response.ok || !result.success) {

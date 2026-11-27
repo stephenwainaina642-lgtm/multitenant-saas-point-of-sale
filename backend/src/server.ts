@@ -70,6 +70,7 @@ app.use("/api/auth/login", accountLoginLimiter(config));
 app.use("/api/auth/register", registerLimiter(config));
 app.use("/api/auth/invite", loginLimiter(config)); // stops guessing invitation links
 app.use("/api/auth/change-password", loginLimiter(config)); // stops guessing the current password
+app.use("/api/auth/confirm-password", loginLimiter(config)); // same, for the check done before setting an offline PIN
 app.use("/api/auth/forgot-password", loginLimiter(config)); // stops mail-bombing an address
 app.use("/api/auth/reset-password", loginLimiter(config)); // stops guessing reset tokens
 app.use("/api/platform/login", loginLimiter(config)); // password + authenticator code guessing

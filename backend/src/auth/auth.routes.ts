@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { changePasswordController, loginController, logoutController } from "./auth.controller.js";
+import { changePasswordController, confirmPasswordController, loginController, logoutController } from "./auth.controller.js";
 import { authenticate } from "./auth.middleware.js";
 import { loadConfig } from "../lib/config.js";
 import { inviteInfo } from "../platform/invites.js";
@@ -24,6 +24,7 @@ router.post("/staff-invite/accept", async (req, res, next) => {
 });
 router.post("/logout", logoutController);
 router.post("/change-password", authenticate, changePasswordController);
+router.post("/confirm-password", authenticate, confirmPasswordController);
 router.get("/capabilities", capabilitiesController);
 router.post("/forgot-password", forgotPasswordController);
 router.post("/reset-password", resetPasswordController);

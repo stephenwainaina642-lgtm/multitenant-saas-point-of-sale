@@ -41,6 +41,7 @@ export const PERMISSION_CATALOG = {
   "stock.transfer": "Move stock between branches",
   "hotel.charge_room": "Charge a table bill to a guest's room account",
   "hotel.stays": "Check guests in and out and manage room accounts",
+  "offline.signin": "Use a PIN to sign in on a PC that has no internet",
 } as const;
 
 export type Permission = keyof typeof PERMISSION_CATALOG;

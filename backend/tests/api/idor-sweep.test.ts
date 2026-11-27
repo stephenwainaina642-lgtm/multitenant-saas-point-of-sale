@@ -30,6 +30,7 @@ describe("cross-business access sweep", () => {
       await q(`select id,name,permissions from roles where business_id = $1 order by id`),
       await q(`select id,user_id,role_id,is_active,branch_id from business_users where business_id = $1 order by id`),
       await q(`select id,name,is_active from branches where business_id = $1 order by id`),
+      await q(`select id,email,role_id,revoked_at,used_at,failed_attempts from employee_invites where business_id = $1 order by id`),
       await q(`select id,status,manager_note from register_shifts where business_id = $1 order by id`),
       await q(`select branch_id,product_id,quantity from branch_stock where business_id = $1 order by branch_id,product_id`),
       await q(`select count(*) from payments where business_id = $1`),
@@ -65,6 +66,9 @@ describe("cross-business access sweep", () => {
     expect(emp.status, JSON.stringify(emp.body)).toBe(201);
     id.employee = emp.body.data.id;
     id.employeeUser = emp.body.data.userId ?? emp.body.data.id;
+    const invite = await post("/employees/invites", A, { name: "Link Worker", email: "linkworker@sweep-a.example", roleId: id.role });
+    expect(invite.status, JSON.stringify(invite.body)).toBe(201);
+    id.invite = invite.body.data.id;
     const branches = (await get("/branches", A)).body.data;
     id.mainBranch = branches.find((b: any) => b.isMain).id;
     id.branch = (await post("/branches", A, { name: "Second" })).body.data.id;
@@ -107,6 +111,7 @@ describe("cross-business access sweep", () => {
     ["POST", "/employees/{employee}/deactivate", {}],
     ["POST", "/employees/{employee}/activate", {}],
     ["POST", "/employees/{employee}/reset-password", {}],
+    ["POST", "/employees/invites/{invite}/cancel", {}],
     ["PUT", "/branches/{branch}", { name: "Hacked", isActive: false }],
     ["PATCH", "/branches/{branch}", { name: "Hacked" }],
     ["PUT", "/branches/staff/{employeeUser}", { branchId: "{branch}" }],
@@ -142,7 +147,7 @@ describe("cross-business access sweep", () => {
       if (legit && r.status >= 500) problems.push(`${method} ${path} -> ${r.status}`);
       // nothing from A may be echoed back in any response, even an error
       const echoed = JSON.stringify(r.body);
-      for (const secret of ["Wanjiku", "Bidco", "worker@sweep-a.example", "Soda"]) {
+      for (const secret of ["Wanjiku", "Bidco", "worker@sweep-a.example", "linkworker@sweep-a.example", "Soda"]) {
         if (echoed.includes(secret)) problems.push(`${method} ${path} leaked "${secret}"`);
       }
     }

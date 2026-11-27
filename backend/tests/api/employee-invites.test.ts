@@ -96,7 +96,7 @@ describe("employee sign-in links", () => {
     const mine = await mk();
     const theirs = (await get("/employees/invites", other)).body.data as any[];
     expect(theirs.find((x) => x.id === mine.body.data.id)).toBeUndefined();
-    expect((await post(`/employees/invites/${mine.body.data.id}/cancel`, other, {})).status).toBe(409);
+    expect((await post(`/employees/invites/${mine.body.data.id}/cancel`, other, {})).status).toBe(404);
   });
 
   it("garbage links and tokens are refused without detail", async () => {

@@ -64,6 +64,13 @@ export async function loginUser(
   };
 }
 
+/** Checks the signed-in user's own password and changes nothing. Used before a risky local step, such as setting a PIN. */
+export async function confirmPassword(userId: bigint, password: string): Promise<void> {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { isActive: true, passwordHash: true } });
+  const ok = user ? await bcrypt.compare(password, user.passwordHash) : false;
+  if (!user || !user.isActive || !ok) throw new AppError(400, "Password is incorrect");
+}
+
 /** Lets a signed-in user replace their own password (e.g. the temporary one an owner issued). */
 export async function changePassword(userId: bigint, currentPassword: string, newPassword: string) {
   if (newPassword.length < 8) throw new AppError(400, "New password must be at least 8 characters");

@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import { changePassword, loginUser } from "./auth.service.js";
+import { changePassword, confirmPassword, loginUser } from "./auth.service.js";
 import type { AuthenticatedRequest } from "./auth.middleware.js";
 import { clearSessionCookie, issueSession, SESSION_COOKIE } from "../lib/session-cookie.js";
 
@@ -39,6 +39,19 @@ export async function changePasswordController(req: AuthenticatedRequest, res: R
     }
     const token = await changePassword(BigInt(req.user!.userId), currentPassword, newPassword);
     return res.status(200).json({ success: true, message: "Password changed. Other devices have been signed out.", data: issueSession(req, res, { token }) });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function confirmPasswordController(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  try {
+    const { password } = req.body ?? {};
+    if (typeof password !== "string" || !password || password.length > 200) {
+      return res.status(400).json({ success: false, message: "Password is required" });
+    }
+    await confirmPassword(BigInt(req.user!.userId), password);
+    return res.status(200).json({ success: true, message: "Password confirmed" });
   } catch (error) {
     return next(error);
   }

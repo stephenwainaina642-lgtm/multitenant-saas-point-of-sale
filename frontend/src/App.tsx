@@ -21,8 +21,10 @@ import RoomsWorkspace from "./RoomsWorkspace";
 import BusinessSettingsWorkspace from "./BusinessSettingsWorkspace";
 import IntegrationsWorkspace from "./IntegrationsWorkspace";
 import ChangePasswordPanel from "./ChangePasswordPanel";
+import OfflineSigninPanel from "./OfflineSigninPanel";
+import { forgetOfflineUser, removeEntry, syncOfflineSignin } from "./offlineSigninStore";
 import EmployeesWorkspace from "./EmployeesWorkspace";
-import { apiRequest } from "./api/client";
+import { ApiError, apiRequest } from "./api/client";
 import { notify } from "./toast";
 import { AlertTriangle, Bell, Radio, UtensilsCrossed, BedDouble, BarChart3, Banknote, Boxes, Clock, FileSpreadsheet, FileText, LayoutDashboard, Package, Receipt, Settings, ShoppingBag, ShoppingCart, Store, Truck, UserCog, Users, Wallet, ClipboardList } from "lucide-react";
 import { can, storePermissions } from "./permissions";
@@ -169,10 +171,16 @@ function App() {
         if (!cancelled) {
           storePermissions(response.data?.permissions);
           storeModules(response.data?.modules);
+          syncOfflineSignin(); // keep this PC's PIN sign-in in step with the role the server just reported
           setDashboard(response.data ?? null);
           setDashboardError("");
         }
       } catch (error) {
+        // The owner closed this person's access to the business: a PIN for it must not stay on this PC.
+        if (error instanceof ApiError && error.status === 403 && /access to this business|suspended|not approved|waiting for approval/i.test(error.message)) {
+          const who = sessionStorage.getItem("pos_user_id");
+          if (who && businessId) removeEntry(who, businessId);
+        }
         if (!cancelled) {
           setDashboardError(
             error instanceof Error ? error.message : "Could not load dashboard data."
@@ -222,6 +230,7 @@ function App() {
       /* offline: the cookie still expires on its own */
     }
     clearOfflineCache();
+    forgetOfflineUser(sessionStorage.getItem("pos_user_id")); // signing out turns offline PIN sign-in off on this PC
     try {
       sessionStorage.clear();
     } catch {
@@ -377,6 +386,7 @@ function App() {
               <BusinessSettingsWorkspace />
               <div className="settings-workspace"><IntegrationsWorkspace /></div>
               <ChangePasswordPanel />
+              <OfflineSigninPanel />
             </>
           ) : (
             <>

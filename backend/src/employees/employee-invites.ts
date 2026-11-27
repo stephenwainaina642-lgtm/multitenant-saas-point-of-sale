@@ -77,7 +77,11 @@ export async function cancelEmployeeInvite(businessId: string, idText: string, a
   if (!/^[1-9]\d{0,17}$/.test(idText)) throw new AppError(400, "Invalid invitation id");
   const bizId = BigInt(businessId);
   const res = await prisma.employeeInvite.updateMany({ where: { id: BigInt(idText), businessId: bizId, usedAt: null, revokedAt: null }, data: { revokedAt: new Date() } });
-  if (res.count === 0) throw new AppError(409, "This invitation is already used or cancelled");
+  if (res.count === 0) {
+    // Another business's invitation looks exactly like one that does not exist.
+    const mine = await prisma.employeeInvite.count({ where: { id: BigInt(idText), businessId: bizId } });
+    throw mine === 0 ? new AppError(404, "Invitation not found") : new AppError(409, "This invitation is already used or cancelled");
+  }
   await prisma.auditLog.create({ data: { businessId: bizId, userId: actor.userId, action: "employee.invite_cancel", entity: "employee_invite", entityId: BigInt(idText), details: {} } });
 }
 

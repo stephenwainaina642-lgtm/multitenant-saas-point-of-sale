@@ -7,6 +7,9 @@ import "./AuthGate.css";
 import { storePermissions } from "./permissions";
 import { storeModules } from "./modules";
 import { ForgotPasswordScreen, ResetPasswordScreen } from "./ForgotPassword";
+import PinSignIn from "./PinSignIn";
+import { serverReachable } from "./offlineSignin";
+import { readEntries, resetLockoutFor } from "./offlineSigninStore";
 
 /** Reads (and removes) a reset token from the address bar, so it is not left in the history or shared by accident. */
 function takeResetToken(): string {
@@ -51,6 +54,8 @@ function takeJoinToken(): string {
 
 export default function AuthGate({ onAuthenticated }: Props) {
   const [joinToken] = useState(takeJoinToken);
+  const [pinOpen, setPinOpen] = useState(false);
+  const [pinCount] = useState(() => readEntries().length);
   const [invitePin, setInvitePin] = useState("");
   const [inviteState, setInviteState] = useState<"none" | "checking" | "ok" | "bad">(joinToken ? "checking" : "none");
   const [openSignup, setOpenSignup] = useState(false);
@@ -117,6 +122,21 @@ export default function AuthGate({ onAuthenticated }: Props) {
     onAuthenticated();
   }
 
+  useEffect(() => {
+    if (pinCount > 0 && !navigator.onLine) setPinOpen(true);
+  }, [pinCount]);
+
+  async function openPinSignIn() {
+    setMessage("");
+    setBusy(true);
+    try {
+      if (await serverReachable()) setMessage("You are online, so sign in with your password. The PIN is only for when there is no internet.");
+      else setPinOpen(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
@@ -151,6 +171,7 @@ export default function AuthGate({ onAuthenticated }: Props) {
         const result = response.data!;
         sessionStorage.setItem("pos_pending_user", result.user.name);
         sessionStorage.setItem("pos_user_id", result.user.id);
+        resetLockoutFor(result.user.id); // the password proves who it is, so wrong-PIN counts start again
 
         if (result.businesses.length === 0) {
           setMessage("Your account has no active businesses. Please contact your administrator.");
@@ -163,7 +184,8 @@ export default function AuthGate({ onAuthenticated }: Props) {
         }
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Something went wrong.");
+      if (error instanceof TypeError) setMessage(pinCount > 0 ? "Can't reach the server. If the internet is down, use \"Sign in with your PIN\" below." : "Can't reach the server. Check the internet connection and try again.");
+      else setMessage(error instanceof Error ? error.message : "Something went wrong.");
     } finally {
       setBusy(false);
     }
@@ -187,6 +209,7 @@ export default function AuthGate({ onAuthenticated }: Props) {
     }
   }
 
+  if (pinOpen) return <PinSignIn onDone={onAuthenticated} onBack={() => setPinOpen(false)} />;
   if (resetToken) return <ResetPasswordScreen token={resetToken} onDone={() => { setResetToken(""); setForgotOpen(false); setMode("login"); }} />;
   if (forgotOpen) return <ForgotPasswordScreen initialEmail={email} onBack={() => setForgotOpen(false)} />;
 
@@ -253,6 +276,7 @@ export default function AuthGate({ onAuthenticated }: Props) {
           )}
 
           {mode === "login" && <p className="auth-forgot"><button type="button" onClick={() => { setMessage(""); setForgotOpen(true); }}>Forgot password?</button></p>}
+          {mode === "login" && pinCount > 0 && <p className="auth-forgot"><button type="button" disabled={busy} onClick={openPinSignIn}>No internet? Sign in with your PIN</button></p>}
 
           {message && <p className="auth-message">{message}</p>}
 

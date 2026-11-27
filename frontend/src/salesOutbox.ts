@@ -104,6 +104,9 @@ export async function flushOutbox(): Promise<void> {
         write(read().filter((q) => q.key !== item.key));
         if (res.data) onSynced?.(item, res.data);
       } catch (err) {
+        // The sign-in ended (expired, or another person signed in on this browser). The sale is fine: keep it waiting.
+        // The app returns to the sign-in screen and the queue is sent right after the next sign-in.
+        if (err instanceof ApiError && err.status === 401) break;
         if (retryable(err)) {
           write(read().map((q) => (q.key === item.key ? { ...q, attempts: q.attempts + 1 } : q)));
           retryLater = true;
