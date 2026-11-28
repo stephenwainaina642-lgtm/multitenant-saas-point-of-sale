@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import prisma from "../lib/prisma.js";
 import { requirePublicId } from "../lib/public-id.js";
 import { AppError } from "../lib/errors.js";
+import { purgeBusiness } from "./purge-business.js";
 import { sendResetLinkTo } from "../auth/password-reset.js";
 import { encryptSecret, newTotpSecret, otpauthUri } from "./totp.js";
 
@@ -50,7 +51,7 @@ type Row = Record<string, string | number | boolean | Date | null>;
 /** Counts, dates and sale totals only: no customer names, no individual sales, no prices. */
 export async function overview() {
   const rows = await prisma.$queryRaw<Row[]>`
-    select b.public_id::text as id, b.name, b.business_type, b.package, b.modules, b.is_active, b.approval_status, b.created_at, b.vat_registered,
+    select b.public_id::text as id, b.name, b.business_type, b.package, b.modules, b.is_active, b.approval_status, b.created_at, b.deleted_at, b.vat_registered,
            o.name as owner_name, o.email as owner_email,
            (select count(*) from business_users bu where bu.business_id = b.id and bu.is_active)::int as users,
            (select count(*) from products p where p.business_id = b.id)::int as products,
@@ -67,18 +68,21 @@ export async function overview() {
     ) s on true
     order by b.created_at desc
     limit 500`;
-  const businesses = rows.map((r) => ({
+  const all = rows.map((r) => ({
     id: r.id, name: r.name, businessType: r.business_type, package: r.package, modules: r.modules as unknown as string[], isActive: r.is_active, approvalStatus: r.approval_status, createdAt: r.created_at,
     vatRegistered: r.vat_registered, ownerName: r.owner_name, ownerEmail: r.owner_email,
     users: r.users, products: r.products, salesCount: r.sales_count, salesTotal: r.sales_total,
-    sales30dCount: r.sales_30d_count, sales30dTotal: r.sales_30d_total, lastSaleAt: r.last_sale,
+    sales30dCount: r.sales_30d_count, sales30dTotal: r.sales_30d_total, lastSaleAt: r.last_sale, deletedAt: r.deleted_at,
   }));
+  const businesses = all.filter((b) => !b.deletedAt);
+  const deleted = all.filter((b) => b.deletedAt);
   const active30 = businesses.filter((b) => Number(b.sales30dCount) > 0).length;
   const [userRow] = await prisma.$queryRaw<{ users: number }[]>`select count(*)::int as users from users`;
   const users = userRow?.users ?? 0;
   return {
     totals: { businesses: businesses.length, pending: businesses.filter((b) => b.approvalStatus === "pending").length, suspended: businesses.filter((b) => !b.isActive).length, activeLast30Days: active30, users },
     businesses,
+    deleted,
   };
 }
 
@@ -162,6 +166,43 @@ export async function resetOwnerAccess(adminId: bigint, idText: string, reasonIn
     data: { adminId, action: "owner.reset_access", businessId: b.id, userId: owner.id, reason, details: { method: emailed ? "email_link" : "temporary_password", ownerEmail: owner.email } },
   });
   return { method: emailed ? "email_link" : "temporary_password", ownerEmail: owner.email, temporaryPassword };
+}
+
+/** Hides a business: nobody can sign in to it, nothing is removed, and it can be restored. */
+export async function deleteBusiness(adminId: bigint, idText: string, reasonIn: unknown) {
+  const reason = cleanReason(reasonIn);
+  const b = await business(idText);
+  if (b.deletedAt) throw new AppError(409, "This business is already deleted");
+  await prisma.$transaction([
+    prisma.business.update({ where: { id: b.id }, data: { deletedAt: new Date() } }),
+    prisma.platformAuditLog.create({ data: { adminId, action: "business.delete", businessId: b.id, reason, details: { name: b.name } } }),
+  ]);
+  return { id: b.publicId, deleted: true };
+}
+
+export async function restoreBusiness(adminId: bigint, idText: string, reasonIn: unknown) {
+  const reason = cleanReason(reasonIn);
+  const b = await business(idText);
+  if (!b.deletedAt) throw new AppError(409, "This business is not deleted");
+  await prisma.$transaction([
+    prisma.business.update({ where: { id: b.id }, data: { deletedAt: null } }),
+    prisma.platformAuditLog.create({ data: { adminId, action: "business.restore", businessId: b.id, reason, details: { name: b.name } } }),
+  ]);
+  return { id: b.publicId, deleted: false };
+}
+
+/** Removes a hidden business and all of its data for good. This cannot be undone: take a database backup first. */
+export async function eraseBusiness(adminId: bigint, idText: string, reasonIn: unknown, confirmName: unknown) {
+  const reason = cleanReason(reasonIn);
+  const b = await business(idText);
+  if (!b.deletedAt) throw new AppError(409, "Delete the business first. Only a deleted business can be erased for good.");
+  if (typeof confirmName !== "string" || confirmName.trim() !== b.name.trim()) throw new AppError(400, "Type the business name exactly to confirm");
+  const result = await purgeBusiness(b.id);
+  // The business row is gone, so the record keeps its name and what was removed (platform_audit_logs.business_id has no link to it).
+  await prisma.platformAuditLog.create({
+    data: { adminId, action: "business.erase", businessId: b.id, reason, details: { name: b.name, ownerEmail: b.owner?.email ?? null, rowsRemoved: result.rows, tables: result.tables, accountsRemoved: result.usersRemoved, accountsKept: result.usersKept } },
+  });
+  return { erased: true, rowsRemoved: result.rows, accountsRemoved: result.usersRemoved, accountsKept: result.usersKept };
 }
 
 export async function auditTrail(limit = 100) {

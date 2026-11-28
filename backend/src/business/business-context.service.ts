@@ -6,6 +6,11 @@ export const SUSPENDED_MESSAGE = "This business account is suspended. Please con
 
 /** Tells a suspended business apart from a business the user simply does not belong to. */
 export async function denialMessage(userId: bigint, businessId: bigint): Promise<string> {
+  const removed = await prisma.businessUser.findFirst({
+    where: { userId, businessId, isActive: true, business: { deletedAt: { not: null } } },
+    select: { id: true },
+  });
+  if (removed) return "This business was removed. Contact support.";
   const suspended = await prisma.businessUser.findFirst({
     where: { userId, businessId, isActive: true, business: { isActive: false } },
     select: { id: true },
@@ -39,6 +44,7 @@ export async function verifyBusinessAccess(
       business: {
         isActive: true,
         approvalStatus: "approved",
+        deletedAt: null,
       },
     },
     include: {

@@ -8,12 +8,13 @@ type Biz = {
   approvalStatus: "approved" | "pending" | "rejected";
   id: string; name: string; businessType: string; isActive: boolean; createdAt: string; ownerName: string | null; ownerEmail: string | null;
   package: "retail" | "hotel"; modules: string[];
+  deletedAt?: string | null;
   users: number; products: number; salesCount: number; salesTotal: string; sales30dCount: number; sales30dTotal: string; lastSaleAt: string | null;
 };
 type Invite = { id: string; package: "retail" | "hotel" | null; email: string; businessName: string | null; note: string | null; autoApprove: boolean; status: "active" | "used" | "expired" | "cancelled" | "locked"; createdAt: string; expiresAt: string; usedAt: string | null };
-type Overview = { totals: { businesses: number; pending: number; suspended: number; activeLast30Days: number; users: number }; businesses: Biz[] };
+type Overview = { totals: { businesses: number; pending: number; suspended: number; activeLast30Days: number; users: number }; businesses: Biz[]; deleted: Biz[] };
 type Audit = { id: string; action: string; businessId: string | null; reason: string; adminName: string; createdAt: string };
-type Dialog = { kind: "suspend" | "reactivate" | "reset" | "approve" | "reject"; biz: Biz } | null;
+type Dialog = { kind: "suspend" | "reactivate" | "reset" | "approve" | "reject" | "delete" | "restore" | "erase"; biz: Biz } | null;
 const PKG_LABEL = { retail: "Retail", hotel: "Hotel & restaurant" } as const;
 const PKG_DEFAULT: Record<string, string[]> = { retail: ["purchasing", "documents"], hotel: ["tables", "rooms", "purchasing", "documents"] };
 const MODULE_LABEL: Record<string, string> = { tables: "Tables & orders", rooms: "Rooms & stays", purchasing: "Suppliers & purchases", documents: "Quotations & invoices" };
@@ -39,12 +40,14 @@ const input: React.CSSProperties = { padding: "10px 12px", border: "1px solid #c
 const primary: React.CSSProperties = { padding: "10px 14px", border: 0, borderRadius: 8, background: "#176b4d", color: "#fff", fontWeight: 700, cursor: "pointer" };
 const small: React.CSSProperties = { padding: "5px 9px", border: "1px solid #cfd9d2", borderRadius: 6, background: "#fff", cursor: "pointer", fontSize: 12 };
 
+const needsName = (k?: string) => k === "erase";
+
 export default function PlatformAdmin() {
   const [token, setToken] = useState(() => { try { return sessionStorage.getItem(KEY) || ""; } catch { return ""; } });
   const [admin, setAdmin] = useState("");
   const [data, setData] = useState<Overview | null>(null);
   const [audit, setAudit] = useState<Audit[]>([]);
-  const [tab, setTab] = useState<"businesses" | "invites" | "quotes" | "audit">("businesses");
+  const [tab, setTab] = useState<"businesses" | "deleted" | "invites" | "quotes" | "audit">("businesses");
   const [invites, setInvites] = useState<Invite[]>([]);
   const [inv, setInv] = useState({ email: "", businessName: "", note: "", autoApprove: true, package: "retail" });
   const [plan, setPlan] = useState<{ biz: Biz; package: "retail" | "hotel"; modules: string[] } | null>(null);
@@ -55,6 +58,7 @@ export default function PlatformAdmin() {
   const [error, setError] = useState("");
   const [dialog, setDialog] = useState<Dialog>(null);
   const [reason, setReason] = useState("");
+  const [confirmName, setConfirmName] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState("");
   const [form, setForm] = useState({ email: "", password: "", code: "" });
@@ -113,13 +117,13 @@ export default function PlatformAdmin() {
     ev.preventDefault(); if (!dialog) return; setBusy(true); setError("");
     const path = dialog.kind === "reset" ? "reset-owner" : dialog.kind;
     try {
-      const r = await apiRequest<{ method?: string; ownerEmail?: string; temporaryPassword?: string | null }>(`/platform/businesses/${dialog.biz.id}/${path}`, { method: "POST", token, body: { reason } });
+      const r = await apiRequest<{ method?: string; ownerEmail?: string; temporaryPassword?: string | null }>(`/platform/businesses/${dialog.biz.id}/${path}`, { method: "POST", token, body: needsName(dialog.kind) ? { reason, confirmName } : { reason } });
       if (dialog.kind === "reset") {
         setResult(r.data?.temporaryPassword
           ? `Temporary password for ${r.data.ownerEmail}: ${r.data.temporaryPassword}\nShown only once. Give it to the owner; they are signed out everywhere and should change it after signing in.`
           : `A reset link was e-mailed to ${r.data?.ownerEmail}.`);
       } else setResult("");
-      setDialog(null); setReason(""); await load(token);
+      setDialog(null); setReason(""); setConfirmName(""); await load(token);
     } catch (e) { setError(msg(e)); } finally { setBusy(false); }
   }
 
@@ -160,7 +164,7 @@ export default function PlatformAdmin() {
         ))}
       </section>
       <nav style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-        {(["businesses", "invites", "quotes", "audit"] as const).map((t) => <button key={t} style={{ ...small, ...(tab === t ? { background: "#176b4d", color: "#fff" } : {}) }} onClick={() => setTab(t)}>{t === "businesses" ? "Businesses" : t === "invites" ? "Invitations" : t === "quotes" ? "Quotations" : "Admin activity"}</button>)}
+        {(["businesses", "deleted", "invites", "quotes", "audit"] as const).map((t) => <button key={t} style={{ ...small, ...(tab === t ? { background: "#176b4d", color: "#fff" } : {}) }} onClick={() => setTab(t)}>{t === "businesses" ? "Businesses" : t === "deleted" ? `Deleted${data?.deleted?.length ? ` (${data.deleted.length})` : ""}` : t === "invites" ? "Invitations" : t === "quotes" ? "Quotations" : "Admin activity"}</button>)}
         {tab === "businesses" && <select aria-label="Filter by package" style={{ ...input, width: "auto", marginLeft: "auto" }} value={pkgFilter} onChange={(e) => setPkgFilter(e.target.value as "all" | "retail" | "hotel")}><option value="all">All packages</option><option value="retail">Retail only</option><option value="hotel">Hotel only</option></select>}
         {tab === "businesses" && <input style={{ ...input, maxWidth: 280 }} placeholder="Search name or owner" value={search} onChange={(e) => setSearch(e.target.value)} />}
       </nav>
@@ -185,11 +189,36 @@ export default function PlatformAdmin() {
                       <button style={small} onClick={() => { setDialog({ kind: b.isActive ? "suspend" : "reactivate", biz: b }); setReason(""); setError(""); }}>{b.isActive ? "Suspend" : "Reactivate"}</button>
                       <button style={small} onClick={() => { setPlan({ biz: b, package: b.package, modules: b.modules }); setReason(""); setError(""); }}>Package</button>
                       <button style={small} onClick={() => { setDialog({ kind: "reset", biz: b }); setReason(""); setError(""); }}>Reset owner</button>
+                      <button style={{ ...small, color: "#b3412f", borderColor: "#e9b8ae" }} onClick={() => { setDialog({ kind: "delete", biz: b }); setReason(""); setConfirmName(""); setError(""); }}>Delete</button>
                     </div>
                   </td>
                 </tr>
               ))}
               {rows.length === 0 && <tr><td colSpan={7} style={{ padding: 20, textAlign: "center", color: "#6b7a70" }}>No businesses found.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      ) : tab === "deleted" ? (
+        <div style={{ ...card, padding: 0, overflowX: "auto" }}>
+          <p style={{ margin: 0, padding: "12px 14px", fontSize: 13, color: "#52625a" }}>Deleted businesses are hidden: nobody can sign in to them, but nothing has been removed yet. Restore one to bring it back, or erase it forever to remove it and all of its data from the database.</p>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead><tr style={{ textAlign: "left", background: "#f4f8f5" }}>{["Business", "Owner", "Held", "Deleted", "Actions"].map((h) => <th key={h} style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+            <tbody>
+              {(data?.deleted ?? []).map((b) => (
+                <tr key={b.id} style={{ borderTop: "1px solid #e8eee9", verticalAlign: "top" }}>
+                  <td style={{ padding: "10px 12px" }}><strong>{b.name}</strong><br /><small style={{ color: "#6b7a70" }}>{b.businessType} &middot; registered {day(b.createdAt)}</small></td>
+                  <td style={{ padding: "10px 12px" }}>{b.ownerName}<br /><small style={{ color: "#6b7a70", wordBreak: "break-all" }}>{b.ownerEmail}</small></td>
+                  <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{b.users} {b.users === 1 ? "user" : "users"}<br /><small style={{ color: "#6b7a70" }}>{b.products} products<br />{b.salesCount} sales &middot; {kes(b.salesTotal)}</small></td>
+                  <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{day(b.deletedAt ?? null)}<br /><small style={{ color: "#6b7a70" }}>{ago(b.deletedAt ?? b.createdAt)}</small></td>
+                  <td style={{ padding: "10px 12px", minWidth: 190 }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      <button style={{ ...small, background: "#176b4d", color: "#fff", borderColor: "#176b4d", fontWeight: 700 }} onClick={() => { setDialog({ kind: "restore", biz: b }); setReason(""); setConfirmName(""); setError(""); }}>Restore</button>
+                      <button style={{ ...small, color: "#b3412f", borderColor: "#e9b8ae", fontWeight: 700 }} onClick={() => { setDialog({ kind: "erase", biz: b }); setReason(""); setConfirmName(""); setError(""); }}>Erase forever</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {(data?.deleted ?? []).length === 0 && <tr><td colSpan={5} style={{ padding: 20, textAlign: "center", color: "#6b7a70" }}>No deleted businesses.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -242,17 +271,21 @@ export default function PlatformAdmin() {
       {dialog && (
         <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "grid", placeItems: "center", padding: 16, zIndex: 50 }}>
           <form onSubmit={confirm} style={{ ...card, width: "100%", maxWidth: 440, display: "grid", gap: 10 }}>
-            <h2 style={{ margin: 0, fontSize: 18 }}>{dialog.kind === "suspend" ? "Suspend" : dialog.kind === "reactivate" ? "Reactivate" : dialog.kind === "approve" ? "Approve" : dialog.kind === "reject" ? "Reject" : "Reset owner access for"} {dialog.biz.name}</h2>
+            <h2 style={{ margin: 0, fontSize: 18 }}>{dialog.kind === "suspend" ? "Suspend" : dialog.kind === "reactivate" ? "Reactivate" : dialog.kind === "approve" ? "Approve" : dialog.kind === "reject" ? "Reject" : dialog.kind === "delete" ? "Delete" : dialog.kind === "restore" ? "Restore" : dialog.kind === "erase" ? "Erase forever" : "Reset owner access for"} {dialog.biz.name}</h2>
             <p style={{ margin: 0, fontSize: 13, color: "#52625a" }}>
               {dialog.kind === "suspend" && "Its users are blocked straight away and see a suspended message. No data is deleted."}
               {dialog.kind === "reactivate" && "Its users can sign in and work again."}
               {dialog.kind === "approve" && "Its users can start using the system straight away."}
               {dialog.kind === "reject" && "Its users are blocked and told the business was not approved. No data is deleted; you can approve it later."}
+              {dialog.kind === "delete" && "Hides this business. Nobody can sign in to it, and it disappears from this list. Nothing is removed: you can restore it from the Deleted tab, or erase it forever there."}
+              {dialog.kind === "restore" && "Brings the business back exactly as it was. Its users can sign in again."}
+              {dialog.kind === "erase" && "Removes this business and ALL of its data (sales, products, customers, staff, settings) from the database. This cannot be undone. Take a database backup first."}
               {dialog.kind === "reset" && `Owner: ${dialog.biz.ownerEmail}. If e-mail is set up a reset link is sent; otherwise a one-time temporary password is shown to you.`}
             </p>
+            {needsName(dialog.kind) && <input style={input} placeholder={`Type the business name to confirm: ${dialog.biz.name}`} value={confirmName} onChange={(e) => setConfirmName(e.target.value)} autoComplete="off" aria-label="Type the business name to confirm" />}
             <textarea style={{ ...input, minHeight: 70 }} placeholder="Reason (required, recorded in the admin activity log)" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} required minLength={3} autoFocus />
             {error && <p style={{ margin: 0, color: "#b3412f", fontSize: 13 }}>{error}</p>}
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><button type="button" style={small} onClick={() => setDialog(null)}>Cancel</button><button style={primary} disabled={busy}>{busy ? "Please wait..." : "Confirm"}</button></div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><button type="button" style={small} onClick={() => setDialog(null)}>Cancel</button><button style={{ ...primary, ...(dialog.kind === "delete" || dialog.kind === "erase" ? { background: "#b3412f", borderColor: "#b3412f" } : {}) }} disabled={busy || (needsName(dialog.kind) && confirmName.trim() !== dialog.biz.name.trim())}>{busy ? "Please wait..." : dialog.kind === "erase" ? "Erase forever" : dialog.kind === "delete" ? "Delete" : "Confirm"}</button></div>
           </form>
         </div>
       )}

@@ -29,7 +29,7 @@ export async function loginUser(
     where: { email: email.trim().toLowerCase() },
     include: {
       memberships: {
-        where: { isActive: true },
+        where: { isActive: true, business: { deletedAt: null } },
         include: {
           business: true,
           role: true,

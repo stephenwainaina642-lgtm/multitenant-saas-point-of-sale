@@ -64,6 +64,7 @@ export async function requireBusinessAccess(
         business: {
           isActive: true,
           approvalStatus: "approved",
+          deletedAt: null,
         },
       },
       include: {

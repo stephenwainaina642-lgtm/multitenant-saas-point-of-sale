@@ -32,6 +32,8 @@ model Business {
   modules          String[] @default(["purchasing", "documents"])
   /// approved | pending | rejected. Only approved businesses can be used; existing ones are approved.
   approvalStatus   String   @default("approved") @map("approval_status") @db.VarChar(10)
+  /// Set when the platform owner hides ("deletes") the business. Nothing is removed until it is erased for good.
+  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz(6)
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 

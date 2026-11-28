@@ -59,3 +59,11 @@ uses quotations looks quiet; support from a separate team (several admins with d
 2. Is "counts and dates only" the right level of visibility, or do you also want sale totals per business?
 3. Is v1 without 2FA, delete and impersonation acceptable?
 4. Temporary-password fallback when SMTP isn't configured: allowed?
+
+## Deleting a business (two steps)
+
+- **Delete** (businesses table) only *hides* the business: `businesses.deleted_at` is set, nobody can sign in to it, it leaves the main list and the totals. Nothing is removed. It needs a reason, which goes in the admin activity log (`business.delete`).
+- **Deleted** tab: **Restore** clears `deleted_at` and everything works again (`business.restore`).
+- **Erase forever** (only on a deleted business) removes the business and all its rows, in one database transaction, so either everything goes or nothing does (`src/platform/purge-business.ts`). You must type the business name and give a reason. The record in `platform_audit_logs` stays, with the name, the owner e-mail and how many rows were removed (`business.erase`). **Take a database backup first: this cannot be undone.**
+- Accounts that belonged only to the erased business are removed too. An account that is also in another business, or that owns a business of its own (employees get a personal workspace), is kept and reported.
+- The migration is additive (`20261228090000_business_deleted_at`, one nullable column).

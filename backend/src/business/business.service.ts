@@ -37,6 +37,7 @@ export async function getUserBusinesses(userId: string) {
       isActive: true,
       business: {
         isActive: true,
+        deletedAt: null,
       },
     },
     include: {

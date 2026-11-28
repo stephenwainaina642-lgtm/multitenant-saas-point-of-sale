@@ -4,7 +4,7 @@ import { clearSessionCookie, issueSession, PLATFORM_COOKIE, PLATFORM_COOKIE_PATH
 import { requirePlatformAdmin, platformLogin, type PlatformRequest } from "./platform.auth.js";
 import { createInvite, listInvites, revokeInvite } from "./invites.js";
 import * as quotes from "./quotes.js";
-import { auditTrail, overview, resetOwnerAccess, setBusinessActive, setBusinessApproval, setBusinessModules, setBusinessPackage } from "./platform.service.js";
+import { auditTrail, deleteBusiness, eraseBusiness, restoreBusiness, overview, resetOwnerAccess, setBusinessActive, setBusinessApproval, setBusinessModules, setBusinessPackage } from "./platform.service.js";
 import { MODULE_INFO, PACKAGE_INFO } from "../lib/packages.js";
 
 const router = Router();
@@ -33,6 +33,15 @@ router.post("/businesses/:id/approve", wrap(async (req, res) => {
 }));
 router.post("/businesses/:id/reject", wrap(async (req, res) => {
   res.json({ success: true, message: "Business rejected", data: await setBusinessApproval(req.admin!.id, idParam(req), false, req.body?.reason) });
+}));
+router.post("/businesses/:id/delete", wrap(async (req, res) => {
+  res.json({ success: true, message: "Business deleted", data: await deleteBusiness(req.admin!.id, idParam(req), req.body?.reason) });
+}));
+router.post("/businesses/:id/restore", wrap(async (req, res) => {
+  res.json({ success: true, message: "Business restored", data: await restoreBusiness(req.admin!.id, idParam(req), req.body?.reason) });
+}));
+router.post("/businesses/:id/erase", wrap(async (req, res) => {
+  res.json({ success: true, message: "Business erased", data: await eraseBusiness(req.admin!.id, idParam(req), req.body?.reason, req.body?.confirmName) });
 }));
 router.get("/invites", wrap(async (_req, res) => { res.json({ success: true, data: await listInvites() }); }));
 router.post("/invites", wrap(async (req, res) => { res.status(201).json({ success: true, message: "Invitation created", data: await createInvite(req.admin!.id, req.body ?? {}) }); }));
