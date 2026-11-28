@@ -4,6 +4,7 @@ import { clearSessionCookie, issueSession, PLATFORM_COOKIE, PLATFORM_COOKIE_PATH
 import { requirePlatformAdmin, platformLogin, type PlatformRequest } from "./platform.auth.js";
 import { createInvite, listInvites, revokeInvite } from "./invites.js";
 import * as quotes from "./quotes.js";
+import * as billing from "./billing.js";
 import { auditTrail, deleteBusiness, eraseBusiness, restoreBusiness, overview, resetOwnerAccess, setBusinessActive, setBusinessApproval, setBusinessModules, setBusinessPackage } from "./platform.service.js";
 import { MODULE_INFO, PACKAGE_INFO } from "../lib/packages.js";
 
@@ -75,5 +76,26 @@ router.post("/quotes/:id/accept", wrap(async (req, res) => ok(res, await quotes.
 router.post("/quotes/:id/decline", wrap(async (req, res) => ok(res, await quotes.declineQuote(req.admin!.id, idParam(req)))));
 router.post("/quotes/:id/reopen", wrap(async (req, res) => ok(res, await quotes.reopenQuote(req.admin!.id, idParam(req)))));
 router.post("/quotes/:id/duplicate", wrap(async (req, res) => ok(res, await quotes.duplicateQuote(req.admin!.id, idParam(req)), 201)));
+
+// ---- plans, subscriptions and manual payments ----
+router.get("/plans", wrap(async (_req, res) => ok(res, await billing.listPlans())));
+router.post("/plans", wrap(async (req, res) => ok(res, await billing.createPlan(req.admin!.id, req.body ?? {}), 201)));
+router.put("/plans/:id", wrap(async (req, res) => ok(res, await billing.updatePlan(req.admin!.id, idParam(req), req.body ?? {}))));
+router.post("/plans/:id/archive", wrap(async (req, res) => ok(res, await billing.archivePlan(req.admin!.id, idParam(req), true))));
+router.post("/plans/:id/unarchive", wrap(async (req, res) => ok(res, await billing.archivePlan(req.admin!.id, idParam(req), false))));
+router.delete("/plans/:id", wrap(async (req, res) => { await billing.deletePlan(req.admin!.id, idParam(req)); ok(res, null); }));
+router.get("/subscriptions", wrap(async (_req, res) => ok(res, await billing.listSubscriptions())));
+router.get("/businesses/:id/subscription", wrap(async (req, res) => ok(res, await billing.subscriptionDetail(idParam(req)))));
+router.post("/businesses/:id/subscription", wrap(async (req, res) => ok(res, await billing.assignPlan(req.admin!.id, idParam(req), req.body ?? {}))));
+router.put("/businesses/:id/subscription", wrap(async (req, res) => ok(res, await billing.updateSubscriptionTerms(req.admin!.id, idParam(req), req.body ?? {}))));
+router.post("/businesses/:id/subscription/suspend", wrap(async (req, res) => ok(res, await billing.suspendSubscription(req.admin!.id, idParam(req), req.body?.reason))));
+router.post("/businesses/:id/subscription/reactivate", wrap(async (req, res) => ok(res, await billing.reactivateSubscription(req.admin!.id, idParam(req), req.body?.reason))));
+router.post("/businesses/:id/subscription/cancel", wrap(async (req, res) => ok(res, await billing.cancelSubscription(req.admin!.id, idParam(req), req.body?.reason))));
+router.post("/businesses/:id/subscription/extend", wrap(async (req, res) => ok(res, await billing.extendSubscription(req.admin!.id, idParam(req), req.body?.days, req.body?.reason))));
+router.post("/businesses/:id/payments", wrap(async (req, res) => ok(res, await billing.recordPayment(req.admin!.id, idParam(req), req.body ?? {}), 201)));
+router.get("/payments", wrap(async (req, res) => ok(res, await billing.listPayments({ status: str(req.query.status), ...(Number(req.query.limit) ? { limit: Number(req.query.limit) } : {}) }))));
+router.post("/payments/:id/approve", wrap(async (req, res) => ok(res, await billing.approvePayment(req.admin!.id, idParam(req), req.body?.reason))));
+router.post("/payments/:id/reject", wrap(async (req, res) => ok(res, await billing.rejectPayment(req.admin!.id, idParam(req), req.body?.reason))));
+router.post("/payments/:id/refund", wrap(async (req, res) => ok(res, await billing.refundPayment(req.admin!.id, idParam(req), req.body?.reason))));
 
 export default router;

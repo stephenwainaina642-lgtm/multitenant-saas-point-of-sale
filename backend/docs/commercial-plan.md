@@ -1,6 +1,6 @@
 # nexaPOS Commercial Control Centre: audit and phased plan
 
-Date: 2026-11-28. Source: the 26-section brief. Status: audit done, Phase 1 awaiting approval. Nothing below the audit is built yet.
+Date: 2026-11-28. Source: the 26-section brief. Status: Phase 1 built (2026-11-28) and tested; Phases 2 to 7 not started.
 
 ## 1. Audit: what already exists in the Super Admin
 
@@ -44,3 +44,22 @@ Hosting facts that shape the design: backend on Render free (sleeps, so no in-pr
 ## 4. Safety rules for all phases
 
 Additive migrations only; backup before each; no existing business data changed; existing businesses start with a free "legacy / active" subscription so nobody is locked out when Phase 1 ships; money never marked paid from a browser redirect; every activation is idempotent; every privileged action audited.
+
+
+## 5. Phase 1: what exists now (2026-11-28)
+
+**Super Admin, new tabs and screens:** Plans (create, edit, archive, delete if unused), Payments (all businesses; approve, reject, mark refunded, print receipt), and a Subscription button on every business (assign or change plan, record payment, edit terms, extend, suspend, reactivate, cancel, full history).
+
+**Rules enforced on the server**
+- Plan limits (staff including the owner and pending sign-in links, branches) stop new additions only; nobody already there is removed.
+- A subscription becomes active only by an approved payment or an explicit complimentary grant. Approving is idempotent (a double click or retry cannot extend twice) and two approvals at once each add their own period.
+- Dates move a subscription on its own: active, then grace (default 7 days, configurable per plan and per customer), then expired. After that, changes return HTTP 402 while reading and exporting still work and the owner's billing screen stays open. Nothing is ever deleted.
+- A payment never lifts a deliberate suspension. A refund marks the payment only; it does not remove paid time.
+- Businesses with no subscription ("legacy") are unlimited and never restricted, so deploying this locks nobody out.
+- Payments and history have no link to the business, so "Erase forever" keeps the platform's revenue record.
+
+**Business owner:** a banner when the trial or period is ending, in grace, or restricted; Settings > Subscription shows plan, renewal date, usage against limits and receipts. Sales made offline wait in the queue while a subscription is restricted and send after renewal.
+
+**Not in Phase 1 (by design):** provider payments (Daraja/Pesapal for nexaPOS's own account), automatic reminders and scheduled transitions, customer links and portal, revenue charts, installation/training tracking, tickets, platform staff roles, licensing. A plan's features today are the existing four modules plus the two limits; terminal count, API access and similar entitlements have nothing to enforce yet and are not offered.
+
+**To deploy:** back up, run `npx prisma migrate deploy --config prisma7.config.ts` (adds 4 tables, 1 sequence, changes nothing existing), redeploy Render manually, let Vercel redeploy.

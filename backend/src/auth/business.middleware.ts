@@ -4,6 +4,7 @@ import type { AuthenticatedRequest } from "./auth.middleware.js";
 import { denialMessage } from "../business/business-context.service.js";
 import { resolvePermissions } from "./permissions.js";
 import { isPublicId } from "../lib/public-id.js";
+import { effectiveStatus, restrictedMayProceed } from "../lib/subscription.js";
 import { MODULE_INFO, moduleError, moduleForRequest, type ModuleName } from "../lib/packages.js";
 
 export type BusinessRequest = AuthenticatedRequest & {
@@ -73,6 +74,7 @@ export async function requireBusinessAccess(
           select: {
             ownerUserId: true,
             modules: true,
+            subscription: { select: { status: true, currentPeriodEnd: true, graceDays: true } },
           },
         },
       },
@@ -95,6 +97,13 @@ export async function requireBusinessAccess(
     );
 
     req.businessModules = membership.business.modules;
+
+    // An expired or suspended subscription switches off changes, never access to the business's own data:
+    // reading and exporting still work, and the billing screen stays open so it can be renewed.
+    const sub = effectiveStatus(membership.business.subscription);
+    if (sub?.restricted && !restrictedMayProceed(req.method, req.baseUrl)) {
+      return res.status(402).json({ success: false, code: "SUBSCRIPTION_RESTRICTED", message: `${sub.reason} You can still view and export your data.` });
+    }
     // Switched-off modules are refused here, for every route of that feature, not just hidden in the menu.
     const needed = moduleForRequest(req.baseUrl, req.path);
     if (needed && !membership.business.modules.includes(needed)) return moduleError(res, MODULE_INFO[needed as ModuleName].label);

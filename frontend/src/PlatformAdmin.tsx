@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiRequest, SESSION_MARKER } from "./api/client";
 import { money } from "./money";
 import PlatformQuotes from "./PlatformQuotes";
+import { PaymentsTab, PlansTab, StatusBadge, SubscriptionPanel, type SubSummary } from "./PlatformBilling";
 
 type Biz = {
   approvalStatus: "approved" | "pending" | "rejected";
@@ -47,8 +48,10 @@ export default function PlatformAdmin() {
   const [admin, setAdmin] = useState("");
   const [data, setData] = useState<Overview | null>(null);
   const [audit, setAudit] = useState<Audit[]>([]);
-  const [tab, setTab] = useState<"businesses" | "deleted" | "invites" | "quotes" | "audit">("businesses");
+  const [tab, setTab] = useState<"businesses" | "plans" | "payments" | "deleted" | "invites" | "quotes" | "audit">("businesses");
   const [invites, setInvites] = useState<Invite[]>([]);
+  const [subs, setSubs] = useState<Record<string, SubSummary>>({});
+  const [subOf, setSubOf] = useState<Biz | null>(null);
   const [inv, setInv] = useState({ email: "", businessName: "", note: "", autoApprove: true, package: "retail" });
   const [plan, setPlan] = useState<{ biz: Biz; package: "retail" | "hotel"; modules: string[] } | null>(null);
   const [created, setCreated] = useState<Created | null>(null);
@@ -65,13 +68,15 @@ export default function PlatformAdmin() {
 
   const load = useCallback(async (t: string) => {
     try {
-      const [o, a, me, iv] = await Promise.all([
+      const [o, a, me, iv, sb] = await Promise.all([
         apiRequest<Overview>("/platform/overview", { token: t }),
         apiRequest<Audit[]>("/platform/audit", { token: t }),
         apiRequest<{ name: string }>("/platform/me", { token: t }),
         apiRequest<Invite[]>("/platform/invites", { token: t }),
+        apiRequest<SubSummary[]>("/platform/subscriptions", { token: t }),
       ]);
       setInvites(iv.data ?? []);
+      setSubs(Object.fromEntries((sb.data ?? []).map((x) => [x.businessId, x])));
       setData(o.data ?? null); setAudit(a.data ?? []); setAdmin(me.data?.name ?? ""); setError("");
     } catch (e) { setError(msg(e)); }
   }, []);
@@ -164,7 +169,7 @@ export default function PlatformAdmin() {
         ))}
       </section>
       <nav style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-        {(["businesses", "deleted", "invites", "quotes", "audit"] as const).map((t) => <button key={t} style={{ ...small, ...(tab === t ? { background: "#176b4d", color: "#fff" } : {}) }} onClick={() => setTab(t)}>{t === "businesses" ? "Businesses" : t === "deleted" ? `Deleted${data?.deleted?.length ? ` (${data.deleted.length})` : ""}` : t === "invites" ? "Invitations" : t === "quotes" ? "Quotations" : "Admin activity"}</button>)}
+        {(["businesses", "plans", "payments", "deleted", "invites", "quotes", "audit"] as const).map((t) => <button key={t} style={{ ...small, ...(tab === t ? { background: "#176b4d", color: "#fff" } : {}) }} onClick={() => setTab(t)}>{t === "businesses" ? "Businesses" : t === "plans" ? "Plans" : t === "payments" ? "Payments" : t === "deleted" ? `Deleted${data?.deleted?.length ? ` (${data.deleted.length})` : ""}` : t === "invites" ? "Invitations" : t === "quotes" ? "Quotations" : "Admin activity"}</button>)}
         {tab === "businesses" && <select aria-label="Filter by package" style={{ ...input, width: "auto", marginLeft: "auto" }} value={pkgFilter} onChange={(e) => setPkgFilter(e.target.value as "all" | "retail" | "hotel")}><option value="all">All packages</option><option value="retail">Retail only</option><option value="hotel">Hotel only</option></select>}
         {tab === "businesses" && <input style={{ ...input, maxWidth: 280 }} placeholder="Search name or owner" value={search} onChange={(e) => setSearch(e.target.value)} />}
       </nav>
@@ -181,12 +186,14 @@ export default function PlatformAdmin() {
                   <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{b.users} {b.users === 1 ? "user" : "users"}<br /><small style={{ color: "#6b7a70" }}>{b.products} products<br />{b.salesCount} sales</small></td>
                   <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}><strong>{kes(b.salesTotal)}</strong><br /><small style={{ color: "#6b7a70" }}>Last 30 days: {kes(b.sales30dTotal)} ({b.sales30dCount})<br />Last sale: {day(b.lastSaleAt)}</small></td>
                   <td style={{ padding: "10px 12px" }}><strong>{PKG_LABEL[b.package]}</strong><br /><small style={{ color: "#6b7a70" }}>{b.modules.length ? b.modules.map((m) => MODULE_LABEL[m] ?? m).join(", ") : "No extra modules"}</small></td>
-                  <td style={{ padding: "10px 12px" }}>{(() => { const st = !b.isActive ? ["Suspended", "#fde8e4", "#b3412f"] : b.approvalStatus === "pending" ? ["Awaiting approval", "#fff3d6", "#8a5a00"] : b.approvalStatus === "rejected" ? ["Rejected", "#fde8e4", "#b3412f"] : ["Active", "#e3f4e9", "#176b4d"]; return <span style={{ padding: "2px 8px", borderRadius: 99, fontSize: 11, background: st[1], color: st[2], whiteSpace: "nowrap" }}>{st[0]}</span>; })()}</td>
+                  <td style={{ padding: "10px 12px" }}>{(() => { const st = !b.isActive ? ["Suspended", "#fde8e4", "#b3412f"] : b.approvalStatus === "pending" ? ["Awaiting approval", "#fff3d6", "#8a5a00"] : b.approvalStatus === "rejected" ? ["Rejected", "#fde8e4", "#b3412f"] : ["Active", "#e3f4e9", "#176b4d"]; return <span style={{ padding: "2px 8px", borderRadius: 99, fontSize: 11, background: st[1], color: st[2], whiteSpace: "nowrap" }}>{st[0]}</span>; })()}
+                    <div style={{ marginTop: 6 }}>{subs[b.id] ? <><StatusBadge status={subs[b.id]!.status} /><br /><small style={{ color: "#6b7a70" }}>{subs[b.id]!.planName}{subs[b.id]!.currentPeriodEnd ? ` · to ${day(subs[b.id]!.currentPeriodEnd)}` : ""}</small></> : <small style={{ color: "#6b7a70" }}>No plan (unlimited)</small>}</div></td>
                   <td style={{ padding: "10px 12px", minWidth: 190 }}>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                       {b.approvalStatus !== "approved" && <button style={{ ...small, background: "#176b4d", color: "#fff", borderColor: "#176b4d", fontWeight: 700 }} onClick={() => { setDialog({ kind: "approve", biz: b }); setReason(""); setError(""); }}>Approve</button>}
                       {b.approvalStatus !== "rejected" && <button style={small} onClick={() => { setDialog({ kind: "reject", biz: b }); setReason(""); setError(""); }}>Reject</button>}
                       <button style={small} onClick={() => { setDialog({ kind: b.isActive ? "suspend" : "reactivate", biz: b }); setReason(""); setError(""); }}>{b.isActive ? "Suspend" : "Reactivate"}</button>
+                      <button style={{ ...small, borderColor: "#176b4d", color: "#176b4d", fontWeight: 700 }} onClick={() => setSubOf(b)}>Subscription</button>
                       <button style={small} onClick={() => { setPlan({ biz: b, package: b.package, modules: b.modules }); setReason(""); setError(""); }}>Package</button>
                       <button style={small} onClick={() => { setDialog({ kind: "reset", biz: b }); setReason(""); setError(""); }}>Reset owner</button>
                       <button style={{ ...small, color: "#b3412f", borderColor: "#e9b8ae" }} onClick={() => { setDialog({ kind: "delete", biz: b }); setReason(""); setConfirmName(""); setError(""); }}>Delete</button>
@@ -222,6 +229,10 @@ export default function PlatformAdmin() {
             </tbody>
           </table>
         </div>
+      ) : tab === "plans" ? (
+        <PlansTab token={token} />
+      ) : tab === "payments" ? (
+        <PaymentsTab token={token} onChanged={() => void load(token)} />
       ) : tab === "quotes" ? (
         <PlatformQuotes token={token} />
       ) : tab === "invites" ? (
@@ -327,6 +338,7 @@ export default function PlatformAdmin() {
           </form>
         </div>
       )}
+      {subOf && <SubscriptionPanel token={token} businessId={subOf.id} businessName={subOf.name} onClose={() => setSubOf(null)} onChanged={() => void load(token)} />}
     </main>
   );
 }

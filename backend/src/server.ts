@@ -14,6 +14,7 @@ import { errorHandler, notFoundHandler } from "./middleware/errors.js";
 
 import authRoutes from "./auth/auth.routes.js";
 import businessRoutes from "./business/business.routes.js";
+import billingRoutes from "./billing/billing.routes.js";
 import businessContextRoutes from "./business/business-context.routes.js";
 import productRoutes from "./products/product.routes.js";
 import categoryRoutes from "./categories/category.routes.js";
@@ -100,6 +101,7 @@ app.use("/api/roles", roleRoutes);
 app.use("/api/tax-rates", taxRoutes);
 app.use("/api/integrations", integrationRoutes);
 app.use("/api/employees", employeeRoutes);
+app.use("/api/billing", billingRoutes);
 
 // Liveness: the process is up. Readiness: it can also reach its database.
 // Shows the caller their own address as the server sees it: use it to check TRUST_PROXY is right

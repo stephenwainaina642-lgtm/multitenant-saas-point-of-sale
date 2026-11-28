@@ -68,7 +68,7 @@ export async function purgeBusiness(businessId: bigint, databaseUrl = process.en
     const scoped = (await client.query<{ table_name: string }>(`
       select c.table_name from information_schema.columns c
       join information_schema.tables t on t.table_schema = c.table_schema and t.table_name = c.table_name and t.table_type = 'BASE TABLE'
-      where c.table_schema = 'public' and c.column_name = 'business_id' and c.table_name not in ('platform_audit_logs', 'businesses')
+      where c.table_schema = 'public' and c.column_name = 'business_id' and c.table_name not in ('platform_audit_logs', 'businesses', 'platform_payments', 'platform_subscription_events')
       order by c.table_name`)).rows.map((r) => r.table_name);
     for (const table of scoped) await removeRows(table, "business_id = $1", []);
 

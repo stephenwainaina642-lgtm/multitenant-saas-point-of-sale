@@ -37,6 +37,7 @@ model Business {
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
+  subscription       PlatformSubscription?
   menuAddons         MenuAddon[]
   memberships        BusinessUser[]
   roles              Role[]
@@ -1328,4 +1329,107 @@ model SaleIngredientUsage {
 
   @@id([saleId, productId])
   @@map("sale_ingredient_usage")
+}
+
+
+model PlatformPlan {
+  id              BigInt    @id @default(autoincrement())
+  publicId        String    @unique @default(dbgenerated("gen_random_uuid()")) @map("public_id") @db.Uuid
+  code            String    @unique @db.VarChar(40)
+  name            String    @db.VarChar(120)
+  description     String?
+  currency        String    @default("KES") @db.VarChar(10)
+  monthlyPrice    Decimal?  @map("monthly_price") @db.Decimal(12, 2)
+  annualPrice     Decimal?  @map("annual_price") @db.Decimal(12, 2)
+  oneTimePrice    Decimal?  @map("one_time_price") @db.Decimal(12, 2)
+  installationFee Decimal   @default(0) @map("installation_fee") @db.Decimal(12, 2)
+  trainingFee     Decimal   @default(0) @map("training_fee") @db.Decimal(12, 2)
+  discountPercent Decimal   @default(0) @map("discount_percent") @db.Decimal(5, 2)
+  trialDays       Int       @default(0) @map("trial_days")
+  graceDays       Int?      @map("grace_days")
+  maxBranches     Int?      @map("max_branches")
+  maxEmployees    Int?      @map("max_employees")
+  modules         String[]  @default([])
+  isActive        Boolean   @default(true) @map("is_active")
+  archivedAt      DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  subscriptions PlatformSubscription[]
+
+  @@map("platform_plans")
+}
+
+/// One per business. A business without a row is "legacy": unlimited and never restricted.
+/// Limits are copied from the plan when it is assigned, so editing a plan never changes an existing customer.
+model PlatformSubscription {
+  id               BigInt    @id @default(autoincrement())
+  publicId         String    @unique @default(dbgenerated("gen_random_uuid()")) @map("public_id") @db.Uuid
+  businessId       BigInt    @unique @map("business_id")
+  planId           BigInt?   @map("plan_id")
+  planName         String    @map("plan_name") @db.VarChar(120)
+  status           String    @db.VarChar(20)
+  billingCycle     String    @map("billing_cycle") @db.VarChar(10)
+  agreedPrice      Decimal   @map("agreed_price") @db.Decimal(12, 2)
+  currency         String    @default("KES") @db.VarChar(10)
+  startedAt        DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  trialEndsAt      DateTime? @map("trial_ends_at") @db.Timestamptz(6)
+  currentPeriodEnd DateTime? @map("current_period_end") @db.Timestamptz(6)
+  graceDays        Int       @default(7) @map("grace_days")
+  maxBranches      Int?      @map("max_branches")
+  maxEmployees     Int?      @map("max_employees")
+  cancelledAt      DateTime? @map("cancelled_at") @db.Timestamptz(6)
+  notes            String?
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  business Business      @relation(fields: [businessId], references: [id])
+  plan     PlatformPlan? @relation(fields: [planId], references: [id])
+
+  @@index([status])
+  @@map("platform_subscriptions")
+}
+
+/// The platform's own record of money received from a business. No foreign key to businesses on purpose.
+model PlatformPayment {
+  id             BigInt    @id @default(autoincrement())
+  publicId       String    @unique @default(dbgenerated("gen_random_uuid()")) @map("public_id") @db.Uuid
+  businessId     BigInt    @map("business_id")
+  businessName   String    @map("business_name") @db.VarChar(255)
+  planName       String?   @map("plan_name") @db.VarChar(120)
+  amount         Decimal   @db.Decimal(12, 2)
+  expectedAmount Decimal?  @map("expected_amount") @db.Decimal(12, 2)
+  currency       String    @default("KES") @db.VarChar(10)
+  method         String    @db.VarChar(20)
+  reference      String?   @db.VarChar(120)
+  status         String    @default("pending") @db.VarChar(12)
+  billingCycle   String?   @map("billing_cycle") @db.VarChar(10)
+  periods        Int       @default(1)
+  paidAt         DateTime  @map("paid_at") @db.Timestamptz(6)
+  periodFrom     DateTime? @map("period_from") @db.Timestamptz(6)
+  periodTo       DateTime? @map("period_to") @db.Timestamptz(6)
+  receiptNo      String?   @unique @map("receipt_no") @db.VarChar(30)
+  note           String?
+  recordedBy     BigInt?   @map("recorded_by")
+  decidedBy      BigInt?   @map("decided_by")
+  decidedAt      DateTime? @map("decided_at") @db.Timestamptz(6)
+  decisionReason String?   @map("decision_reason")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([status])
+  @@map("platform_payments")
+}
+
+model PlatformSubscriptionEvent {
+  id         BigInt   @id @default(autoincrement())
+  businessId BigInt   @map("business_id")
+  event      String   @db.VarChar(40)
+  fromStatus String?  @map("from_status") @db.VarChar(20)
+  toStatus   String?  @map("to_status") @db.VarChar(20)
+  details    Json?
+  adminId    BigInt?  @map("admin_id")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([businessId, createdAt(sort: Desc)])
+  @@map("platform_subscription_events")
 }

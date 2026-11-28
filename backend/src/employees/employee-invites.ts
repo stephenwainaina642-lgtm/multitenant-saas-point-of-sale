@@ -1,3 +1,4 @@
+import { assertWithinLimit } from "../lib/entitlements.js";
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
 import prisma from "../lib/prisma.js";
@@ -36,6 +37,7 @@ export async function createEmployeeInvite(
   actor: Actor
 ) {
   const bizId = BigInt(businessId);
+  await assertWithinLimit(bizId, "employees");
   if (typeof data.email !== "string" || !EMAIL_PATTERN.test(data.email.trim().toLowerCase()) || data.email.length > 255) {
     throw new AppError(400, "Enter a valid email address");
   }

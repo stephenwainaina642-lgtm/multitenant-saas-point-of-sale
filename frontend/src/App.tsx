@@ -22,6 +22,7 @@ import BusinessSettingsWorkspace from "./BusinessSettingsWorkspace";
 import IntegrationsWorkspace from "./IntegrationsWorkspace";
 import ChangePasswordPanel from "./ChangePasswordPanel";
 import OfflineSigninPanel from "./OfflineSigninPanel";
+import { SubscriptionBanner, SubscriptionPanel } from "./SubscriptionNotice";
 import { forgetOfflineUser, removeEntry, syncOfflineSignin } from "./offlineSigninStore";
 import EmployeesWorkspace from "./EmployeesWorkspace";
 import { ApiError, apiRequest } from "./api/client";
@@ -301,6 +302,7 @@ function App() {
 
       <main className="main-content">
         <OfflineBanner />
+        <SubscriptionBanner />
         <header className="topbar">
           <button type="button" className="menu-button" aria-label="Open menu" aria-expanded={menuOpen} aria-controls="main-menu" onClick={() => setMenuOpen((o) => !o)}>
             <span /><span /><span />
@@ -388,6 +390,7 @@ function App() {
             <>
               <BusinessSettingsWorkspace />
               <div className="settings-workspace"><IntegrationsWorkspace /></div>
+              <SubscriptionPanel />
               <ChangePasswordPanel />
               <OfflineSigninPanel />
             </>

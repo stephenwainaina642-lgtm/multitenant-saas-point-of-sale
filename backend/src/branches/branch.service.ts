@@ -1,3 +1,4 @@
+import { assertWithinLimit } from "../lib/entitlements.js";
 import prisma from "../lib/prisma.js";
 import { branchIdFromPublic, productIdFromPublic, requirePublicId } from "../lib/public-id.js";
 import { AppError } from "../lib/errors.js";
@@ -39,6 +40,7 @@ export async function listBranches(businessId: bigint, actor: Actor) {
 }
 
 export async function createBranch(businessId: bigint, userId: string, body: Record<string, unknown>) {
+  await assertWithinLimit(businessId, "branches");
   const name = cleanText(body.name, "Branch name", 120, true)!;
   try {
     const b = await prisma.$transaction(async (tx) => {
