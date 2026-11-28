@@ -24,3 +24,12 @@ export function can(...permissions: string[]): boolean {
   if (!set) return true;
   return permissions.some((p) => set.has(p));
 }
+
+/** True when the signed-in person is this business's owner (the server gives the owner every permission). */
+export function isBusinessOwner(): boolean {
+  try {
+    return (sessionStorage.getItem("pos_business_role") || "").trim().toLowerCase() === "owner";
+  } catch {
+    return false;
+  }
+}

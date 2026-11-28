@@ -18,6 +18,7 @@ router.post("/", ...guard, c.addEmployeeController);
 router.put("/:id", ...guard, c.updateEmployeeController);
 router.post("/:id/deactivate", ...guard, c.deactivateEmployeeController);
 router.post("/:id/activate", ...guard, c.activateEmployeeController);
+router.delete("/:id", ...guard, c.deleteEmployeeController);
 router.post("/:id/reset-password", ...guard, c.resetPasswordController);
 
 export default router;

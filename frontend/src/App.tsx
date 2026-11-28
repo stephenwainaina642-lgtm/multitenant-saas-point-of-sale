@@ -27,7 +27,7 @@ import EmployeesWorkspace from "./EmployeesWorkspace";
 import { ApiError, apiRequest } from "./api/client";
 import { notify } from "./toast";
 import { AlertTriangle, Bell, Radio, UtensilsCrossed, BedDouble, BarChart3, Banknote, Boxes, Clock, FileSpreadsheet, FileText, LayoutDashboard, Package, Receipt, Settings, ShoppingBag, ShoppingCart, Store, Truck, UserCog, Users, Wallet, ClipboardList } from "lucide-react";
-import { can, storePermissions } from "./permissions";
+import { can, isBusinessOwner, storePermissions } from "./permissions";
 import { hasModule, storeModules } from "./modules";
 import SyncBadge from "./SyncBadge";
 import OfflineBanner from "./OfflineBanner";
@@ -55,6 +55,9 @@ const navigationPermissions: Record<string, string[]> = {
   Shifts: ["shifts.use", "shifts.view_all"],
   Branches: ["branches.manage", "branches.all", "stock.transfer"],
 };
+
+/** Menu items only the owner sees, whatever the permissions of other roles. */
+const ownerOnlyPages = new Set(["Branches"]);
 
 /** Pages that belong to an optional module (package feature); hidden when the business does not have it. */
 const navigationModules: Record<string, string> = {
@@ -267,11 +270,11 @@ function App() {
 
         <div className="workspace-label">Workspace</div>
         <BusinessSwitcher />
-        <BranchSwitcher />
+        {isBusinessOwner() && <BranchSwitcher />}
 
         <div className="nav-label">Main menu</div>
         <nav className="navigation">
-          {navigation.filter((item) => (!navigationModules[item.name] || hasModule(navigationModules[item.name]!)) && (!navigationPermissions[item.name] || can(...navigationPermissions[item.name]!))).map((item) => (
+          {navigation.filter((item) => (!ownerOnlyPages.has(item.name) || isBusinessOwner()) && (!navigationModules[item.name] || hasModule(navigationModules[item.name]!)) && (!navigationPermissions[item.name] || can(...navigationPermissions[item.name]!))).map((item) => (
             <button
               key={item.name}
               className={`nav-item ${activePage === item.name ? "active" : ""}`}

@@ -199,6 +199,23 @@ export async function setEmployeeActive(businessId: string, idText: string, acti
   return format(await findMember(bizId, idText), await ownerOf(bizId));
 }
 
+/**
+ * Removes a person from this business. Only the owner can. Their name stays on everything they did (sales, shifts, the
+ * audit log), because that history belongs to the business; what goes is their access and their place in the staff list.
+ * Their account stays, so adding the same email again later works and they keep any other business they belong to.
+ */
+export async function deleteEmployee(businessId: string, idText: string, actor: Actor) {
+  if (!actor.isOwner) throw new AppError(403, "Only the business owner can delete an employee");
+  const bizId = BigInt(businessId);
+  const m = await findMember(bizId, idText);
+  assertNotOwner(m, await ownerOf(bizId));
+  if (m.userId === actor.userId) throw new AppError(400, "You cannot delete yourself");
+  const openShifts = await prisma.registerShift.count({ where: { businessId: bizId, openedBy: m.userId, status: "open" } });
+  if (openShifts > 0) throw new AppError(409, "This person has a till shift open. Close the shift first, then delete them.");
+  await prisma.businessUser.delete({ where: { id: m.id } });
+  await audit(bizId, actor, "employee.delete", m.id, { name: m.user.name, email: m.user.email, role: m.role.name });
+}
+
 export async function resetEmployeePassword(businessId: string, idText: string, actor: Actor) {
   const bizId = BigInt(businessId);
   const m = await findMember(bizId, idText);

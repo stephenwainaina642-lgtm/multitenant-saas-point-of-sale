@@ -168,29 +168,28 @@ export default function PlatformAdmin() {
       {tab === "businesses" ? (
         <div style={{ ...card, padding: 0, overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead><tr style={{ textAlign: "left", background: "#f4f8f5" }}>{["Business", "Owner", "Registered", "Users", "Products", "Sales", "Sales total", "Last 30 days", "Last sale", "Package", "Status", ""].map((h) => <th key={h} style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+            <thead><tr style={{ textAlign: "left", background: "#f4f8f5" }}>{["Business", "Owner", "Usage", "Sales", "Package", "Status", "Actions"].map((h) => <th key={h} style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
             <tbody>
               {rows.map((b) => (
-                <tr key={b.id} style={{ borderTop: "1px solid #e8eee9" }}>
-                  <td style={{ padding: "10px 12px" }}><strong>{b.name}</strong><br /><small style={{ color: "#6b7a70" }}>{b.businessType}</small></td>
-                  <td style={{ padding: "10px 12px" }}>{b.ownerName}<br /><small style={{ color: "#6b7a70" }}>{b.ownerEmail}</small></td>
-                  <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{when(b.createdAt)}<br /><small style={{ color: "#6b7a70" }}>{ago(b.createdAt)}</small></td>
-                  <td style={{ padding: "10px 12px" }}>{b.users}</td><td style={{ padding: "10px 12px" }}>{b.products}</td><td style={{ padding: "10px 12px" }}>{b.salesCount}</td>
-                  <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{kes(b.salesTotal)}</td>
-                  <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{kes(b.sales30dTotal)}<br /><small style={{ color: "#6b7a70" }}>{b.sales30dCount} sales</small></td>
-                  <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{day(b.lastSaleAt)}</td>
+                <tr key={b.id} style={{ borderTop: "1px solid #e8eee9", verticalAlign: "top" }}>
+                  <td style={{ padding: "10px 12px" }}><strong>{b.name}</strong><br /><small style={{ color: "#6b7a70" }}>{b.businessType} &middot; registered {day(b.createdAt)}<br />{ago(b.createdAt)}</small></td>
+                  <td style={{ padding: "10px 12px" }}>{b.ownerName}<br /><small style={{ color: "#6b7a70", wordBreak: "break-all" }}>{b.ownerEmail}</small></td>
+                  <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{b.users} {b.users === 1 ? "user" : "users"}<br /><small style={{ color: "#6b7a70" }}>{b.products} products<br />{b.salesCount} sales</small></td>
+                  <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}><strong>{kes(b.salesTotal)}</strong><br /><small style={{ color: "#6b7a70" }}>Last 30 days: {kes(b.sales30dTotal)} ({b.sales30dCount})<br />Last sale: {day(b.lastSaleAt)}</small></td>
                   <td style={{ padding: "10px 12px" }}><strong>{PKG_LABEL[b.package]}</strong><br /><small style={{ color: "#6b7a70" }}>{b.modules.length ? b.modules.map((m) => MODULE_LABEL[m] ?? m).join(", ") : "No extra modules"}</small></td>
                   <td style={{ padding: "10px 12px" }}>{(() => { const st = !b.isActive ? ["Suspended", "#fde8e4", "#b3412f"] : b.approvalStatus === "pending" ? ["Awaiting approval", "#fff3d6", "#8a5a00"] : b.approvalStatus === "rejected" ? ["Rejected", "#fde8e4", "#b3412f"] : ["Active", "#e3f4e9", "#176b4d"]; return <span style={{ padding: "2px 8px", borderRadius: 99, fontSize: 11, background: st[1], color: st[2], whiteSpace: "nowrap" }}>{st[0]}</span>; })()}</td>
-                  <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>
-                    {b.approvalStatus !== "approved" && <><button style={{ ...small, background: "#e3f4e9" }} onClick={() => { setDialog({ kind: "approve", biz: b }); setReason(""); setError(""); }}>Approve</button>{" "}</>}
-                    {b.approvalStatus !== "rejected" && <><button style={small} onClick={() => { setDialog({ kind: "reject", biz: b }); setReason(""); setError(""); }}>Reject</button>{" "}</>}
-                    <button style={small} onClick={() => { setDialog({ kind: b.isActive ? "suspend" : "reactivate", biz: b }); setReason(""); setError(""); }}>{b.isActive ? "Suspend" : "Reactivate"}</button>{" "}
-                    <button style={small} onClick={() => { setPlan({ biz: b, package: b.package, modules: b.modules }); setReason(""); setError(""); }}>Package</button>{" "}
-                    <button style={small} onClick={() => { setDialog({ kind: "reset", biz: b }); setReason(""); setError(""); }}>Reset owner</button>
+                  <td style={{ padding: "10px 12px", minWidth: 190 }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {b.approvalStatus !== "approved" && <button style={{ ...small, background: "#176b4d", color: "#fff", borderColor: "#176b4d", fontWeight: 700 }} onClick={() => { setDialog({ kind: "approve", biz: b }); setReason(""); setError(""); }}>Approve</button>}
+                      {b.approvalStatus !== "rejected" && <button style={small} onClick={() => { setDialog({ kind: "reject", biz: b }); setReason(""); setError(""); }}>Reject</button>}
+                      <button style={small} onClick={() => { setDialog({ kind: b.isActive ? "suspend" : "reactivate", biz: b }); setReason(""); setError(""); }}>{b.isActive ? "Suspend" : "Reactivate"}</button>
+                      <button style={small} onClick={() => { setPlan({ biz: b, package: b.package, modules: b.modules }); setReason(""); setError(""); }}>Package</button>
+                      <button style={small} onClick={() => { setDialog({ kind: "reset", biz: b }); setReason(""); setError(""); }}>Reset owner</button>
+                    </div>
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && <tr><td colSpan={12} style={{ padding: 20, textAlign: "center", color: "#6b7a70" }}>No businesses found.</td></tr>}
+              {rows.length === 0 && <tr><td colSpan={7} style={{ padding: 20, textAlign: "center", color: "#6b7a70" }}>No businesses found.</td></tr>}
             </tbody>
           </table>
         </div>

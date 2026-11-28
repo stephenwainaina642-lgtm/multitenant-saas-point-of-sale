@@ -1,7 +1,7 @@
 import type { NextFunction, Response } from "express";
 import type { BusinessRequest } from "../auth/business.middleware.js";
 import {
-  addEmployee, employeeProfile, listEmployees, resetEmployeePassword, setEmployeeActive, updateEmployee,
+  addEmployee, deleteEmployee, employeeProfile, listEmployees, resetEmployeePassword, setEmployeeActive, updateEmployee,
 } from "./employee.service.js";
 
 const biz = (req: BusinessRequest) => req.businessId!.toString();
@@ -22,6 +22,9 @@ export async function updateEmployeeController(req: BusinessRequest, res: Respon
 }
 export async function deactivateEmployeeController(req: BusinessRequest, res: Response, next: NextFunction) {
   try { res.json({ success: true, data: await setEmployeeActive(biz(req), id(req), false, actor(req)) }); } catch (e) { next(e); }
+}
+export async function deleteEmployeeController(req: BusinessRequest, res: Response, next: NextFunction) {
+  try { await deleteEmployee(biz(req), id(req), actor(req)); res.json({ success: true, message: "Employee deleted" }); } catch (e) { next(e); }
 }
 export async function activateEmployeeController(req: BusinessRequest, res: Response, next: NextFunction) {
   try { res.json({ success: true, data: await setEmployeeActive(biz(req), id(req), true, actor(req)) }); } catch (e) { next(e); }

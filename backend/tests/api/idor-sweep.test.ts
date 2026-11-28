@@ -111,6 +111,7 @@ describe("cross-business access sweep", () => {
     ["POST", "/employees/{employee}/deactivate", {}],
     ["POST", "/employees/{employee}/activate", {}],
     ["POST", "/employees/{employee}/reset-password", {}],
+    ["DELETE", "/employees/{employee}"],
     ["POST", "/employees/invites/{invite}/cancel", {}],
     ["PUT", "/branches/{branch}", { name: "Hacked", isActive: false }],
     ["PATCH", "/branches/{branch}", { name: "Hacked" }],

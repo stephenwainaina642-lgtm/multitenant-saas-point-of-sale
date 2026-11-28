@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api/client";
+import { isBusinessOwner } from "./permissions";
 import RolePermissionsPanel, { type Role } from "./RolePermissionsPanel";
 import EmployeeProfile from "./EmployeeProfile";
 import { checkName, checkPhone, cleanName, cleanPhone, PHONE_PROPS } from "./validation";
@@ -234,6 +235,13 @@ export default function EmployeesWorkspace({ salespersonPerformance = [] }: { sa
                             {e.isActive ? "Deactivate" : "Activate"}
                           </button>
                           <button type="button" className="button-secondary" onClick={() => void resetPassword(e)}>Reset password</button>
+                          {isBusinessOwner() && (
+                            <button type="button" className="button-secondary" style={{ color: "#b42318", borderColor: "#f3b8b1" }}
+                              onClick={() => {
+                                if (!window.confirm(`Delete ${e.name}?\n\nThey will no longer be able to sign in to this business. Their past sales and records stay. You can add them again later.`)) return;
+                                void run(`${e.name} was deleted.`, async () => { await apiRequest(`/employees/${e.id}`, { method: "DELETE", token, businessId }); });
+                              }}>Delete</button>
+                          )}
                         </div>
                       )}
                     </td>
